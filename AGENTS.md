@@ -34,23 +34,23 @@ The following foundation setup tasks have been fully completed:
 
 The next objective is to build the interactive customer UI flow screens.
 
-- [ ] **TASK-013**: Create booth app shell and screen router (using `currentScreen` from `sessionStore`).
-- [ ] **TASK-014**: Create mock layouts and frames data in renderer.
-- [ ] **TASK-015**: Create manual payment screen (`SCREEN-01`).
-- [ ] **TASK-016**: Create tutorial / start screen (`SCREEN-02`).
-- [ ] **TASK-017**: Create layout selection screen (`SCREEN-03`).
-- [ ] **TASK-018**: Create frame selection screen (`SCREEN-04`).
-- [ ] **TASK-019**: Create ready / start screen (`SCREEN-05`).
-- [ ] **TASK-020**: Create photo capture screen (`SCREEN-06`) with simulated camera view and countdown.
-- [ ] **TASK-021**: Create countdown component.
-- [ ] **TASK-022**: Create photo review screen (`SCREEN-07`).
-- [ ] **TASK-023**: Create use-photo / retake interaction.
-- [ ] **TASK-024**: Implement 3-attempt rule with disablement on the 3rd attempt.
-- [ ] **TASK-025 - 027**: Implement photo 1, 2, and 3 flows.
-- [ ] **TASK-028**: Create session progress UI.
-- [ ] **TASK-029**: Create final preview screen (`SCREEN-08`).
-- [ ] **TASK-030**: Create print + QR screen (`SCREEN-09`).
-- [ ] **TASK-031**: Create completion screen (`SCREEN-10`).
+- [x] **TASK-013**: Create booth app shell and screen router (using `currentScreen` from `sessionStore`).
+- [x] **TASK-014**: Create mock layouts and frames data in renderer.
+- [x] **TASK-015**: Create manual payment screen (`SCREEN-01`).
+- [x] **TASK-016**: Create tutorial / start screen (`SCREEN-02`).
+- [x] **TASK-017**: Create layout selection screen (`SCREEN-03`).
+- [x] **TASK-018**: Create frame selection screen (`SCREEN-04`).
+- [x] **TASK-019**: Create ready / start screen (`SCREEN-05`).
+- [x] **TASK-020**: Create photo capture screen (`SCREEN-06`) with simulated camera view and countdown.
+- [x] **TASK-021**: Create countdown component.
+- [x] **TASK-022**: Create photo review screen (`SCREEN-07`).
+- [x] **TASK-023**: Create use-photo / retake interaction.
+- [x] **TASK-024**: Implement 3-attempt rule with disablement on the 3rd attempt.
+- [x] **TASK-025 - 027**: Implement photo 1, 2, and 3 flows.
+- [x] **TASK-028**: Create session progress UI.
+- [x] **TASK-029**: Create final preview screen (`SCREEN-08`).
+- [x] **TASK-030**: Create print + QR screen (`SCREEN-09`).
+- [x] **TASK-031**: Create completion screen (`SCREEN-10`).
 - [ ] **TASK-032 - 034**: Add loading, error, and timeout/reset flows.
 
 ---
