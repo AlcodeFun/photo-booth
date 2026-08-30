@@ -1,11 +1,15 @@
 {
-
-"builds": [
-  {
-    "src": "apps/booth/package.json",
-    "use": "@vercel/static-build",
-    "config": { "distDir": "dist/renderer" }
-  }
-]
-
+  "builds": [
+    {
+      "src": "apps/booth/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist/renderer" }
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }

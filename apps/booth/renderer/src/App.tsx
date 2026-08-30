@@ -22,8 +22,10 @@ const STEPS = [
   { id: 'result', label: 'Result', screens: ['FINAL_PREVIEW', 'PRINT_QR', 'COMPLETE'] },
 ];
 
-const isFrameFitterPath = (path: string, hash: string) =>
-  hash === '#/admin/frame-fit' || path.endsWith('/admin/frame-fit');
+const isFrameFitterPath = (path: string, hash: string) => {
+  const normalizedPath = path.replace(/\/+$/, '');
+  return hash === '#/admin/frame-fit' || normalizedPath.endsWith('/admin/frame-fit');
+};
 
 function App() {
   const [route, setRoute] = useState(() => ({
