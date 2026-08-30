@@ -11,7 +11,7 @@ export const ReadyScreen: React.FC = () => {
   return (
     <div className="flex flex-col items-center justify-between h-full max-w-xl mx-auto px-6 py-10 text-center select-none">
       <div className="mb-6">
-        <h1 className="text-4xl font-extrabold tracking-tight mb-3">Ready to Capture?</h1>
+        <h1 className="text-4xl font-extrabold tracking-tight mb-3">Preview & Capture</h1>
         <p className="text-zinc-400">Get ready to take {layout?.photoSlots} beautiful photos!</p>
       </div>
 

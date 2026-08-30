@@ -2,9 +2,10 @@ import React from 'react';
 import { useSessionStore } from '../store/sessionStore';
 
 export const PhotoReviewScreen: React.FC = () => {
-  const { currentPhotoSlot, photoSlots, usePhoto, retakePhoto } = useSessionStore((state) => ({
+  const { currentPhotoSlot, photoSlots, frame, usePhoto, retakePhoto } = useSessionStore((state) => ({
     currentPhotoSlot: state.currentPhotoSlot,
     photoSlots: state.photoSlots,
+    frame: state.frame,
     usePhoto: state.usePhoto,
     retakePhoto: state.retakePhoto,
   }));
@@ -26,15 +27,23 @@ export const PhotoReviewScreen: React.FC = () => {
       </div>
 
       {/* Captured Image Display */}
-      <div className="w-full flex-grow aspect-[4/3] rounded-3xl bg-zinc-950 border border-zinc-800 flex items-center justify-center overflow-hidden my-4 shadow-2xl relative">
+      <div className={`w-full flex-grow aspect-[4/3] rounded-3xl border-8 flex items-center justify-center overflow-hidden my-4 shadow-2xl relative ${frame?.theme ?? 'bg-zinc-950 border-zinc-800'}`}>
         {latestAttempt?.localPath ? (
           <img
             src={latestAttempt.localPath}
             alt={`Captured attempt ${attemptCount}`}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain bg-black"
           />
         ) : (
           <div className="text-zinc-600 text-sm">No photo captured</div>
+        )}
+
+        {frame && (
+          <div className="absolute inset-3 border-2 border-current/30 rounded-2xl pointer-events-none">
+            <span className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-black/50 px-3 py-1 rounded text-[10px] uppercase tracking-widest text-current">
+              {frame.name}
+            </span>
+          </div>
         )}
         
         {maxAttemptsReached && (

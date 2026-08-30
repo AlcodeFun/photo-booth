@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1600" role="img" aria-label="Classic black two photo frame">
+  <defs>
+    <mask id="photo-holes">
+      <rect width="1200" height="1600" fill="white" />
+      <rect x="130" y="150" width="940" height="520" rx="28" fill="black" />
+      <rect x="130" y="740" width="940" height="520" rx="28" fill="black" />
+    </mask>
+  </defs>
+  <rect width="1200" height="1600" fill="#0f0f10" mask="url(#photo-holes)" />
+  <rect x="42" y="42" width="1116" height="1516" rx="48" fill="none" stroke="#f8fafc" stroke-width="12" opacity="0.9" />
+  <rect x="86" y="86" width="1028" height="1428" rx="32" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.35" />
+  <line x1="168" y1="705" x2="1032" y2="705" stroke="#f8fafc" stroke-width="2" opacity="0.28" />
+  <circle cx="116" cy="1460" r="18" fill="#f8fafc" opacity="0.9" />
+  <circle cx="1084" cy="1460" r="18" fill="#f8fafc" opacity="0.9" />
+  <text x="600" y="1430" text-anchor="middle" fill="#f8fafc" font-family="Arial, sans-serif" font-size="48" font-weight="700" letter-spacing="8">PHOTO BOOTH</text>
+  <text x="600" y="1496" text-anchor="middle" fill="#d4d4d8" font-family="Arial, sans-serif" font-size="23" letter-spacing="10">DOUBLE PRINT STRIP</text>
+</svg>

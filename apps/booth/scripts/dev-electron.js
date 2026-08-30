@@ -6,7 +6,7 @@ async function start() {
   console.log('Waiting for renderer (Vite) to start...');
   try {
     await waitOn({
-      resources: ['http://localhost:5173'],
+      resources: ['http://localhost:5174'],
       timeout: 30000,
     });
   } catch (err) {

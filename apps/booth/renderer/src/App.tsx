@@ -1,39 +1,70 @@
-import React, { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
 import {
   ManualPaymentScreen,
   TutorialScreen,
   LayoutSelectionScreen,
   FrameSelectionScreen,
-  ReadyScreen,
+  FrameTemplateAdminScreen,
   PhotoCaptureScreen,
   PhotoReviewScreen,
+  FilterSelectionScreen,
   FinalPreviewScreen,
   PrintQRScreen,
   CompleteScreen,
 } from './screens';
 
 const STEPS = [
-  { id: 'pay', label: 'Payment', screens: ['MANUAL_PAYMENT'] },
-  { id: 'style', label: 'Style', screens: ['TUTORIAL', 'SELECT_LAYOUT', 'SELECT_FRAME', 'READY'] },
-  { id: 'capture', label: 'Capture', screens: ['PHOTO_CAPTURE', 'PHOTO_REVIEW'] },
-  { id: 'deliver', label: 'Deliver', screens: ['FINAL_PREVIEW', 'PRINT_QR', 'COMPLETE'] },
+  { id: 'layout', label: 'Select Layout', screens: ['SELECT_LAYOUT'] },
+  { id: 'frame', label: 'Select Frame', screens: ['SELECT_FRAME'] },
+  { id: 'capture', label: 'Preview & Capture', screens: ['PHOTO_CAPTURE', 'PHOTO_REVIEW'] },
+  { id: 'filter', label: 'Select Filter', screens: ['FILTER'] },
+  { id: 'result', label: 'Result', screens: ['FINAL_PREVIEW', 'PRINT_QR', 'COMPLETE'] },
 ];
 
+const isFrameFitterPath = (path: string, hash: string) =>
+  hash === '#/admin/frame-fit' || path.endsWith('/admin/frame-fit');
+
 function App() {
+  const [route, setRoute] = useState(() => ({
+    path: window.location.pathname,
+    hash: window.location.hash,
+  }));
   const { currentScreen, sessionId, startNewSession, resetSession } = useSessionStore((state) => ({
     currentScreen: state.currentScreen,
     sessionId: state.sessionId,
     startNewSession: state.startNewSession,
     resetSession: state.resetSession,
   }));
+  const isFrameFitterRoute = isFrameFitterPath(route.path, route.hash);
+
+  useEffect(() => {
+    const updateRoute = () => {
+      setRoute({
+        path: window.location.pathname,
+        hash: window.location.hash,
+      });
+    };
+
+    window.addEventListener('hashchange', updateRoute);
+    window.addEventListener('popstate', updateRoute);
+
+    return () => {
+      window.removeEventListener('hashchange', updateRoute);
+      window.removeEventListener('popstate', updateRoute);
+    };
+  }, []);
 
   // Initialize new session on launch
   useEffect(() => {
-    if (!sessionId) {
+    if (!isFrameFitterRoute && !sessionId) {
       startNewSession();
     }
-  }, [sessionId, startNewSession]);
+  }, [isFrameFitterRoute, sessionId, startNewSession]);
+
+  if (isFrameFitterRoute) {
+    return <FrameTemplateAdminScreen />;
+  }
 
   // Determine current active step index
   const activeStepIdx = STEPS.findIndex((step) => step.screens.includes(currentScreen));
@@ -48,12 +79,12 @@ function App() {
         return <LayoutSelectionScreen />;
       case 'SELECT_FRAME':
         return <FrameSelectionScreen />;
-      case 'READY':
-        return <ReadyScreen />;
       case 'PHOTO_CAPTURE':
         return <PhotoCaptureScreen />;
       case 'PHOTO_REVIEW':
         return <PhotoReviewScreen />;
+      case 'FILTER':
+        return <FilterSelectionScreen />;
       case 'FINAL_PREVIEW':
         return <FinalPreviewScreen />;
       case 'PRINT_QR':
@@ -68,7 +99,7 @@ function App() {
   return (
     <div className="flex flex-col h-screen w-screen bg-zinc-950 text-white font-sans overflow-hidden">
       {/* Top Session Progress Bar (TASK-028) */}
-      {currentScreen !== 'COMPLETE' && currentScreen !== 'MANUAL_PAYMENT' && (
+      {currentScreen !== 'COMPLETE' && currentScreen !== 'MANUAL_PAYMENT' && currentScreen !== 'TUTORIAL' && (
         <header className="w-full bg-zinc-900/40 border-b border-zinc-900/60 py-4 px-8 flex items-center justify-between z-10">
           <div className="flex items-center gap-1.5">
             <span className="font-extrabold tracking-tight text-sm uppercase">★ Photo Booth</span>

@@ -14,6 +14,7 @@ export type ScreenName =
   | 'READY'
   | 'PHOTO_CAPTURE'
   | 'PHOTO_REVIEW'
+  | 'FILTER'
   | 'FINAL_PREVIEW'
   | 'PRINT_QR'
   | 'COMPLETE';
@@ -27,6 +28,7 @@ export interface SessionStore {
   sessionId: string | null;
   layout: LayoutConfig | null;
   frame: FrameConfig | null;
+  filterId: string | null;
   currentPhotoSlot: number; // 1-indexed (e.g. slot 1, 2, 3)
   photoSlots: PhotoSlotState[];
   paymentConfirmed: boolean;
@@ -40,6 +42,7 @@ export interface SessionStore {
   confirmPayment: () => void;
   selectLayout: (layout: LayoutConfig) => void;
   selectFrame: (frame: FrameConfig) => void;
+  selectFilter: (filterId: string) => void;
   startCaptureFlow: () => void;
   
   // Capture & Review Actions
@@ -60,6 +63,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionId: null,
   layout: null,
   frame: null,
+  filterId: null,
   currentPhotoSlot: 1,
   photoSlots: [],
   paymentConfirmed: false,
@@ -73,6 +77,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sessionId: randomId,
       layout: null,
       frame: null,
+      filterId: null,
       currentPhotoSlot: 1,
       photoSlots: [],
       paymentConfirmed: false,
@@ -107,7 +112,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   selectFrame: (frame) => {
     set({
       frame,
-      currentScreen: 'READY',
+      currentScreen: 'PHOTO_CAPTURE',
+    });
+  },
+
+  selectFilter: (filterId) => {
+    set({
+      filterId,
+      currentScreen: 'FINAL_PREVIEW',
     });
   },
 
@@ -165,7 +177,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (isLastSlot) {
       set({
         photoSlots: updatedSlots,
-        currentScreen: 'FINAL_PREVIEW',
+        currentScreen: 'FILTER',
       });
     } else {
       set({
@@ -215,7 +227,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   startPrinting: () => {
-    set({ printStatus: 'PRINTING', uploadStatus: 'UPLOADING' });
+    set({
+      currentScreen: 'PRINT_QR',
+      printStatus: 'PRINTING',
+      uploadStatus: 'UPLOADING',
+    });
 
     // Simulate printing and uploading delay
     setTimeout(() => {

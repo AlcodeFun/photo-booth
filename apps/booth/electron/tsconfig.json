@@ -3,6 +3,8 @@
   "compilerOptions": {
     "module": "CommonJS",
     "moduleResolution": "node",
+    "allowImportingTsExtensions": false,
+    "noEmit": false,
     "outDir": "../dist/electron",
     "rootDir": "."
   },

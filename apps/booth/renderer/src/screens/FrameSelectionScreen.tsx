@@ -1,10 +1,16 @@
 import React, { useState } from 'react';
-import { useSessionStore } from '../store/sessionStore';
-import { MOCK_FRAMES } from '../data/mockData';
 import { FrameConfig } from '@photo-booth/types';
+import FrameCanvas from '../components/FrameCanvas';
+import { MOCK_FRAMES } from '../data/mockData';
+import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDrafts';
+import { useSessionStore } from '../store/sessionStore';
 
 export const FrameSelectionScreen: React.FC = () => {
-  const selectFrame = useSessionStore((state) => state.selectFrame);
+  const { layout, selectFrame } = useSessionStore((state) => ({
+    layout: state.layout,
+    selectFrame: state.selectFrame,
+  }));
+  const frames = useFramesWithTemplateDrafts(MOCK_FRAMES, layout?.photoSlots);
   const [selected, setSelected] = useState<FrameConfig | null>(null);
 
   const handleSelect = (frame: FrameConfig) => {
@@ -25,8 +31,9 @@ export const FrameSelectionScreen: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 w-full flex-grow items-center justify-center my-6">
-        {MOCK_FRAMES.map((frame) => {
+        {frames.map((frame) => {
           const isSelected = selected?.id === frame.id;
+
           return (
             <div
               key={frame.id}
@@ -35,12 +42,11 @@ export const FrameSelectionScreen: React.FC = () => {
                 isSelected ? 'border-white ring-2 ring-white/10 scale-105 bg-zinc-800' : 'border-zinc-800'
               }`}
             >
-              <div className={`w-full aspect-[3/4] max-h-[160px] rounded-xl border flex items-end p-2 justify-center font-bold text-[10px] uppercase tracking-wider ${frame.theme} relative mb-4 shadow-inner`}>
-                <div className="absolute inset-0 flex items-center justify-center text-zinc-500/20 text-4xl">★</div>
-                <div className="z-10 bg-black/5 px-2 py-0.5 rounded backdrop-blur-[1px]">
-                  {frame.name}
-                </div>
-              </div>
+              <FrameCanvas
+                frame={frame}
+                photoSlotCount={layout?.photoSlots ?? 3}
+                className="w-full max-h-[160px] rounded-xl mb-4"
+              />
               <h3 className="font-semibold text-sm text-zinc-200 text-center">{frame.name}</h3>
             </div>
           );
@@ -61,4 +67,5 @@ export const FrameSelectionScreen: React.FC = () => {
     </div>
   );
 };
+
 export default FrameSelectionScreen;
