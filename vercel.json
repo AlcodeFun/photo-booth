@@ -1,5 +1,11 @@
 {
-  "installCommand": "corepack pnpm install --frozen-lockfile",
-  "buildCommand": "corepack pnpm --filter booth build",
-  "outputDirectory": "apps/booth/dist/renderer"
+
+"builds": [
+  {
+    "src": "apps/booth/package.json",
+    "use": "@vercel/static-build",
+    "config": { "distDir": "dist/renderer" }
+  }
+]
+
 }
