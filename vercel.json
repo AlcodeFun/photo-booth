@@ -1,5 +1,5 @@
 {
-  "buildCommand": "pnpm build",
+  "buildCommand": "cd apps/booth && pnpm build",
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "apps/booth/dist/renderer"
 }
