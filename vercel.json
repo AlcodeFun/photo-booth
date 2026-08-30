@@ -1,5 +1,5 @@
 {
   "installCommand": "corepack pnpm install --frozen-lockfile",
   "buildCommand": "corepack pnpm --filter booth build",
-  "outputDirectory": "/dist/renderer"
+  "outputDirectory": "apps/booth/dist/renderer"
 }
