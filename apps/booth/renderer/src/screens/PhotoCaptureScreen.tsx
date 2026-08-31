@@ -107,66 +107,101 @@ export const PhotoCaptureScreen: React.FC = () => {
   }, [countdown, isMirrored, isStarted]);
 
   return (
-    <div className="flex flex-col items-center justify-between h-full max-w-5xl mx-auto px-6 py-6 select-none relative">
-      {isFlash && <div className="absolute inset-0 bg-white z-50 pointer-events-none" />}
+    <div className="relative flex min-h-[calc(100vh-3rem)] select-none flex-col items-center justify-center">
+      {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
 
-      <div className="flex justify-between items-center w-full mb-4">
-        <div className="text-left">
-          <span className="text-zinc-500 text-xs uppercase tracking-wider block">Position Slot</span>
-          <span className="font-bold text-xl text-zinc-100">Photo {currentPhotoSlot} of {photoSlots.length}</span>
-        </div>
-        <div className="bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl text-right">
-          <span className="text-xs text-zinc-500 uppercase tracking-wider block">Attempt</span>
-          <span className="font-semibold text-zinc-300 text-sm">{attemptNumber} of 3</span>
-        </div>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setIsMirrored((mirrored) => !mirrored)}
-        className="self-end mb-2 px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-900 text-xs font-semibold text-zinc-200 hover:border-zinc-500 transition-colors"
-        aria-pressed={isMirrored}
-      >
-        {isMirrored ? 'Mirror: On' : 'Mirror: Off'}
-      </button>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.75fr)] gap-6 w-full flex-grow items-center my-2">
-        <div className="w-full aspect-[4/3] rounded-3xl border-8 flex items-center justify-center relative overflow-hidden shadow-2xl bg-zinc-950 border-zinc-800">
-          <video ref={videoRef} autoPlay muted playsInline className={`absolute inset-0 w-full h-full object-cover ${isMirrored ? '-scale-x-100' : ''}`} />
-          <div className="absolute inset-0 border border-zinc-900/30 grid grid-cols-3 grid-rows-3 pointer-events-none">
-            {Array.from({ length: 9 }, (_, index) => <div key={index} className={index < 6 ? 'border-r border-b border-white/5' : ''} />)}
+      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6">
+        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
+          <div className="mb-4 flex w-full items-center justify-between gap-4 text-[#4d2d85]">
+            <div>
+              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Position Slot</div>
+              <div className="text-xl font-black uppercase tracking-[-0.06em] md:text-2xl bg-[#d9f85a]">
+                Photo {currentPhotoSlot} of {photoSlots.length}
+              </div>
+            </div>
+            <div className="rounded-[12px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-2 text-right">
+              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Attempt</div>
+              <div className="text-sm font-black">{attemptNumber} of 3</div>
+            </div>
           </div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(24,24,27,0.05)_0%,rgba(9,9,11,0.55)_100%)] z-10 pointer-events-none" />
 
-          {!cameraReady && !cameraError && <div className="z-20 text-zinc-300 text-sm bg-black/60 px-4 py-3 rounded-xl">Starting camera...</div>}
-          {cameraError && (
-            <div className="z-20 flex flex-col items-center gap-3 text-center px-6">
-              <span className="text-rose-300 text-sm">{cameraError}</span>
-              <button type="button" onClick={() => { setCameraReady(false); setCameraError(null); setCameraAttempt((value) => value + 1); }} className="px-4 py-2 bg-white text-black rounded-lg text-sm font-semibold">Retry Camera</button>
+          <div className="mb-3 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setIsMirrored((mirrored) => !mirrored)}
+              className="rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-3 py-2 text-[0.7rem] font-black uppercase tracking-[0.16em] text-[#4d2d85]"
+              aria-pressed={isMirrored}
+            >
+              {isMirrored ? 'Mirror: On' : 'Mirror: Off'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.75fr)]">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#261640] shadow-[0_14px_0_rgba(77,45,133,0.25)]">
+              <video ref={videoRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`} />
+              <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/10">
+                {Array.from({ length: 9 }, (_, index) => (
+                  <div key={index} className={index < 6 ? 'border-r border-b border-white/5' : ''} />
+                ))}
+              </div>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(24,24,27,0.08)_0%,rgba(9,9,11,0.6)_100%)] z-10" />
+
+              {!cameraReady && !cameraError && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 text-sm font-bold uppercase tracking-[0.18em] text-white">
+                  Starting camera...
+                </div>
+              )}
+
+              {cameraError && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/55 px-6 text-center">
+                  <span className="text-sm font-bold uppercase tracking-[0.16em] text-rose-300">{cameraError}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCameraReady(false);
+                      setCameraError(null);
+                      setCameraAttempt((value) => value + 1);
+                    }}
+                    className="rounded-[10px] bg-white px-4 py-2 text-sm font-black uppercase tracking-[0.16em] text-[#4d2d85]"
+                  >
+                    Retry Camera
+                  </button>
+                </div>
+              )}
+
+              {!isStarted ? (
+                <button
+                  type="button"
+                  onClick={() => setIsStarted(true)}
+                  disabled={!cameraReady}
+                  className="absolute inset-x-0 bottom-8 z-20 mx-auto block w-fit rounded-[12px] bg-[#ff7d57] px-8 py-4 text-[0.5rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-all disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Start Photo Session
+                </button>
+              ) : countdown > 0 ? (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center animate-pulse">
+                  <div className="text-[110px] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.7)]">{countdown}</div>
+                  <div className="mt-2 text-sm font-black uppercase tracking-[0.3em] text-white/90">Stay still</div>
+                </div>
+              ) : (
+                <div className="absolute inset-0 z-20 flex items-center justify-center text-4xl font-black uppercase tracking-[0.24em] text-white">Cheese!</div>
+              )}
             </div>
-          )}
-          {!isStarted ? (
-            <button type="button" onClick={() => setIsStarted(true)} disabled={!cameraReady} className="z-20 px-8 py-4 bg-white hover:bg-zinc-200 text-black font-extrabold rounded-2xl text-lg shadow-lg active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed">Start Photo Session</button>
-          ) : countdown > 0 ? (
-            <div className="z-20 flex flex-col items-center animate-pulse">
-              <div className="text-[120px] font-black leading-none text-white tracking-tighter drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">{countdown}</div>
-              <div className="text-zinc-400 font-semibold uppercase tracking-widest text-sm mt-2">Stay still</div>
+
+            <div className="flex items-center justify-center">
+              <FrameCanvas
+                frame={frame}
+                photos={previewPhotos}
+                photoSlotCount={photoSlots.length}
+                className="w-full max-w-xs rounded-[16px] border-[4px] border-[#a35ef6] bg-[#d9f85a]"
+              />
             </div>
-          ) : (
-            <div className="z-20 text-4xl font-extrabold text-white uppercase tracking-wider">Cheese!</div>
-          )}
+          </div>
+
+          <div className="mt-4 text-center text-[0.72rem] font-bold uppercase tracking-[0.2em] text-[#4d2d85]">
+            {isStarted ? 'Live camera feed active.' : 'Position yourself in front of the camera, then start when ready.'}
+          </div>
         </div>
-
-        <FrameCanvas
-          frame={frame}
-          photos={previewPhotos}
-          photoSlotCount={photoSlots.length}
-          className="w-full max-w-xs mx-auto rounded-2xl"
-        />
-      </div>
-
-      <div className="w-full text-center text-zinc-500 text-xs py-2">
-        {isStarted ? 'Live camera feed active.' : 'Position yourself in front of the camera, then start when ready.'}
       </div>
     </div>
   );

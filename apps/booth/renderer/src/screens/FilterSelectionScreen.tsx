@@ -23,52 +23,58 @@ export const FilterSelectionScreen: React.FC = () => {
   const filterClassName = FILTERS.find((filter) => filter.id === selectedFilter)?.className ?? '';
 
   return (
-    <div className="flex flex-col h-full max-w-5xl mx-auto px-6 py-4 select-none">
-      <div className="text-center mb-3">
-        <h1 className="text-3xl font-extrabold tracking-tight mb-2">Select Filter</h1>
-        <p className="text-zinc-400 text-sm">Choose the look for your final result</p>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(280px,0.9fr)_minmax(260px,1.1fr)] gap-6 flex-1 min-h-0 items-center">
-        <section className="flex flex-col justify-center">
-          <h2 className="text-sm font-semibold text-zinc-300 mb-3">Filters</h2>
-          <div className="grid grid-cols-2 gap-3 w-full">
-            {FILTERS.map((filter) => (
-              <button
-                key={filter.id}
-                type="button"
-                onClick={() => setSelectedFilter(filter.id)}
-                className={`p-2 rounded-xl border transition-all ${
-                  selectedFilter === filter.id
-                    ? 'border-white ring-2 ring-white/10 bg-zinc-800'
-                    : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600'
-                }`}
-              >
-                <div className={`aspect-[4/3] rounded-lg bg-zinc-950 overflow-hidden mb-2 ${filter.className}`}>
-                  {selectedPhotos[0] ? <img src={selectedPhotos[0]} alt="" className="w-full h-full object-contain bg-black" /> : null}
-                </div>
-                <span className="text-sm text-zinc-200">{filter.name}</span>
-              </button>
-            ))}
+    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
+      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6">
+        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
+          <div className="mb-6 text-center text-[#4d2d85]">
+            <div className="text-[0.8rem] font-black uppercase tracking-[0.28em]">Filters</div>
+            <h1 className="mt-2 text-[2rem] font-black uppercase tracking-[-0.08em] md:text-[3rem]">
+              Select filter
+            </h1>
           </div>
-          <button
-            type="button"
-            onClick={() => selectFilter(selectedFilter)}
-            className="w-full py-3.5 mt-5 bg-white hover:bg-zinc-200 text-black font-semibold rounded-2xl text-lg shadow-lg active:scale-[0.98] transition-all"
-          >
-            Use Filter
-          </button>
-        </section>
 
-        <section className="flex items-center justify-center min-h-0">
-          <FrameCanvas
-            frame={frame}
-            photos={selectedPhotos}
-            photoSlotCount={photoSlots.length}
-            filterClassName={filterClassName}
-            className="w-full max-w-xs max-h-full rounded-2xl"
-          />
-        </section>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(280px,0.9fr)_minmax(260px,1.1fr)]">
+            <section className="flex flex-col justify-center">
+              <div className="grid grid-cols-2 gap-3 w-full">
+                {FILTERS.map((filter) => (
+                  <button
+                    key={filter.id}
+                    type="button"
+                    onClick={() => setSelectedFilter(filter.id)}
+                    className={`rounded-[14px] border-[4px] p-2 transition-all ${
+                      selectedFilter === filter.id
+                        ? 'border-[#4acaf1] bg-[#f7f5ff]'
+                        : 'border-[#a35ef6] bg-[#fdf3ff] hover:border-[#4acaf1]'
+                    }`}
+                  >
+                    <div className={`mb-2 aspect-[4/3] overflow-hidden rounded-[10px] bg-[#22143e] ${filter.className}`}>
+                      {selectedPhotos[0] ? <img src={selectedPhotos[0]} alt="" className="h-full w-full object-contain bg-black" /> : null}
+                    </div>
+                    <span className="text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]">{filter.name}</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => selectFilter(selectedFilter)}
+                className="mt-6 w-full rounded-[12px] bg-[#ff7d57] px-8 py-4 text-[0.8rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+              >
+                Use Filter
+              </button>
+            </section>
+
+            <section className="flex items-center justify-center">
+              <FrameCanvas
+                frame={frame}
+                photos={selectedPhotos}
+                photoSlotCount={photoSlots.length}
+                filterClassName={filterClassName}
+                className="w-full max-w-xs rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff]"
+              />
+            </section>
+          </div>
+        </div>
       </div>
     </div>
   );

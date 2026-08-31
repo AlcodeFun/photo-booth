@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
 
+const rendererPort = Number(process.env.VITE_PORT || 5173);
+
 let mainWindow: BrowserWindow | null = null;
 
 async function printWindowToPdf() {
@@ -41,7 +43,7 @@ function createWindow() {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.loadURL(`http://localhost:${rendererPort}`);
     mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));

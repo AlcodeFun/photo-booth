@@ -17,6 +17,7 @@ import {
   getFrameTemplateDraft,
   saveFrameTemplateDraft,
 } from '../utils/frameTemplateDrafts';
+import { useSessionStore } from '../store/sessionStore';
 
 interface NumberFieldProps {
   label: string;
@@ -150,6 +151,13 @@ const NumberField = ({ label, value, min, max, step = 1, onChange }: NumberField
 );
 
 export const FrameTemplateAdminScreen: React.FC = () => {
+  const resetSession = useSessionStore((state) => state.resetSession);
+
+  const handleAdminReset = () => {
+    resetSession();
+    window.location.hash = '#/';
+  };
+
   const defaultSourcePhotoCount = useMemo(() => {
     const counts = MOCK_LAYOUTS.map((layout) => layout.photoSlots);
     return Math.max(...counts, 3);
@@ -189,7 +197,14 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   }, [sourcePhotoCount]);
 
   const activeArea = draftTemplate.photoSlots.find((area) => area.slotNumber === activeAreaNumber);
-  const exportJson = JSON.stringify(draftTemplate, null, 2);
+  const exportTemplate = (() => {
+    const jsonText = JSON.stringify({ [sourcePhotoCount]: draftTemplate }, null, 2);
+    const tsObjectText = jsonText
+      .replace(/"(\d+)":/g, '$1:')
+      .replace(/"([A-Za-z_][A-Za-z0-9_]*)":/g, '$1:');
+
+    return `const customFrameTemplate: FrameConfig['templatesByPhotoSlots'] = ${tsObjectText};`;
+  })();
   const drawingRectangle = dragState && dragState.type === 'draw'
     ? {
         x: Math.min(dragState.start.x, dragState.current.x),
@@ -577,14 +592,14 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     setStatus('Draft reset');
   };
 
-  const handleCopyJson = async () => {
+  const handleCopyTemplate = async () => {
     if (!navigator.clipboard) {
       setStatus('Clipboard unavailable');
       return;
     }
 
-    await navigator.clipboard.writeText(exportJson);
-    setStatus('JSON copied');
+    await navigator.clipboard.writeText(exportTemplate);
+    setStatus('Template copied');
   };
 
   if (!selectedFrame) {
@@ -599,12 +614,22 @@ export const FrameTemplateAdminScreen: React.FC = () => {
             <p className="text-xs font-semibold uppercase tracking-widest text-sky-300">Hidden Admin</p>
             <h1 className="text-2xl font-black tracking-tight">Frame Fitter</h1>
           </div>
-          <a
-            href="#/"
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-900"
-          >
-            Booth Flow
-          </a>
+
+          <div className="flex items-center gap-3">
+            <a
+              href="#/"
+              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-900"
+            >
+              Booth Flow
+            </a>
+            <button
+              type="button"
+              onClick={handleAdminReset}
+              className="rounded-lg border border-rose-800 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-200 transition-colors hover:border-rose-500 hover:bg-rose-900/60"
+            >
+              Reset Session
+            </button>
+          </div>
         </div>
       </header>
 
@@ -909,10 +934,10 @@ export const FrameTemplateAdminScreen: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={handleCopyJson}
+                onClick={handleCopyTemplate}
                 className="h-11 rounded-lg border border-zinc-700 px-5 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-950"
               >
-                Copy JSON
+                Copy Ready Template
               </button>
               <button
                 type="button"
@@ -932,7 +957,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
             </div>
 
             <textarea
-              value={exportJson}
+              value={exportTemplate}
               readOnly
               className="min-h-48 resize-y rounded-lg border border-zinc-800 bg-zinc-950 p-3 font-mono text-xs leading-relaxed text-zinc-300 outline-none"
             />

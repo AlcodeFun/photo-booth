@@ -18,61 +18,69 @@ export const LayoutSelectionScreen: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col items-center justify-between h-full max-w-4xl mx-auto px-6 py-8 select-none">
-      <div className="text-center mb-6">
-        <h1 className="text-3xl font-extrabold tracking-tight mb-2">Choose Your Layout</h1>
-        <p className="text-zinc-400">Select the template layout for your prints</p>
-      </div>
+    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
+      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6">
+        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
+          <div className="mb-6 text-center">
+            <p className="text-[0.8rem] font-black uppercase tracking-[0.28em] text-[#4d2d85]">Tata Letak</p>
+            <h1 className="mt-3 text-[2.2rem] font-black uppercase tracking-[-0.08em] text-[#4d2d85] md:text-[3rem]">
+              Pilih layout favoritmu
+            </h1>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full flex-grow items-center justify-center my-6">
-        {MOCK_LAYOUTS.map((layout) => {
-          const isSelected = selected?.id === layout.id;
-          return (
-            <div
-              key={layout.id}
-              onClick={() => handleSelect(layout)}
-              className={`flex flex-col items-center p-6 bg-zinc-900 border rounded-2xl cursor-pointer hover:border-zinc-500 hover:bg-zinc-800/40 transition-all ${
-                isSelected ? 'border-white ring-2 ring-white/10 scale-105 bg-zinc-800' : 'border-zinc-800'
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
+            {MOCK_LAYOUTS.map((layout) => {
+              const isSelected = selected?.id === layout.id;
+              return (
+                <div
+                  key={layout.id}
+                  onClick={() => handleSelect(layout)}
+                  className={`cursor-pointer rounded-[16px] border-[4px] p-4 transition-all duration-200 ${
+                    isSelected
+                      ? 'border-[#4acaf1] bg-[#f7f5ff] scale-[1.01]'
+                      : 'border-[#a35ef6] bg-[#fdf3ff] hover:border-[#4acaf1]'
+                  }`}
+                >
+                  <div className="mb-4 flex aspect-[3/4] items-center justify-center overflow-hidden rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee]">
+                    {layout.photoSlots === 1 && (
+                      <div className="flex h-[78%] w-[78%] items-center justify-center rounded-[18px] border-[3px] border-dashed border-[#4acaf1] bg-[#d9f8ff] text-sm font-black uppercase text-[#2c4774]">
+                        1 Foto
+                      </div>
+                    )}
+                    {layout.photoSlots === 2 && (
+                      <div className="flex h-[82%] w-[82%] flex-col gap-2">
+                        <div className="flex-1 rounded-[14px] border-[3px] border-dashed border-[#ff7d57] bg-[#ffe6df] text-xs font-black uppercase text-[#4d2d85] flex items-center justify-center">Foto 1</div>
+                        <div className="flex-1 rounded-[14px] border-[3px] border-dashed border-[#ff7d57] bg-[#ffe6df] text-xs font-black uppercase text-[#4d2d85] flex items-center justify-center">Foto 2</div>
+                      </div>
+                    )}
+                    {layout.photoSlots === 3 && (
+                      <div className="flex h-[82%] w-[82%] flex-col gap-2">
+                        <div className="flex-1 rounded-[12px] border-[3px] border-dashed border-[#bf92ff] bg-[#f0e6ff] text-[10px] font-black uppercase text-[#4d2d85] flex items-center justify-center">Foto 1</div>
+                        <div className="flex-1 rounded-[12px] border-[3px] border-dashed border-[#bf92ff] bg-[#f0e6ff] text-[10px] font-black uppercase text-[#4d2d85] flex items-center justify-center">Foto 2</div>
+                        <div className="flex-1 rounded-[12px] border-[3px] border-dashed border-[#bf92ff] bg-[#f0e6ff] text-[10px] font-black uppercase text-[#4d2d85] flex items-center justify-center">Foto 3</div>
+                      </div>
+                    )}
+                  </div>
+                  <h3 className="text-center text-xl font-black uppercase tracking-[-0.05em] text-[#4d2d85]">{layout.name}</h3>
+                  <p className="mt-2 text-center text-sm font-semibold text-[#5e4b7d]">{layout.photoSlots} slot foto</p>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={handleNext}
+              disabled={!selected}
+              className={`w-full max-w-md rounded-[12px] px-8 py-4 text-[0.9rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-all ${
+                selected ? 'bg-[#ff7d57] hover:-translate-y-0.5 active:translate-y-0' : 'cursor-not-allowed bg-[#7d6ea6] opacity-70'
               }`}
             >
-              <div className="w-full aspect-[3/4] max-h-[220px] rounded-xl overflow-hidden mb-4 bg-zinc-950 flex items-center justify-center relative">
-                {layout.photoSlots === 1 && (
-                  <div className="w-[80%] h-[80%] border-2 border-dashed border-zinc-700 rounded-lg flex items-center justify-center text-zinc-500">
-                    1 Photo
-                  </div>
-                )}
-                {layout.photoSlots === 2 && (
-                  <div className="flex flex-col gap-2 w-[85%] h-[85%]">
-                    <div className="flex-1 border-2 border-dashed border-zinc-700 rounded flex items-center justify-center text-zinc-600 text-xs">Photo 1</div>
-                    <div className="flex-1 border-2 border-dashed border-zinc-700 rounded flex items-center justify-center text-zinc-600 text-xs">Photo 2</div>
-                  </div>
-                )}
-                {layout.photoSlots === 3 && (
-                  <div className="flex flex-col gap-1.5 w-[85%] h-[85%]">
-                    <div className="flex-1 border-2 border-dashed border-zinc-700 rounded flex items-center justify-center text-zinc-600 text-xs">Photo 1</div>
-                    <div className="flex-1 border-2 border-dashed border-zinc-700 rounded flex items-center justify-center text-zinc-600 text-xs">Photo 2</div>
-                    <div className="flex-1 border-2 border-dashed border-zinc-700 rounded flex items-center justify-center text-zinc-600 text-xs">Photo 3</div>
-                  </div>
-                )}
-              </div>
-              <h3 className="font-semibold text-lg text-zinc-200">{layout.name}</h3>
-              <p className="text-zinc-500 text-sm mt-1">{layout.photoSlots} photo slots</p>
-            </div>
-          );
-        })}
+              Lanjutkan
+            </button>
+          </div>
+        </div>
       </div>
-
-      <button
-        onClick={handleNext}
-        disabled={!selected}
-        className={`w-full max-w-md py-4 font-semibold rounded-2xl text-lg shadow-lg active:scale-[0.98] transition-all ${
-          selected
-            ? 'bg-white hover:bg-zinc-200 text-black cursor-pointer'
-            : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-        }`}
-      >
-        Continue
-      </button>
     </div>
   );
 };

@@ -5,40 +5,42 @@ export const TutorialScreen: React.FC = () => {
   const setScreen = useSessionStore((state) => state.setScreen);
 
   return (
-    <div className="flex flex-col items-center justify-center h-full max-w-2xl mx-auto px-6 text-center select-none">
-      <div className="mb-10">
-        <h1 className="text-4xl font-extrabold tracking-tight mb-3 bg-gradient-to-r from-white via-zinc-200 to-zinc-500 bg-clip-text text-transparent">
-          Tutorial: How to Use the Photo Booth  
-        </h1>
-        <p className="text-zinc-400 text-lg">Your custom photo booth experience in 3 simple steps</p>
+    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
+      <div className="w-full max-w-[1180px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6">
+        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
+          <div className="mb-6 text-center">
+            <p className="text-[0.9rem] font-black uppercase tracking-[0.28em] text-[#4f3591]">Panduan</p>
+            <h1 className="mt-3 text-[2.2rem] font-black uppercase tracking-[-0.08em] text-[#4f3591] md:text-[4rem]">
+              How it works
+            </h1>
+          </div>
+
+          <div className="grid gap-5 md:grid-cols-3">
+            {[
+              { step: '01', title: 'Pilih Gaya', body: 'Pilih tata letak dan bingkai yang paling cocok dengan moodmu.', accent: 'bg-[#ff7d57]' },
+              { step: '02', title: 'Pose Santai', body: 'Ambil 3 foto dengan hitungan mundur dan retake sampai hasilnya pas.', accent: 'bg-[#4dcaf1]' },
+              { step: '03', title: 'Cetak & Simpan', body: 'Lihat hasil akhir, pilih filter, dan bagikan momen lewat QR.', accent: 'bg-[#8fe56d]' },
+            ].map((card) => (
+              <div key={card.step} className="rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-4 text-[#3b2a7a] shadow-[inset_0_0_0_2px_rgba(255,255,255,0.2)]">
+                <div className={`mb-3 inline-flex h-12 w-12 items-center justify-center rounded-full ${card.accent} text-xl font-black text-white`}>
+                  {card.step}
+                </div>
+                <h3 className="text-[1.5rem] font-black uppercase tracking-[-0.05em]">{card.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-[#43376f]">{card.body}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex justify-center">
+            <button
+              onClick={() => setScreen('SELECT_LAYOUT')}
+              className="rounded-[12px] bg-[#ff7d57] px-8 py-4 text-[0.9rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            >
+              Ayo mulai
+            </button>
+          </div>
+        </div>
       </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full mb-10 text-left">
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <div className="text-2xl mb-4 font-bold text-primary">01</div>
-          <h3 className="font-semibold text-zinc-200 mb-2">Select Style</h3>
-          <p className="text-zinc-400 text-sm">Choose your photo layout and themed frame overlay.</p>
-        </div>
-
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <div className="text-2xl mb-4 font-bold text-primary">02</div>
-          <h3 className="font-semibold text-zinc-200 mb-2">Strike a Pose</h3>
-          <p className="text-zinc-400 text-sm">Take 3 photos. Retake each photo up to 3 times if needed.</p>
-        </div>
-
-        <div className="bg-zinc-900/50 border border-zinc-800 rounded-2xl p-6">
-          <div className="text-2xl mb-4 font-bold text-primary">03</div>
-          <h3 className="font-semibold text-zinc-200 mb-2">Print & Save</h3>
-          <p className="text-zinc-400 text-sm">Get high-quality physical prints and download the GIF instantly via QR.</p>
-        </div>
-      </div>
-
-      <button
-        onClick={() => setScreen('SELECT_LAYOUT')}
-        className="w-full max-w-md py-4 bg-white hover:bg-zinc-200 text-black font-semibold rounded-2xl text-lg shadow-lg active:scale-[0.98] transition-all"
-      >
-        Let's Go
-      </button>
     </div>
   );
 };
