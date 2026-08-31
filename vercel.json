@@ -1,13 +1,11 @@
 {
-  "version": 2,
-  "framework": "vite",
-  "installCommand": "corepack pnpm install",
-  "buildCommand": "corepack pnpm --filter booth build",
-  "outputDirectory": "apps/booth/dist/renderer",
-  "rewrites": [
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/index.html"
+      "src": "apps/booth/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist/renderer"
+      }
     }
   ]
 }
