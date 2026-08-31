@@ -1,11 +1,3 @@
 {
-  "builds": [
-    {
-      "src": "apps/booth/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/renderer"
-      }
-    }
-  ]
+  "outputDirectory": "apps/booth/dist/renderer"
 }
