@@ -5,10 +5,10 @@
   "main": "dist/electron/main.js",
   "scripts": {
     "dev": "concurrently \"corepack pnpm dev:renderer\" \"corepack pnpm dev:electron\"",
-    "dev:renderer": "vite renderer",
+    "dev:renderer": "vite",
     "dev:electron": "node scripts/dev-electron.js",
     "build": "corepack pnpm build:renderer && corepack pnpm build:electron",
-    "build:renderer": "vite build renderer",
+    "build:renderer": "vite build && node -e \"var fs=require('fs');fs.cpSync('renderer/public/manifest.webmanifest','dist/renderer/manifest.webmanifest');fs.cpSync('renderer/public/sw.js','dist/renderer/sw.js');fs.cpSync('renderer/public/icons','dist/renderer/icons',{recursive:true})\"",
     "build:electron": "tsc -p electron/tsconfig.json",
     "typecheck": "tsc -p electron/tsconfig.json --noEmit && tsc -p renderer/tsconfig.json --noEmit"
   },
