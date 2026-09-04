@@ -748,7 +748,7 @@ export const MOCK_FRAMES: FrameConfig[] = [
   },
 },
 {
-  id: 'custom-static-frame-7',
+  id: 'custom-static-frame-7-static',
   name: 'Koran 2',
   previewUrl: '/frame-templates/7.png',
   theme: 'bg-zinc-950 border-zinc-900 text-white',
@@ -763,7 +763,7 @@ export const MOCK_FRAMES: FrameConfig[] = [
   photoSlots: [
     {
       slotNumber: 1,
-      sourcePhotoSlot: 3,
+      sourcePhotoSlot: 1,
       x: 29.17644851512,
       y: 530.2903317833468,
       width: 1139.714654796711,
@@ -775,7 +775,7 @@ export const MOCK_FRAMES: FrameConfig[] = [
     },
     {
       slotNumber: 2,
-      sourcePhotoSlot: 3,
+      sourcePhotoSlot: 2,
       x: 448.7009793270717,
       y: 1026.211185445221,
       width: 301.0463188207766,
@@ -801,6 +801,8 @@ export const MOCK_FRAMES: FrameConfig[] = [
 },
   },
 },
+
+
 ];
 
 
