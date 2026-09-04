@@ -17,7 +17,7 @@ export const TutorialScreen: React.FC = () => {
 
           <div className="grid gap-5 md:grid-cols-3">
             {[
-              { step: '01', title: 'Pilih Gaya', body: 'Pilih tata letak dan bingkai yang paling cocok dengan moodmu.', accent: 'bg-[#ff7d57]' },
+              { step: '01', title: 'Pilih Gaya', body: 'Pilih bingkai yang paling cocok dengan moodmu.', accent: 'bg-[#ff7d57]' },
               { step: '02', title: 'Pose Santai', body: 'Ambil 3 foto dengan hitungan mundur dan retake sampai hasilnya pas.', accent: 'bg-[#4dcaf1]' },
               { step: '03', title: 'Cetak & Simpan', body: 'Lihat hasil akhir, pilih filter, dan bagikan momen lewat QR.', accent: 'bg-[#8fe56d]' },
             ].map((card) => (
@@ -33,7 +33,7 @@ export const TutorialScreen: React.FC = () => {
 
           <div className="mt-8 flex justify-center">
             <button
-              onClick={() => setScreen('SELECT_LAYOUT')}
+              onClick={() => setScreen('SELECT_FRAME')}
               className="rounded-[12px] bg-[#ff7d57] px-8 py-4 text-[0.9rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
             >
               Ayo mulai

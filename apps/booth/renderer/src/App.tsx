@@ -3,7 +3,6 @@ import { useSessionStore } from './store/sessionStore';
 import {
   ManualPaymentScreen,
   TutorialScreen,
-  LayoutSelectionScreen,
   FrameSelectionScreen,
   FrameTemplateAdminScreen,
   PhotoCaptureScreen,
@@ -15,7 +14,6 @@ import {
 } from './screens';
 
 const STEPS = [
-  { id: 'layout', label: 'Pilih Tata Letak', screens: ['SELECT_LAYOUT'] },
   { id: 'frame', label: 'Pilih Bingkai', screens: ['SELECT_FRAME'] },
   { id: 'capture', label: 'Pratinjau & Foto', screens: ['PHOTO_CAPTURE', 'PHOTO_REVIEW'] },
   { id: 'filter', label: 'Pilih Filter', screens: ['FILTER'] },
@@ -73,8 +71,6 @@ function App() {
         return <ManualPaymentScreen />;
       case 'TUTORIAL':
         return <TutorialScreen />;
-      case 'SELECT_LAYOUT':
-        return <LayoutSelectionScreen />;
       case 'SELECT_FRAME':
         return <FrameSelectionScreen />;
       case 'PHOTO_CAPTURE':

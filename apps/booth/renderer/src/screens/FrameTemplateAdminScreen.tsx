@@ -128,7 +128,7 @@ function createDefaultArea(
     y: clamp(140 + offset, 0, template.height - height),
     width,
     height,
-    borderRadius: 24,
+    borderRadius: 0,
     zIndex: 10,
     objectFit: 'cover',
     objectPosition: 'center',
@@ -164,9 +164,10 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   }, []);
   const [sourcePhotoCount, setSourcePhotoCount] = useState(defaultSourcePhotoCount);
   const frames = useFramesWithTemplateDrafts(MOCK_FRAMES, sourcePhotoCount);
-  const [selectedFrameId, setSelectedFrameId] = useState(MOCK_FRAMES[0]?.id ?? '');
-  const selectedFrame = frames.find((frame) => frame.id === selectedFrameId) ?? frames[0] ?? null;
-  const baseFrame = MOCK_FRAMES.find((frame) => frame.id === selectedFrameId) ?? MOCK_FRAMES[0] ?? null;
+  const [selectedFrameId, setSelectedFrameId] = useState<string>('__new__');
+  const isNewFrame = selectedFrameId === '__new__';
+  const selectedFrame = isNewFrame ? null : frames.find((frame) => frame.id === selectedFrameId) ?? frames[0] ?? null;
+  const baseFrame = isNewFrame ? null : MOCK_FRAMES.find((frame) => frame.id === selectedFrameId) ?? MOCK_FRAMES[0] ?? null;
   const [draftTemplate, setDraftTemplate] = useState<FrameTemplateConfig>(() =>
     cloneTemplate(resolveFrameTemplate(MOCK_FRAMES[0], defaultSourcePhotoCount), defaultSourcePhotoCount),
   );
@@ -176,19 +177,44 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   const [status, setStatus] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Frame-level identity fields (editable directly in the form)
+  const [frameId, setFrameId] = useState('custom-static-frame');
+  const [frameName, setFrameName] = useState('Custom Static Frame');
+  const [frameTheme, setFrameTheme] = useState('bg-zinc-950 border-zinc-900 text-white');
+
   useEffect(() => {
+    if (isNewFrame) {
+      // Blank start: fallback template (no asset, rectangular slots).
+      const blankTemplate = cloneTemplate(resolveFrameTemplate(null, sourcePhotoCount), sourcePhotoCount);
+      setDraftTemplate(blankTemplate);
+      setActiveAreaNumber(blankTemplate.photoSlots[0]?.slotNumber ?? 1);
+      setFrameId('custom-static-frame');
+      setFrameName('Custom Static Frame');
+      setFrameTheme('bg-zinc-950 border-zinc-900 text-white');
+      return;
+    }
+
     if (!selectedFrame) {
       return;
     }
 
-    const storedDraft = getFrameTemplateDraft(selectedFrame.id, sourcePhotoCount);
+    // Adopt the frame's designed photo count so its template loads instead of a blank fallback.
+    const adoptedCount = selectedFrame.photoSlots ?? sourcePhotoCount;
+    if (adoptedCount > 0 && adoptedCount !== sourcePhotoCount) {
+      setSourcePhotoCount(adoptedCount);
+    }
+
+    const storedDraft = getFrameTemplateDraft(selectedFrame.id, adoptedCount);
     const nextTemplate = cloneTemplate(
-      storedDraft ?? resolveFrameTemplate(selectedFrame, sourcePhotoCount),
-      sourcePhotoCount,
+      storedDraft ?? resolveFrameTemplate(selectedFrame, adoptedCount),
+      adoptedCount,
     );
     setDraftTemplate(nextTemplate);
     setActiveAreaNumber(nextTemplate.photoSlots[0]?.slotNumber ?? 1);
-  }, [sourcePhotoCount, selectedFrame, selectedFrameId]);
+    setFrameId(`${selectedFrame.id}-static`);
+    setFrameName(`${selectedFrame.name} (Static)`);
+    setFrameTheme(selectedFrame.theme || 'bg-zinc-950 border-zinc-900 text-white');
+  }, [isNewFrame, selectedFrame, selectedFrameId]);
 
   useEffect(() => {
     setSamplePhotos((currentPhotos) =>
@@ -197,14 +223,29 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   }, [sourcePhotoCount]);
 
   const activeArea = draftTemplate.photoSlots.find((area) => area.slotNumber === activeAreaNumber);
-  const exportTemplate = (() => {
-    const jsonText = JSON.stringify({ [sourcePhotoCount]: draftTemplate }, null, 2);
-    const tsObjectText = jsonText
-      .replace(/"(\d+)":/g, '$1:')
-      .replace(/"([A-Za-z_][A-Za-z0-9_]*)":/g, '$1:');
+  const exportFrame = useMemo(() => {
+    const jsonText = JSON.stringify(draftTemplate, null, 2);
+    const tsTemplateText = jsonText.replace(/"([A-Za-z_][A-Za-z0-9_]*)":/g, '$1:');
 
-    return `const customFrameTemplate: FrameConfig['templatesByPhotoSlots'] = ${tsObjectText};`;
-  })();
+    const normalizedAssetUrl = !draftTemplate.assetUrl
+      ? "''"
+      : draftTemplate.assetUrl.startsWith('/')
+        ? `'${draftTemplate.assetUrl}'`
+        : `publicAsset('${draftTemplate.assetUrl}')`;
+
+    return `{
+  id: '${frameId.replace(/'/g, "\\'")}',
+  name: '${frameName.replace(/'/g, "\\'")}',
+  previewUrl: ${normalizedAssetUrl},
+  theme: '${frameTheme.replace(/'/g, "\\'")}',
+  photoSlots: ${sourcePhotoCount},
+  templatesByPhotoSlots: {
+    ${sourcePhotoCount}: ${tsTemplateText},
+  },
+},`;
+  }, [draftTemplate, frameId, frameName, frameTheme, sourcePhotoCount]);
+
+  const exportTemplate = exportFrame;
   const drawingRectangle = dragState && dragState.type === 'draw'
     ? {
         x: Math.min(dragState.start.x, dragState.current.x),
@@ -247,7 +288,11 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const handleSourcePhotoCountChange = (value: number) => {
-    setSourcePhotoCount(clamp(Math.floor(value), 1, MAX_SOURCE_PHOTOS));
+    const nextCount = clamp(Math.floor(value), 1, MAX_SOURCE_PHOTOS);
+    // Only update the source photo count. Existing slot areas are preserved
+    // as-is (no reset / remap). Use the "Photo Areas" control to add/remove.
+    setActiveAreaNumber((currentAreaNumber) => clamp(currentAreaNumber, 1, nextCount));
+    setSourcePhotoCount(nextCount);
     setStatus('');
   };
 
@@ -415,7 +460,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
             y: Math.round(nextArea.y),
             width: Math.round(nextArea.width),
             height: Math.round(nextArea.height),
-            borderRadius: 18,
+            borderRadius: 0,
             zIndex: 10,
             objectFit: 'cover',
             objectPosition: 'center',
@@ -572,6 +617,11 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const handleSaveDraft = () => {
+    if (isNewFrame) {
+      setStatus('New frames need no saving - copy the template directly');
+      return;
+    }
+
     if (!selectedFrame) {
       return;
     }
@@ -581,6 +631,14 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const handleResetDraft = () => {
+    if (isNewFrame) {
+      const blankTemplate = cloneTemplate(resolveFrameTemplate(null, sourcePhotoCount), sourcePhotoCount);
+      setDraftTemplate(blankTemplate);
+      setActiveAreaNumber(blankTemplate.photoSlots[0]?.slotNumber ?? 1);
+      setStatus('Reset to blank');
+      return;
+    }
+
     if (!baseFrame) {
       return;
     }
@@ -601,10 +659,6 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     await navigator.clipboard.writeText(exportTemplate);
     setStatus('Template copied');
   };
-
-  if (!selectedFrame) {
-    return <div className="p-8 text-zinc-400">No frames available.</div>;
-  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -733,16 +787,50 @@ export const FrameTemplateAdminScreen: React.FC = () => {
             <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
               Frame
               <select
-                value={selectedFrame.id}
+                value={selectedFrameId}
                 onChange={(event) => setSelectedFrameId(event.target.value)}
                 className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-zinc-100 outline-none focus:border-sky-400"
               >
+                <option value="__new__">New Frame (blank)</option>
                 {frames.map((frame) => (
                   <option key={frame.id} value={frame.id}>
                     {frame.name}
                   </option>
                 ))}
               </select>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+              Frame ID
+              <input
+                type="text"
+                value={frameId}
+                onChange={(event) => setFrameId(event.target.value)}
+                placeholder="custom-static-frame"
+                className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-zinc-100 outline-none focus:border-sky-400"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 sm:col-span-2">
+              Frame Name
+              <input
+                type="text"
+                value={frameName}
+                onChange={(event) => setFrameName(event.target.value)}
+                placeholder="Custom Static Frame"
+                className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-zinc-100 outline-none focus:border-sky-400"
+              />
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-zinc-500 sm:col-span-2">
+              Theme
+              <input
+                type="text"
+                value={frameTheme}
+                onChange={(event) => setFrameTheme(event.target.value)}
+                placeholder="bg-zinc-950 border-zinc-900 text-white"
+                className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-3 text-sm font-semibold normal-case tracking-normal text-zinc-100 outline-none focus:border-sky-400"
+              />
             </label>
 
             <NumberField

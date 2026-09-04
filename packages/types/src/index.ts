@@ -59,6 +59,7 @@ export interface FrameConfig {
   name: string;
   previewUrl: string;
   theme: string;
+  photoSlots?: number;
   template?: FrameTemplateConfig;
   templatesByPhotoSlots?: Partial<Record<number, FrameTemplateConfig>>;
 }

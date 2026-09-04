@@ -1,6 +1,5 @@
 export { default as ManualPaymentScreen } from './ManualPaymentScreen';
 export { default as TutorialScreen } from './TutorialScreen';
-export { default as LayoutSelectionScreen } from './LayoutSelectionScreen';
 export { default as FrameSelectionScreen } from './FrameSelectionScreen';
 export { default as FrameTemplateAdminScreen } from './FrameTemplateAdminScreen';
 export { default as ReadyScreen } from './ReadyScreen';

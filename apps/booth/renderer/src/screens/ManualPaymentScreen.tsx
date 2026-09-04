@@ -112,10 +112,12 @@ const Court: React.FC<CourtProps> = ({ src, caption, style }) => (
   </div>
 );
 
+const photoAsset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
+
 const PHOTOS = [
-  'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=400',
-  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=400',
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=400',
+  photoAsset('photos/1.jpeg'),
+  photoAsset('photos/2.jpeg'),
+  photoAsset('photos/3.jpeg'),
 ];
 
 export const ManualPaymentScreen: React.FC = () => {
@@ -297,18 +299,13 @@ export const ManualPaymentScreen: React.FC = () => {
       }
     >
       {/* Header */}
-      <header className="sticky top-0 z-[120] flex items-center justify-between bg-[#1a0b2e]/30 px-[4%] py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
+      <header className="sticky top-0 z-[120] flex items-center justify-center bg-[#1a0b2e]/30 px-[4%]  py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
         <div className="flex items-center gap-2 text-lg md:text-xl" style={{ fontFamily: "'Galada', cursive" }}>
           <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ffec5a] text-[#4f3494]">✦</span>
-          <span className="font-bold">Birthday Photostrip</span>
+           Photostrip
         </div>
        
-        <button
-          onClick={confirmPayment}
-          className="rounded-full border border-white/20 bg-white/10 px-5 py-2.5 text-xs font-semibold text-white backdrop-blur-md transition-transform hover:-translate-y-0.5"
-        >
-          Lanjut Yuk
-        </button>
+        
       </header>
 
       {/* Far background balloons */}
@@ -361,8 +358,7 @@ export const ManualPaymentScreen: React.FC = () => {
         <p className="text-lg font-black uppercase tracking-[0.04em] text-white/95">Happy Birthday Yaaa Ubil!</p>
 
         <p className="text-[0.9rem] leading-relaxed text-white/70">
-          Lorem Ipsum is simply dummy text of the typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book.
-        </p>
+        Semoga panjang umur, sehat selalu, dan makin sukses di segala hal. Semoga aku dan ibi bisa menjadi lebih baik lagi secara pribadi, spritual, dan karirnya. Semoga komunikasi aku dan ibi bisa lebih baik lagi, senang-senang terus happy-happy terus. Semoga semua impian ibi terpenuhi ya xixiixi. Luv you ibi yang lucu, cantik dan baik hati❤️ </p>
 
         <button
           onClick={confirmPayment}

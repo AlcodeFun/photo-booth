@@ -6,11 +6,8 @@ import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDraft
 import { useSessionStore } from '../store/sessionStore';
 
 export const FrameSelectionScreen: React.FC = () => {
-  const { layout, selectFrame } = useSessionStore((state) => ({
-    layout: state.layout,
-    selectFrame: state.selectFrame,
-  }));
-  const frames = useFramesWithTemplateDrafts(MOCK_FRAMES, layout?.photoSlots);
+  const selectFrame = useSessionStore((state) => state.selectFrame);
+  const frames = useFramesWithTemplateDrafts(MOCK_FRAMES, 3);
   const [selected, setSelected] = useState<FrameConfig | null>(null);
 
   const handleSelect = (frame: FrameConfig) => {
@@ -50,7 +47,7 @@ export const FrameSelectionScreen: React.FC = () => {
                 >
                   <FrameCanvas
                     frame={frame}
-                    photoSlotCount={layout?.photoSlots ?? 3}
+                    photoSlotCount={frame.photoSlots ?? 3}
                     className="mb-4 w-full rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee]"
                   />
                   <h3 className="text-center text-sm font-black uppercase tracking-[0.08em] text-[#4d2d85]">{frame.name}</h3>

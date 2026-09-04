@@ -2,14 +2,12 @@ import { create } from 'zustand';
 import {
   PhotoSlotState,
   PhotoAttempt,
-  LayoutConfig,
   FrameConfig,
 } from '@photo-booth/types';
 
 export type ScreenName =
   | 'MANUAL_PAYMENT'
   | 'TUTORIAL'
-  | 'SELECT_LAYOUT'
   | 'SELECT_FRAME'
   | 'READY'
   | 'PHOTO_CAPTURE'
@@ -26,7 +24,6 @@ export interface SessionStore {
 
   // Session State Data
   sessionId: string | null;
-  layout: LayoutConfig | null;
   frame: FrameConfig | null;
   filterId: string | null;
   currentPhotoSlot: number; // 1-indexed (e.g. slot 1, 2, 3)
@@ -40,7 +37,6 @@ export interface SessionStore {
   // Actions
   startNewSession: () => void;
   confirmPayment: () => void;
-  selectLayout: (layout: LayoutConfig) => void;
   selectFrame: (frame: FrameConfig) => void;
   selectFilter: (filterId: string) => void;
   startCaptureFlow: () => void;
@@ -61,7 +57,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setScreen: (screen) => set({ currentScreen: screen }),
 
   sessionId: null,
-  layout: null,
   frame: null,
   filterId: null,
   currentPhotoSlot: 1,
@@ -75,7 +70,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const randomId = 'session_' + Math.random().toString(36).substring(2, 11);
     set({
       sessionId: randomId,
-      layout: null,
       frame: null,
       filterId: null,
       currentPhotoSlot: 1,
@@ -94,24 +88,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  selectLayout: (layout) => {
-    // Initialize photo slots based on layout requirements
-    const slots: PhotoSlotState[] = Array.from({ length: layout.photoSlots }, (_, i) => ({
+  selectFrame: (frame) => {
+    const slotCount = Math.max(1, Math.floor(frame.photoSlots ?? 3));
+    const slots: PhotoSlotState[] = Array.from({ length: slotCount }, (_, i) => ({
       slotNumber: i + 1,
       maxAttempts: 3,
       attempts: [],
     }));
 
     set({
-      layout,
-      photoSlots: slots,
-      currentScreen: 'SELECT_FRAME',
-    });
-  },
-
-  selectFrame: (frame) => {
-    set({
       frame,
+      photoSlots: slots,
       currentScreen: 'PHOTO_CAPTURE',
     });
   },
@@ -155,7 +142,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   usePhoto: () => {
-    const { currentPhotoSlot, photoSlots, layout } = get();
+    const { currentPhotoSlot, photoSlots } = get();
     const updatedSlots = photoSlots.map((slot) => {
       if (slot.slotNumber === currentPhotoSlot) {
         const selectedAttempt = slot.attempts.length;
@@ -172,7 +159,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return slot;
     });
 
-    const isLastSlot = layout ? currentPhotoSlot >= layout.photoSlots : true;
+    const isLastSlot = currentPhotoSlot >= photoSlots.length;
 
     if (isLastSlot) {
       set({

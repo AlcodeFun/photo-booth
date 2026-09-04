@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
+import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
 
 export const PhotoCaptureScreen: React.FC = () => {
   const { currentPhotoSlot, photoSlots, frame, addPhotoAttempt } = useSessionStore((state) => ({
@@ -13,6 +14,10 @@ export const PhotoCaptureScreen: React.FC = () => {
   const currentSlot = photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
   const attemptNumber = currentSlot ? currentSlot.attempts.length + 1 : 1;
   const previewPhotos = getSelectedPhotoUrls(photoSlots);
+
+  const resolvedTemplate = frame ? resolveFrameTemplate(frame, photoSlots.length) : null;
+  const activeSlot = resolvedTemplate?.photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
+  const slotAspectRatio = activeSlot && activeSlot.height > 0 ? activeSlot.width / activeSlot.height : 4 / 3;
 
   const [countdown, setCountdown] = useState(5);
   const [isFlash, setIsFlash] = useState(false);
@@ -137,7 +142,11 @@ export const PhotoCaptureScreen: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.5fr)_minmax(220px,0.75fr)]">
-            <div className="relative aspect-[4/3] overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#261640] shadow-[0_14px_0_rgba(77,45,133,0.25)]">
+            <div
+              className="relative w-full max-w-[700px] mx-auto overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#261640] shadow-[0_14px_0_rgba(77,45,133,0.25)]"
+              style={{ aspectRatio: slotAspectRatio }}
+              data-aspect-ratio={slotAspectRatio}
+            >
               <video ref={videoRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`} />
               <div className="pointer-events-none absolute inset-0 grid grid-cols-3 grid-rows-3 border border-white/10">
                 {Array.from({ length: 9 }, (_, index) => (

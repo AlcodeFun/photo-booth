@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSessionStore } from '../store/sessionStore';
+import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
 
 export const PhotoReviewScreen: React.FC = () => {
   const { currentPhotoSlot, photoSlots, frame, usePhoto, retakePhoto } = useSessionStore((state) => ({
@@ -11,12 +12,16 @@ export const PhotoReviewScreen: React.FC = () => {
   }));
 
   const currentSlot = photoSlots.find((s) => s.slotNumber === currentPhotoSlot);
-  
+
   // Get the latest attempt
   const attempts = currentSlot?.attempts || [];
   const latestAttempt = attempts[attempts.length - 1];
   const attemptCount = attempts.length;
   const maxAttemptsReached = attemptCount >= 3;
+
+  const resolvedTemplate = frame ? resolveFrameTemplate(frame, photoSlots.length) : null;
+  const activeSlot = resolvedTemplate?.photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
+  const slotAspectRatio = activeSlot && activeSlot.height > 0 ? activeSlot.width / activeSlot.height : 4 / 3;
 
   return (
     <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
@@ -30,7 +35,11 @@ export const PhotoReviewScreen: React.FC = () => {
             <p className="mt-2 text-sm font-bold uppercase tracking-[0.16em]">Attempt {attemptCount} of 3</p>
           </div>
 
-          <div className={`relative my-4 aspect-[4/3] overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#22143e] shadow-[0_12px_0_rgba(77,45,133,0.25)]`}>
+          <div
+            className={`relative my-4 w-full max-w-[420px] mx-auto overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#22143e] shadow-[0_12px_0_rgba(77,45,133,0.25)]`}
+            style={{ aspectRatio: slotAspectRatio }}
+            data-aspect-ratio={slotAspectRatio}
+          >
             {latestAttempt?.localPath ? (
               <img
                 src={latestAttempt.localPath}
