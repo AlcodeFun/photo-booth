@@ -115,9 +115,9 @@ const Court: React.FC<CourtProps> = ({ src, caption, style }) => (
 const photoAsset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
 const PHOTOS = [
-  photoAsset('photos/1.jpeg'),
-  photoAsset('photos/2.jpeg'),
-  photoAsset('photos/3.jpeg'),
+  photoAsset('photos/1.jpg'),
+  photoAsset('photos/2.jpg'),
+  photoAsset('photos/3.jpg'),
 ];
 
 export const ManualPaymentScreen: React.FC = () => {
@@ -288,7 +288,8 @@ export const ManualPaymentScreen: React.FC = () => {
   return (
     <div
       ref={rootRef}
-      className={`pb-screen fixed inset-0 z-[60] select-none ${theme === 'lime' ? 'pb-lime' : ''}`}
+      onClick={confirmPayment}
+      className={`pb-screen fixed inset-0 z-[60] select-none cursor-pointer ${theme === 'lime' ? 'pb-lime' : ''}`}
       style={
         {
           '--pb-inner': inner,
@@ -301,11 +302,23 @@ export const ManualPaymentScreen: React.FC = () => {
       {/* Header */}
       <header className="sticky top-0 z-[120] flex items-center justify-center bg-[#1a0b2e]/30 px-[4%]  py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
         <div className="flex items-center gap-2 text-lg md:text-xl" style={{ fontFamily: "'Galada', cursive" }}>
-          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#ffec5a] text-[#4f3494]">✦</span>
-           Photostrip
+         <h2
+          className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
+          style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
+        >
+          <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>Photostrip</span>
+        </h2>
         </div>
-       
-        
+
+        <a
+          href="#/admin/camera"
+          onClick={(e) => e.stopPropagation()}
+          title="Camera Settings"
+          aria-label="Camera Settings"
+          className="absolute right-[4%] top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 text-xl text-white backdrop-blur transition-transform hover:scale-110 hover:bg-white/25"
+        >
+          ⚙️
+        </a>
       </header>
 
       {/* Far background balloons */}
@@ -347,46 +360,70 @@ export const ManualPaymentScreen: React.FC = () => {
       {/* Rising sparkles */}
       <div ref={sparkleRef} className="pointer-events-none absolute inset-0 z-[5]" />
 
-      {/* Left column */}
-      <div className="pb-hud-left absolute left-[4%] top-1/2 -translate-y-1/2 flex max-w-[420px] flex-col gap-5" style={{ animation: 'pb-fade 0.7s ease-out 0.5s both' }}>
-        <h1
-          className="text-5xl leading-[0.9] tracking-[-0.02em] text-white sm:text-6xl lg:text-7xl"
-          style={{ fontFamily: "'Galada', cursive" }}
-        >
-          <span className="pb-highlight">Amelia</span> is turning <span className="pb-highlight">24 </span>
-        </h1>
-        <p className="text-lg font-black uppercase tracking-[0.04em] text-white/95">Happy Birthday Yaaa Ubil!</p>
-
-        <p className="text-[0.9rem] leading-relaxed text-white/70">
-        Semoga panjang umur, sehat selalu, dan makin sukses di segala hal. Semoga aku dan ibi bisa menjadi lebih baik lagi secara pribadi, spritual, dan karirnya. Semoga komunikasi aku dan ibi bisa lebih baik lagi, senang-senang terus happy-happy terus. Semoga semua impian ibi terpenuhi ya xixiixi. Luv you ibi yang lucu, cantik dan baik hati❤️ </p>
-
-        <button
-          onClick={confirmPayment}
-          className="group flex w-fit items-center gap-4 rounded-full bg-white/10 py-4 px-20 text-sm font-bold text-white backdrop-blur-md transition-all hover:-translate-y-0.5 hover:bg-white/20"
-        >
-          Lanjut Yuk
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ffec5a] text-lg font-black text-[#4a1870] transition-transform group-hover:rotate-12">+</span>
-        </button>
-
-      
-        <div className="flex items-center gap-2 rounded-full  px-4 py-2 text-[0.8rem] font-black  tracking-[0.14em] text-[#ffffff]">
-          Exclusively crafted for Amelia by @aldryansyahp
+      {/* Left column: feature chips */}
+      <div className="pointer-events-none absolute left-[3%] top-1/2 z-[10] hidden -translate-y-1/2 flex-col gap-5 md:flex" style={{ animation: 'pb-fade 0.7s ease-out 0.8s both' }}>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+          <span className="text-2xl">📸</span>
+          <div>
+            <div className="text-sm font-black uppercase tracking-wider text-white">Foto </div>
+            <div className="text-xs text-white/60">snap a trio</div>
+          </div>
         </div>
-
-        <div className="mt-auto flex items-center gap-3">
-          
-          
+        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+          <span className="text-2xl">🖼️</span>
+          <div>
+            <div className="text-sm font-black uppercase tracking-wider text-white">Pilih frame favoritmu</div>
+            <div className="text-xs text-white/60">make it yours</div>
+          </div>
+        </div>
+        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
+          <span className="text-2xl">🖨️</span>
+          <div>
+            <div className="text-sm font-black uppercase tracking-wider text-white">Cetak Instan</div>
+            <div className="text-xs text-white/60">and QR share</div>
+          </div>
         </div>
       </div>
 
-      {/* Right column */}
-      <div className="pb-hud-right absolute right-[4%] top-1/2 -translate-y-1/2 flex flex-col items-end gap-8 text-right">
-        <h2
-          className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
-          style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
+      {/* Right column: how it works */}
+      <div className="pointer-events-none absolute right-[3%] top-1/2 z-[10] hidden -translate-y-1/2 flex-col items-end gap-6 text-right md:flex" style={{ animation: 'pb-fade 0.7s ease-out 0.9s both' }}>
+        <h3 className="font-black uppercase tracking-[0.25em] text-white/80" style={{ fontFamily: "'Galada', cursive" }}>
+          How it works
+        </h3>
+        <div className="flex flex-col items-end gap-4">
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-sm font-black text-white">1 · Snap</div>
+              <div className="text-xs text-white/55">follow the countdown</div>
+            </div>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ffec5a] text-base font-black text-[#4a1870]">1</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-sm font-black text-white">2 · Frame</div>
+              <div className="text-xs text-white/55">add your style</div>
+            </div>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ff7d57] text-base font-black text-black/70">2</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <div>
+              <div className="text-sm font-black text-white">3 · Print</div>
+              <div className="text-xs text-white/55">grab your strip</div>
+            </div>
+            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#4acaf1] text-base font-black text-black/70">3</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Tap-to-start instruction */}
+      <div className="absolute inset-x-0 bottom-0 z-[110] flex justify-center pb-10">
+        <p
+          className="flex items-center gap-3 text-2xl tracking-wide text-white md:text-3xl"
+          style={{ fontFamily: "'Galada', cursive", animation: 'pb-bounce-in 1.4s ease 1s both, pb-glow 2.4s ease-in-out 2s infinite' }}
         >
-          <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>Photostrip</span>
-        </h2>
+          <span className="inline-block" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>👆</span>
+          Tap anywhere to start your session
+        </p>
       </div>
     </div>
   );

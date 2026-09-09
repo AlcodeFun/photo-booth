@@ -74,3 +74,38 @@ Compiles the React application and compiling Electron's main process:
 ```bash
 corepack pnpm --filter booth build
 ```
+
+## 5. Digital Gallery (Cloudflare R2 + QR)
+
+The booth uploads session outputs (framed PNG, original photos, GIF) to a
+Cloudflare Worker (`apps/gallery`), which stores them in an R2 bucket and serves
+a customer download page. The booth then shows a real QR pointing to that page.
+
+- Renderer config: `VITE_GALLERY_URL` (e.g. `https://photo-booth-gallery.YOUR-ACCOUNT.workers.dev`).
+  When set, the booth uploads via `apps/booth/renderer/src/utils/sessionUpload.ts` and displays a
+  generated QR (`utils/qr.ts`, `qrcode` package) on the `PrintQRScreen`.
+  When unset, upload is simulated and no QR URL is produced (offline mode).
+- Worker routes (`apps/gallery/src/index.ts`):
+  - `POST /api/sessions` — multipart upload -> R2 at `sessions/<token>/`.
+  - `GET /p/<token>` — gallery HTML page (`src/gallery.ts`).
+  - `GET /api/sessions/<token>` — JSON file list with `/d/` download URLs.
+  - `GET /d/<token>/<name>` — streams the stored file.
+- No ZIP anywhere: photos are displayed/downloaded individually per product decision.
+- GIF is generated at the camera's original aspect ratio (no cropping) in
+  `resultExport.ts#createResultGif`.
+
+### Gallery workflow
+1. Create the bucket once: `corepack pnpm --filter @photo-booth/gallery exec wrangler r2 bucket create photo-booth-gallery`
+2. Log in / deploy: `corepack pnpm --filter @photo-booth/gallery exec wrangler login`, then `deploy`.
+3. Set `VITE_GALLERY_URL` for the renderer build (`.env.local` in `apps/booth/renderer/` — the Vite root is
+   `renderer/`, not `apps/booth/`).
+
+### Gallery dev
+```bash
+corepack pnpm --filter @photo-booth/gallery dev
+```
+Runs `wrangler dev` (local emulation; store lives in your real R2 bucket if bound
+via `wrangler dev --remote`). Typecheck:
+```bash
+corepack pnpm --filter @photo-booth/gallery run typecheck
+```

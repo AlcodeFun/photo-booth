@@ -2,13 +2,7 @@ import React, { useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
-
-const FILTERS = [
-  { id: 'original', name: 'Original', className: '' },
-  { id: 'mono', name: 'Mono', className: 'grayscale' },
-  { id: 'warm', name: 'Warm', className: 'sepia-[.45] saturate-[1.35]' },
-  { id: 'cool', name: 'Cool', className: 'hue-rotate-[25deg] saturate-[.8]' },
-];
+import { FILTERS, getFilterById } from '../utils/filters';
 
 export const FilterSelectionScreen: React.FC = () => {
   const { photoSlots, frame } = useSessionStore((state) => ({
@@ -20,7 +14,7 @@ export const FilterSelectionScreen: React.FC = () => {
 
   const selectedPhotos = getSelectedPhotoUrls(photoSlots);
 
-  const filterClassName = FILTERS.find((filter) => filter.id === selectedFilter)?.className ?? '';
+  const filterClassName = getFilterById(selectedFilter).className;
 
   return (
     <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">

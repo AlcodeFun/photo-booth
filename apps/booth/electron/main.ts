@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
+import { canonCameraService } from './camera/CanonCameraService';
 
 const rendererPort = Number(process.env.VITE_PORT || 5173);
 
@@ -32,13 +33,13 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    fullscreen: !isDev && process.env.BOOTH_WINDOWED !== '1',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
     title: 'Self Photo Booth',
-    fullscreen: !isDev,
     autoHideMenuBar: true,
   });
 
@@ -52,10 +53,29 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+
+  canonCameraService.attachWindow(mainWindow);
 }
 
 app.whenReady().then(() => {
   ipcMain.handle('print-to-pdf', async () => printWindowToPdf());
+
+  ipcMain.handle('window:toggle-fullscreen', () => {
+    if (!mainWindow) {
+      return false;
+    }
+    const next = !mainWindow.isFullScreen();
+    mainWindow.setFullScreen(next);
+    return next;
+  });
+
+  ipcMain.handle('window:is-fullscreen', () => mainWindow?.isFullScreen() ?? false);
+
+  ipcMain.handle('camera:get-status', () => canonCameraService.getStatus());
+  ipcMain.handle('camera:initialize', () => canonCameraService.initialize());
+  ipcMain.handle('camera:start-live-view', () => canonCameraService.startLiveView());
+  ipcMain.handle('camera:stop-live-view', () => canonCameraService.stopLiveView());
+  ipcMain.handle('camera:take-picture', () => canonCameraService.takePicture());
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media');
@@ -73,4 +93,8 @@ app.on('activate', () => {
   if (mainWindow === null) {
     createWindow();
   }
+});
+
+app.on('will-quit', () => {
+  void canonCameraService.dispose();
 });

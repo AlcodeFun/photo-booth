@@ -63,3 +63,31 @@ export interface FrameConfig {
   template?: FrameTemplateConfig;
   templatesByPhotoSlots?: Partial<Record<number, FrameTemplateConfig>>;
 }
+
+export type CameraStatus =
+  | 'DISCONNECTED'
+  | 'CONNECTING'
+  | 'LIVE_VIEW'
+  | 'CAPTURING'
+  | 'READY'
+  | 'ERROR';
+
+export interface CameraInfo {
+  model: string | null;
+  connected: boolean;
+}
+
+export interface CameraLiveFrame {
+  dataUrl: string;
+  timestamp: number;
+}
+
+export interface CameraCaptureResult {
+  dataUrl: string;
+}
+
+export interface CameraStatePayload {
+  status: CameraStatus;
+  info?: CameraInfo;
+  error?: string;
+}

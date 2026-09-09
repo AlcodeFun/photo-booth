@@ -1,0 +1,9 @@
+name = "photo-booth-gallery"
+main = "src/index.ts"
+compatibility_date = "2025-05-01"
+
+# Create the bucket first: `wrangler r2 bucket create photo-booth-gallery`
+# Then update bucket_name to match your account's bucket if you renamed it.
+[[r2_buckets]]
+binding = "GALLERY_BUCKET"
+bucket_name = "photo-booth-gallery"

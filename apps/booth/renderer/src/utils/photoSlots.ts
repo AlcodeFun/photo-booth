@@ -9,3 +9,9 @@ export const getSelectedPhotoUrls = (photoSlots: PhotoSlotState[]): Array<string
 
     return slot.attempts[slot.attempts.length - 1]?.localPath;
   });
+
+/** Flattens every captured attempt (selected + retaken) across all slots into data URLs. */
+export const getAllPhotoUrls = (photoSlots: PhotoSlotState[]): string[] =>
+  photoSlots.flatMap((slot) =>
+    slot.attempts.flatMap((attempt) => (attempt.localPath ? [attempt.localPath] : [])),
+  );

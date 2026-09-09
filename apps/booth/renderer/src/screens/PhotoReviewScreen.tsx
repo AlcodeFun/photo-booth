@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
 
@@ -22,77 +22,121 @@ export const PhotoReviewScreen: React.FC = () => {
   const resolvedTemplate = frame ? resolveFrameTemplate(frame, photoSlots.length) : null;
   const activeSlot = resolvedTemplate?.photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
   const slotAspectRatio = activeSlot && activeSlot.height > 0 ? activeSlot.width / activeSlot.height : 4 / 3;
+  const frameBackground = resolvedTemplate?.backgroundColor ?? '#fff';
+
+  // Available space for the photo, measured from the actual container so the
+  // image never overflows and covers the status/controls below.
+  const photoAreaRef = useRef<HTMLDivElement>(null);
+  const [area, setArea] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const el = photoAreaRef.current;
+    if (!el) {
+      return;
+    }
+    const update = () => {
+      setArea({ width: el.clientWidth, height: el.clientHeight });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const fallbackWidth = Math.min(0.9 * window.innerWidth, 0.88 * window.innerHeight * slotAspectRatio);
+
+  // Largest rectangle matching the slot ratio that fits inside the area.
+  const photoFit = useMemo(() => {
+    if (!area || area.width <= 0 || area.height <= 0) {
+      return null;
+    }
+    const widthFromHeight = area.height * slotAspectRatio;
+    const width = Math.min(area.width, widthFromHeight);
+    return { width, height: width / slotAspectRatio };
+  }, [area, slotAspectRatio]);
 
   return (
-    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
-      <div className="w-full max-w-[1000px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6">
-        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
-          <div className="mb-6 text-center text-[#4d2d85]">
-            <div className="text-[0.8rem] font-black uppercase tracking-[0.28em]">Review Photo</div>
-            <h1 className="mt-2 text-[2rem] font-black uppercase tracking-[-0.08em]">
-              Photo {currentPhotoSlot}
-            </h1>
-            <p className="mt-2 text-sm font-bold uppercase tracking-[0.16em]">Attempt {attemptCount} of 3</p>
+    <div className="flex h-[calc(100vh-3rem)] select-none flex-col overflow-hidden bg-[#ffd4e6]">
+      {/* Header */}
+      <header className="flex shrink-0 items-center justify-between px-4 pt-4 sm:px-6">
+        <div>
+          <p className="text-[0.7rem] font-black uppercase tracking-[0.28em] text-[#7a4de3]">Photo Review</p>
+          <h1 className="mt-1 text-2xl font-black uppercase tracking-[-0.06em] text-[#4d2d85] sm:text-3xl">
+            Photo {currentPhotoSlot}
+          </h1>
+        </div>
+        <div className="rounded-[14px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-2 text-right shadow-[0_3px_0_rgba(77,45,133,0.2)]">
+          <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-[#4d2d85]">Attempt</p>
+          <p className="text-base font-black text-[#4d2d85]">
+            {attemptCount}
+            <span className="text-[#7a4de3]">/3</span>
+          </p>
+        </div>
+      </header>
+
+      {/* Centered ratio-locked photo */}
+      <div ref={photoAreaRef} className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-4 py-2">
+        {latestAttempt?.localPath ? (
+          <img
+            src={latestAttempt.localPath}
+            alt={`Captured attempt ${attemptCount}`}
+            className="max-h-full max-w-full rounded-[14px] border-[4px] border-[#a35ef6] shadow-[0_8px_0_rgba(77,45,133,0.25),0_18px_40px_rgba(163,94,246,0.35)]"
+            style={{
+              width: photoFit?.width ?? fallbackWidth,
+              height: photoFit?.width ? photoFit.width / slotAspectRatio : fallbackWidth / slotAspectRatio,
+              objectFit: 'cover',
+              backgroundColor: frameBackground,
+            }}
+          />
+        ) : (
+          <div className="flex items-center justify-center text-sm font-black uppercase tracking-[0.2em] text-[#4d2d85]">
+            No photo captured
           </div>
+        )}
+      </div>
 
-          <div
-            className={`relative my-4 w-full max-w-[420px] mx-auto overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#22143e] shadow-[0_12px_0_rgba(77,45,133,0.25)]`}
-            style={{ aspectRatio: slotAspectRatio }}
-            data-aspect-ratio={slotAspectRatio}
-          >
-            {latestAttempt?.localPath ? (
-              <img
-                src={latestAttempt.localPath}
-                alt={`Captured attempt ${attemptCount}`}
-                className="h-full w-full object-contain bg-black"
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm font-black uppercase tracking-[0.2em] text-white/65">
-                No photo captured
-              </div>
-            )}
-
-            {frame && (
-              <div className="pointer-events-none absolute inset-3 rounded-[16px] border-[2px] border-white/30">
-                <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white">
-                  {frame.name}
-                </span>
-              </div>
-            )}
-
-            {maxAttemptsReached && (
-              <div className="absolute right-4 top-4 rounded-full border border-red-400 bg-red-500/90 px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.18em] text-white">
-                Final Attempt
-              </div>
-            )}
-          </div>
-
-          <div className="mx-auto flex w-full max-w-lg gap-4">
-            <button
-              onClick={retakePhoto}
-              disabled={maxAttemptsReached}
-              className={`flex-1 rounded-[12px] px-6 py-4 text-[0.8rem] font-black uppercase tracking-[0.18em] transition-all ${
-                maxAttemptsReached
-                  ? 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
-                  : 'border-[3px] border-[#a35ef6] bg-[#fdf3ff] text-[#4d2d85] hover:-translate-y-0.5'
+      {/* Status */}
+      <div className="relative z-10 flex shrink-0 flex-col items-center gap-1.5 px-4 pb-3">
+        <p className="text-sm font-black uppercase tracking-[0.16em] text-[#4d2d85]">Apakah foto ini sudah pas?</p>
+        <div className="flex items-center gap-2">
+          {[1, 2, 3].map((n) => (
+            <span
+              key={n}
+              className={`h-2.5 w-2.5 rounded-full transition-all ${
+                n <= attemptCount ? 'bg-[#ff4bb5]' : 'bg-[#f9b6d6]'
               }`}
-            >
-              {maxAttemptsReached ? 'Limit Reached' : 'Retake'}
-            </button>
+            />
+          ))}
+        </div>
+      </div>
 
-            <button
-              onClick={usePhoto}
-              className="flex-1 rounded-[12px] bg-[#ff7d57] px-6 py-4 text-[0.8rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
-            >
-              Use Photo
-            </button>
-          </div>
+      {/* Controls */}
+      <div className="relative z-10 flex shrink-0 flex-col items-center gap-3 px-4 pb-6 sm:px-6">
+        {maxAttemptsReached && (
+          <span className="rounded-full border border-red-400 bg-red-500/90 px-4 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.18em] text-white">
+            Kesempatan terakhir
+          </span>
+        )}
 
-          {maxAttemptsReached && (
-            <p className="mt-4 text-center text-[0.72rem] font-bold uppercase tracking-[0.18em] text-[#fef2f2]">
-              Maximum of 3 attempts reached. Please use this photo to proceed.
-            </p>
-          )}
+        <div className="mx-auto flex w-full max-w-lg gap-4">
+          <button
+            onClick={retakePhoto}
+            disabled={maxAttemptsReached}
+            className={`flex-1 rounded-[14px] px-6 py-4 text-[0.8rem] font-black uppercase tracking-[0.18em] transition-all ${
+              maxAttemptsReached
+                ? 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
+                : 'border-[3px] border-[#a35ef6] bg-[#fffdf6] text-[#4d2d85] shadow-[0_4px_0_rgba(77,45,133,0.2)] hover:-translate-y-0.5 active:translate-y-0'
+            }`}
+          >
+            Foto Ulang
+          </button>
+
+          <button
+            onClick={usePhoto}
+            className="flex-1 rounded-[14px] bg-[#ff4bb5] px-6 py-4 text-[0.8rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(122,43,140,0.45)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+          >
+            Pakai Foto
+          </button>
         </div>
       </div>
     </div>

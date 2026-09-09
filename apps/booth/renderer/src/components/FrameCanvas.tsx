@@ -9,6 +9,7 @@ interface FrameCanvasProps {
   template?: FrameTemplateConfig;
   filterClassName?: string;
   className?: string;
+  style?: CSSProperties;
   showGuides?: boolean;
   activeSlotNumber?: number;
   onSlotSelect?: (slotNumber: number) => void;
@@ -23,6 +24,7 @@ export const FrameCanvas = ({
   template,
   filterClassName = '',
   className = '',
+  style,
   showGuides = false,
   activeSlotNumber,
   onSlotSelect,
@@ -34,6 +36,7 @@ export const FrameCanvas = ({
   const canvasStyle: CSSProperties = {
     aspectRatio: `${resolvedTemplate.width} / ${resolvedTemplate.height}`,
     backgroundColor: resolvedTemplate.backgroundColor,
+    ...style,
   };
 
   return (

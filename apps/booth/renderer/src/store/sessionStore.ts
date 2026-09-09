@@ -13,7 +13,6 @@ export type ScreenName =
   | 'PHOTO_CAPTURE'
   | 'PHOTO_REVIEW'
   | 'FILTER'
-  | 'FINAL_PREVIEW'
   | 'PRINT_QR'
   | 'COMPLETE';
 
@@ -33,6 +32,7 @@ export interface SessionStore {
   // Print & Sync Simulation States
   printStatus: 'IDLE' | 'PRINTING' | 'SUCCESS' | 'ERROR';
   uploadStatus: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
+  downloadUrl: string | null;
 
   // Actions
   startNewSession: () => void;
@@ -48,6 +48,8 @@ export interface SessionStore {
   
   // Final actions
   startPrinting: () => void;
+  setUploadStatus: (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR') => void;
+  setDownloadUrl: (url: string) => void;
   completeSession: () => void;
   resetSession: () => void;
 }
@@ -65,6 +67,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
+  downloadUrl: null,
 
   startNewSession: () => {
     const randomId = 'session_' + Math.random().toString(36).substring(2, 11);
@@ -77,6 +80,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       paymentConfirmed: false,
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
+      downloadUrl: null,
       currentScreen: 'MANUAL_PAYMENT',
     });
   },
@@ -104,10 +108,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   selectFilter: (filterId) => {
-    set({
-      filterId,
-      currentScreen: 'FINAL_PREVIEW',
-    });
+    set({ filterId });
+    get().startPrinting();
   },
 
   startCaptureFlow: () => {
@@ -220,14 +222,19 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       uploadStatus: 'UPLOADING',
     });
 
-    // Simulate printing and uploading delay
+    // Simulate the print job only. Upload state is driven by the real upload
+    // in PRINT_QR (or a simulated success fallback when no gallery is configured).
     setTimeout(() => {
       set({ printStatus: 'SUCCESS' });
     }, 4000);
+  },
 
-    setTimeout(() => {
-      set({ uploadStatus: 'SUCCESS' });
-    }, 3000);
+  setUploadStatus: (status) => {
+    set({ uploadStatus: status });
+  },
+
+  setDownloadUrl: (url) => {
+    set({ downloadUrl: url });
   },
 
   completeSession: () => {

@@ -2,5 +2,7 @@ packages:
   - 'apps/*'
   - 'packages/*'
 allowBuilds:
+  '@brick-a-brack/napi-canon-cameras': true
   electron: true
   esbuild: true
+  workerd: true

@@ -10,16 +10,21 @@
     "build": "corepack pnpm build:renderer && corepack pnpm build:electron",
     "build:renderer": "vite build && node -e \"var fs=require('fs');fs.cpSync('renderer/public/manifest.webmanifest','dist/renderer/manifest.webmanifest');fs.cpSync('renderer/public/sw.js','dist/renderer/sw.js');fs.cpSync('renderer/public/icons','dist/renderer/icons',{recursive:true})\"",
     "build:electron": "tsc -p electron/tsconfig.json",
+    "start": "node scripts/start-electron.js",
     "typecheck": "tsc -p electron/tsconfig.json --noEmit && tsc -p renderer/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@brick-a-brack/napi-canon-cameras": "^0.1.5",
     "@photo-booth/types": "workspace:*",
     "@photo-booth/ui": "workspace:*",
+    "gifenc": "^1.0.3",
+    "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "zustand": "^4.5.1"
   },
   "devDependencies": {
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.2.1",

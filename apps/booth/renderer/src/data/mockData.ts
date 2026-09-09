@@ -243,12 +243,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
   {
   id: 'frame-static-photo-2-static',
   name: 'Biru Lucu',
-  previewUrl: '/frame-templates/1.png',
+  previewUrl: publicAsset('frame-templates/1.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 8,
   templatesByPhotoSlots: {
     8: {
-  assetUrl: "/frame-templates/1.png",
+  assetUrl: publicAsset('frame-templates/1.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#26c942",
@@ -357,12 +357,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame-2',
   name: 'Merah Cinta',
-  previewUrl: '/frame-templates/2.png',
+  previewUrl: publicAsset('frame-templates/2.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 6,
   templatesByPhotoSlots: {
     6: {
-  assetUrl: "/frame-templates/2.png",
+  assetUrl: publicAsset('frame-templates/2.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#ec3c3c",
@@ -447,12 +447,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame-3',
   name: 'Koran 1',
-  previewUrl: '/frame-templates/3.png',
+  previewUrl: publicAsset('frame-templates/3.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 6,
   templatesByPhotoSlots: {
     6: {
-  assetUrl: "/frame-templates/3.png",
+  assetUrl: publicAsset('frame-templates/3.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#ec2727",
@@ -537,12 +537,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame-4',
   name: 'Amplop',
-  previewUrl: '/frame-templates/4.png',
+  previewUrl: publicAsset('frame-templates/4.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 6,
   templatesByPhotoSlots: {
     6: {
-  assetUrl: "/frame-templates/4.png",
+  assetUrl: publicAsset('frame-templates/4.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#34d54f",
@@ -627,12 +627,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame-5',
   name: 'Lemonade',
-  previewUrl: '/frame-templates/5.png',
+  previewUrl: publicAsset('frame-templates/5.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 1,
   templatesByPhotoSlots: {
     1: {
-  assetUrl: "/frame-templates/5.png",
+  assetUrl: publicAsset('frame-templates/5.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#111111",
@@ -657,12 +657,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame',
   name: 'Kertas Memori',
-  previewUrl: '/frame-templates/6.png',
+  previewUrl: publicAsset('frame-templates/6.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 6,
   templatesByPhotoSlots: {
     6: {
-  assetUrl: "/frame-templates/6.png",
+  assetUrl: publicAsset('frame-templates/6.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#111111",
@@ -750,12 +750,12 @@ export const MOCK_FRAMES: FrameConfig[] = [
 {
   id: 'custom-static-frame-7-static',
   name: 'Koran 2',
-  previewUrl: '/frame-templates/7.png',
+  previewUrl: publicAsset('frame-templates/7.png'),
   theme: 'bg-zinc-950 border-zinc-900 text-white',
   photoSlots: 3,
   templatesByPhotoSlots: {
     3: {
-  assetUrl: "/frame-templates/7.png",
+  assetUrl: publicAsset('frame-templates/7.png'),
   width: 1200,
   height: 1600,
   backgroundColor: "#111111",
