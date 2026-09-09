@@ -7,7 +7,7 @@ interface FrameCanvasProps {
   photos?: Array<string | undefined>;
   photoSlotCount?: number;
   template?: FrameTemplateConfig;
-  filterClassName?: string;
+  filter?: string;
   className?: string;
   style?: CSSProperties;
   showGuides?: boolean;
@@ -22,7 +22,7 @@ export const FrameCanvas = ({
   photos = [],
   photoSlotCount,
   template,
-  filterClassName = '',
+  filter = 'none',
   className = '',
   style,
   showGuides = false,
@@ -73,8 +73,8 @@ export const FrameCanvas = ({
               <img
                 src={photoUrl}
                 alt={`Source photo ${sourcePhotoSlot}`}
-                className={`h-full w-full ${slot.objectFit === 'contain' ? 'object-contain' : 'object-cover'} ${filterClassName}`}
-                style={{ objectPosition: slot.objectPosition ?? 'center' }}
+                className={`h-full w-full ${slot.objectFit === 'contain' ? 'object-contain' : 'object-cover'}`}
+                style={{ objectPosition: slot.objectPosition ?? 'center', filter }}
               />
             ) : (
               <span>Photo {sourcePhotoSlot}</span>

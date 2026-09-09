@@ -24,6 +24,7 @@ export interface IElectronAPIWindow {
 export interface IElectronAPI {
   ping: () => Promise<string>;
   printToPDF: () => Promise<string | null>;
+  saveFile: (fileName: string, dataUrl: string) => Promise<string | null>;
   window: IElectronAPIWindow;
   camera: IElectronAPICamera;
 }

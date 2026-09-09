@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
-import { getFilterClassName } from '../utils/filters';
+import { getCanvasFilter } from '../utils/filters';
+import { downloadBlob, downloadDataUrl } from '../utils/download';
 import {
   downloadFramedPhoto,
   createResultGif,
@@ -107,7 +108,7 @@ export const PrintQRScreen: React.FC = () => {
   const multiPhoto = photoSlots.length > 1;
   const selectedPhotos = useMemo(() => getSelectedPhotoUrls(photoSlots), [photoSlots]);
   const allPhotos = useMemo(() => getAllPhotoUrls(photoSlots), [photoSlots]);
-  const filterClassName = getFilterClassName(filterId);
+  const frameFilter = getCanvasFilter(filterId);
 
   // Generate the animated GIF once for multi-photo strips (shared by preview + upload).
   useEffect(() => {
@@ -331,14 +332,7 @@ export const PrintQRScreen: React.FC = () => {
     setDownloading('gif');
     try {
       const blob = await createResultGif(photoSlots, filterId);
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = 'photo-booth-result.gif';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, 'photo-booth-result.gif');
     } finally {
       setDownloading(null);
     }
@@ -404,7 +398,7 @@ export const PrintQRScreen: React.FC = () => {
                 frame={frame}
                 photos={selectedPhotos}
                 photoSlotCount={photoSlots.length}
-                filterClassName={filterClassName}
+                filter={frameFilter}
                 className="w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
               />
             </div>
@@ -555,14 +549,16 @@ export const PrintQRScreen: React.FC = () => {
             <div className="grid grid-cols-3 gap-2 overflow-y-auto">
               {allPhotos.map((dataUrl, index) => (
                 <div key={index} className="flex flex-col overflow-hidden rounded-[12px] bg-white shadow-[0_4px_0_rgba(77,45,133,0.15)]">
-                  <img src={dataUrl} alt={`Photo ${index + 1}`} className="aspect-square w-full object-cover" />
-                  <a
-                    href={dataUrl}
-                    download={`photo-booth-${String(index + 1).padStart(2, '0')}.jpg`}
-                    className="block py-1.5 text-center text-[0.6rem] font-black uppercase tracking-[0.1em] text-[#4d2d85]"
+                  <img src={dataUrl} alt={`Photo ${index + 1}`} className="block h-auto w-full" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void downloadDataUrl(dataUrl, `photo-booth-${String(index + 1).padStart(2, '0')}.jpg`);
+                    }}
+                    className="block w-full py-1.5 text-center text-[0.6rem] font-black uppercase tracking-[0.1em] text-[#4d2d85]"
                   >
                     Save
-                  </a>
+                  </button>
                 </div>
               ))}
             </div>

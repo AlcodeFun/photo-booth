@@ -2,6 +2,7 @@ import { FrameConfig, FramePhotoPlacement, PhotoSlotState } from '@photo-booth/t
 import { resolveFrameTemplate } from './frameTemplateConfig';
 import { getSelectedPhotoUrls } from './photoSlots';
 import { getCanvasFilter } from './filters';
+import { downloadBlob } from './download';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -171,21 +172,15 @@ async function renderTemplated(
   }
 }
 
-const triggerDownload = (blob: Blob, fileName: string) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
-
 const downloadCanvasAsPng = async (canvas: HTMLCanvasElement, fileName: string) => {
+  if (window.electronAPI?.saveFile) {
+    const dataUrl = canvas.toDataURL('image/png');
+    await window.electronAPI.saveFile(fileName, dataUrl);
+    return;
+  }
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
   if (blob) {
-    triggerDownload(blob, fileName);
+    await downloadBlob(blob, fileName);
   }
 };
 

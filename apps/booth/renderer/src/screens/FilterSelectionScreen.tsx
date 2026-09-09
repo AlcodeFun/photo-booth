@@ -14,7 +14,7 @@ export const FilterSelectionScreen: React.FC = () => {
 
   const selectedPhotos = getSelectedPhotoUrls(photoSlots);
 
-  const filterClassName = getFilterById(selectedFilter).className;
+  const filterStyle = getFilterById(selectedFilter).canvasFilter;
 
   return (
     <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none">
@@ -41,7 +41,10 @@ export const FilterSelectionScreen: React.FC = () => {
                         : 'border-[#a35ef6] bg-[#fdf3ff] hover:border-[#4acaf1]'
                     }`}
                   >
-                    <div className={`mb-2 aspect-[4/3] overflow-hidden rounded-[10px] bg-[#22143e] ${filter.className}`}>
+                    <div
+                      className="mb-2 aspect-[4/3] overflow-hidden rounded-[10px] bg-[#22143e]"
+                      style={{ filter: filter.canvasFilter }}
+                    >
                       {selectedPhotos[0] ? <img src={selectedPhotos[0]} alt="" className="h-full w-full object-contain bg-black" /> : null}
                     </div>
                     <span className="text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]">{filter.name}</span>
@@ -63,7 +66,7 @@ export const FilterSelectionScreen: React.FC = () => {
                 frame={frame}
                 photos={selectedPhotos}
                 photoSlotCount={photoSlots.length}
-                filterClassName={filterClassName}
+                filter={filterStyle}
                 className="w-full max-w-xs rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff]"
               />
             </section>
