@@ -340,9 +340,9 @@ export const ManualPaymentScreen: React.FC = () => {
       <div className="pb-hero-center">
         <div ref={collageWrapRef} className="pb-main">
           <div ref={collageRef} className="pb-collage">
-            <Court src={PHOTOS[0]} caption="Amelia ✦ 24" style={{ left: -30, top: 20, transform: 'rotateY(-18deg)' }} />
-            <Court src={PHOTOS[1]} caption="Happy Birthday" style={{ left: 150, top: 110, transform: 'rotateY(18deg)' }} />
-            <Court src={PHOTOS[2]} caption="Party Time!" style={{ left: 20, top: 280, transform: 'rotateY(-6deg) rotateX(6deg)' }} />
+            <Court src={PHOTOS[0]} caption="The Best" style={{ left: -30, top: 20, transform: 'rotateY(-18deg)' }} />
+            <Court src={PHOTOS[1]} caption="Photostrip" style={{ left: 150, top: 110, transform: 'rotateY(18deg)' }} />
+            <Court src={PHOTOS[2]} caption="Experience" style={{ left: 20, top: 280, transform: 'rotateY(-6deg) rotateX(6deg)' }} />
           </div>
         </div>
       </div>
