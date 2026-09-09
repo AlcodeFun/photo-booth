@@ -1,6 +1,5 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
-import { canonCameraService } from './camera/CanonCameraService';
 
 const rendererPort = Number(process.env.VITE_PORT || 5173);
 
@@ -53,8 +52,6 @@ function createWindow() {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
-
-  canonCameraService.attachWindow(mainWindow);
 }
 
 app.whenReady().then(() => {
@@ -70,12 +67,6 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('window:is-fullscreen', () => mainWindow?.isFullScreen() ?? false);
-
-  ipcMain.handle('camera:get-status', () => canonCameraService.getStatus());
-  ipcMain.handle('camera:initialize', () => canonCameraService.initialize());
-  ipcMain.handle('camera:start-live-view', () => canonCameraService.startLiveView());
-  ipcMain.handle('camera:stop-live-view', () => canonCameraService.stopLiveView());
-  ipcMain.handle('camera:take-picture', () => canonCameraService.takePicture());
 
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
     callback(permission === 'media');
@@ -96,5 +87,5 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
-  void canonCameraService.dispose();
+  // Camera bridge resources are torn down here when re-enabled.
 });
