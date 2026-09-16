@@ -140,7 +140,8 @@ export const PhotoCaptureScreen: React.FC = () => {
 
   const capturePhoto = useCallback(async () => {
     if (canonActive) {
-      const dataUrl = await canon.capture();
+      const result = await canon.capture();
+      const dataUrl = result?.dataUrl;
       if (dataUrl) {
         addPhotoAttempt(dataUrl);
       } else {

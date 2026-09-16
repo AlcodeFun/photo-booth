@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { CameraStatus } from '@photo-booth/types';
+import React, { useEffect, useState } from 'react';
+import { CameraCaptureResult, CameraStatus } from '@photo-booth/types';
 import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
 
 const STATUS_STYLES: Record<CameraStatus, string> = {
@@ -22,8 +22,14 @@ const STATUS_LABELS: Record<CameraStatus, string> = {
 
 export const CameraSettingsScreen: React.FC = () => {
   const canon = usePhotoBoothCamera();
-  const [testPhoto, setTestPhoto] = useState<string | null>(null);
+  const [testPhoto, setTestPhoto] = useState<CameraCaptureResult | null>(null);
   const [busy, setBusy] = useState(false);
+  const [mjpeg, setMjpeg] = useState<{ running: boolean; port: number }>({ running: false, port: 0 });
+  const [mjpegBusy, setMjpegBusy] = useState(false);
+
+  useEffect(() => {
+    window.electronAPI?.camera?.mjpeg?.get?.().then(setMjpeg).catch(() => undefined);
+  }, []);
 
   const statusStyle = STATUS_STYLES[canon.status] ?? STATUS_STYLES.DISCONNECTED;
   const statusLabel = STATUS_LABELS[canon.status] ?? canon.status;
@@ -55,8 +61,10 @@ export const CameraSettingsScreen: React.FC = () => {
 
           {!canon.available && (
             <div className="mb-6 rounded-[12px] border-[3px] border-amber-400 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-              The Canon EDSDK bridge is only available inside the Electron app. This page is running in a
-              plain browser, so the hardware camera cannot be reached here.
+              No tethered camera is detected. Inside the booth this means no gphoto2-capable camera is
+              connected over USB/PTP (ensure gphoto2 is installed / reachable and the camera is bound to
+              the WinUSB driver). In a plain browser the hardware camera is unreachable — the simulated
+              camera is used here instead.
             </div>
           )}
 
@@ -92,9 +100,12 @@ export const CameraSettingsScreen: React.FC = () => {
 
               {testPhoto && (
                 <div className="flex items-center gap-4 rounded-[12px] border-[3px] border-[#d9f85a] bg-[#f8ffd9] p-3">
-                  <img src={testPhoto} alt="Test capture" className="h-24 w-32 rounded-[8px] border-2 border-[#a35ef6] object-cover" />
-                  <div className="flex-1">
+                  <img src={testPhoto.dataUrl} alt="Test capture" className="h-24 w-32 rounded-[8px] border-2 border-[#a35ef6] object-cover" />
+                  <div className="min-w-0 flex-1">
                     <div className="text-sm font-black uppercase tracking-[0.14em] text-[#4d2d85]">Last Test Capture</div>
+                    <div className="mt-0.5 truncate text-xs font-semibold text-[#4d2d85]" title={testPhoto.filePath}>
+                      Saved to: {testPhoto.filePath}
+                    </div>
                     <button
                       type="button"
                       onClick={() => setTestPhoto(null)}
@@ -137,9 +148,9 @@ export const CameraSettingsScreen: React.FC = () => {
                     disabled={busy || canon.status !== 'LIVE_VIEW'}
                     onClick={() =>
                       runAction(async () => {
-                        const dataUrl = await canon.capture();
-                        if (dataUrl) {
-                          setTestPhoto(dataUrl);
+                        const result = await canon.capture();
+                        if (result) {
+                          setTestPhoto(result);
                         }
                       })
                     }
@@ -171,6 +182,60 @@ export const CameraSettingsScreen: React.FC = () => {
                   <li>3. Confirm the live view appears above.</li>
                   <li>4. Press <span className="font-black text-[#ff4bb5]">Take Test Picture</span>.</li>
                 </ol>
+              </div>
+
+              <div className="rounded-[12px] border-[3px] border-[#c9b8ff] bg-[#faf7ff] p-4">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+                    Virtual Camera Broadcast
+                  </div>
+                  <span
+                    className={`rounded-full border-2 px-2 py-0.5 text-[10px] font-black uppercase ${
+                      mjpeg.running
+                        ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-300 bg-slate-100 text-slate-500'
+                    }`}
+                  >
+                    {mjpeg.running ? 'On' : 'Off'}
+                  </span>
+                </div>
+                <p className="mb-3 text-xs font-semibold text-[#4d2d85]/85">
+                  Broadcasts the DSLR live view as an MJPEG stream — the Windows-native way to use the
+                  Canon as a webcam. Open the URL in any media player, or add it as an OBS{' '}
+                  <span className="font-black">Media Source</span> and press{' '}
+                  <span className="font-black">Start Virtual Camera</span> to expose it system-wide.
+                </p>
+                {mjpeg.running && mjpeg.port > 0 && (
+                  <div className="mb-3 rounded-[8px] border-2 border-dashed border-[#a35ef6] bg-[#f0e5ff] px-3 py-2 text-xs font-black tracking-wide text-[#5b3aa8]">
+                    http://127.0.0.1:{mjpeg.port}/feed.mjpeg
+                  </div>
+                )}
+                <button
+                  type="button"
+                  disabled={mjpegBusy}
+                  onClick={() =>
+                    void (async () => {
+                      setMjpegBusy(true);
+                      try {
+                        const api = window.electronAPI?.camera?.mjpeg;
+                        if (!api) {
+                          return;
+                        }
+                        const next = mjpeg.running ? await api.stop() : await api.start();
+                        setMjpeg(next);
+                      } finally {
+                        setMjpegBusy(false);
+                      }
+                    })()
+                  }
+                  className={`w-full rounded-[10px] border-[3px] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] disabled:opacity-50 ${
+                    mjpeg.running
+                      ? 'border-[#ff9ecb] bg-[#ffe0ef] text-[#b3206e]'
+                      : 'border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85]'
+                  }`}
+                >
+                  {mjpeg.running ? 'Stop Broadcast' : 'Start Broadcast'}
+                </button>
               </div>
             </div>
           </div>

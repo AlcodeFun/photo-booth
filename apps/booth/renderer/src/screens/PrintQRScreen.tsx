@@ -3,7 +3,7 @@ import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
 import { getCanvasFilter } from '../utils/filters';
-import { downloadBlob, downloadDataUrl } from '../utils/download';
+import { downloadBlob, downloadDataUrl, downloadStamp } from '../utils/download';
 import {
   downloadFramedPhoto,
   createResultGif,
@@ -332,7 +332,7 @@ export const PrintQRScreen: React.FC = () => {
     setDownloading('gif');
     try {
       const blob = await createResultGif(photoSlots, filterId);
-      await downloadBlob(blob, 'photo-booth-result.gif');
+      await downloadBlob(blob, `photo-booth-${downloadStamp()}-result.gif`);
     } finally {
       setDownloading(null);
     }
@@ -553,7 +553,7 @@ export const PrintQRScreen: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      void downloadDataUrl(dataUrl, `photo-booth-${String(index + 1).padStart(2, '0')}.jpg`);
+                      void downloadDataUrl(dataUrl, `photo-booth-${downloadStamp()}-${String(index + 1).padStart(2, '0')}.jpg`);
                     }}
                     className="block w-full py-1.5 text-center text-[0.6rem] font-black uppercase tracking-[0.1em] text-[#4d2d85]"
                   >

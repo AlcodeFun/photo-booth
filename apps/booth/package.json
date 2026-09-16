@@ -17,6 +17,7 @@
     "@photo-booth/types": "workspace:*",
     "@photo-booth/ui": "workspace:*",
     "gifenc": "^1.0.3",
+    "koffi": "^3.2.1",
     "qrcode": "^1.5.4",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

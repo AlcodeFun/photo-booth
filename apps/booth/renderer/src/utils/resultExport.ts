@@ -2,7 +2,7 @@ import { FrameConfig, FramePhotoPlacement, PhotoSlotState } from '@photo-booth/t
 import { resolveFrameTemplate } from './frameTemplateConfig';
 import { getSelectedPhotoUrls } from './photoSlots';
 import { getCanvasFilter } from './filters';
-import { downloadBlob } from './download';
+import { downloadBlob, downloadStamp } from './download';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -191,7 +191,7 @@ export async function downloadFramedPhoto(
   filterId: string | null | undefined,
 ): Promise<void> {
   const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
-  await downloadCanvasAsPng(canvas, 'photo-booth-result.png');
+  await downloadCanvasAsPng(canvas, `photo-booth-${downloadStamp()}-result.png`);
 }
 
 const drawContain = (

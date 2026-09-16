@@ -1,9 +1,30 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
+import { GphotoCameraService } from './camera/GphotoCameraService';
+import { MjpegLoopbackServer } from './camera/MjpegLoopbackServer';
 
 const rendererPort = Number(process.env.VITE_PORT || 5173);
 
 let mainWindow: BrowserWindow | null = null;
+let cameraService: GphotoCameraService | null = null;
+
+const mjpegServer = new MjpegLoopbackServer();
+
+const frameDataUrlToBuffer = (dataUrl: string) =>
+  Buffer.from(dataUrl.replace(/^data:[^,]+,/, ''), 'base64');
+
+const forwardCameraEvents = () => {
+  if (!cameraService) {
+    return;
+  }
+  cameraService.onStatus((payload) => mainWindow?.webContents.send('camera:status', payload));
+  cameraService.onLiveView((frame) => {
+    mainWindow?.webContents.send('camera:liveview', frame);
+    if (mjpegServer.isRunning()) {
+      mjpegServer.push(frameDataUrlToBuffer(frame.dataUrl));
+    }
+  });
+};
 
 async function saveDownloadFile(fileName: string, dataUrl: string) {
   if (!mainWindow) {
@@ -81,6 +102,32 @@ function createWindow() {
 app.whenReady().then(() => {
   ipcMain.handle('print-to-pdf', async () => printWindowToPdf());
 
+  cameraService = new GphotoCameraService();
+  forwardCameraEvents();
+  ipcMain.handle('camera:available', () => cameraService?.isAvailable() ?? false);
+  ipcMain.handle('camera:getStatus', () => cameraService?.getStatus() ?? null);
+  ipcMain.handle('camera:initialize', () => cameraService?.initialize() ?? null);
+  ipcMain.handle('camera:startLiveView', () => cameraService?.startLiveView() ?? null);
+  ipcMain.handle('camera:stopLiveView', () => cameraService?.stopLiveView() ?? null);
+  ipcMain.handle('camera:takePicture', () => cameraService?.takePicture() ?? null);
+
+  ipcMain.handle('camera:mjpeg:get', () => ({
+    running: mjpegServer.isRunning(),
+    port: mjpegServer.port(),
+  }));
+  ipcMain.handle('camera:mjpeg:start', () => {
+    try {
+      mjpegServer.start();
+      return { running: mjpegServer.isRunning(), port: mjpegServer.port() };
+    } catch (error) {
+      return { running: false, port: 0, error: String(error) };
+    }
+  });
+  ipcMain.handle('camera:mjpeg:stop', () => {
+    mjpegServer.stop();
+    return { running: false, port: 0 };
+  });
+
   ipcMain.handle('save-file', async (_event, payload: { fileName: string; dataUrl: string }) =>
     saveDownloadFile(payload.fileName, payload.dataUrl),
   );
@@ -115,5 +162,9 @@ app.on('activate', () => {
 });
 
 app.on('will-quit', () => {
-  // Camera bridge resources are torn down here when re-enabled.
+  mjpegServer.stop();
+  if (cameraService) {
+    cameraService.dispose();
+    cameraService = null;
+  }
 });

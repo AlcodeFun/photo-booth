@@ -13,12 +13,34 @@ import {
  */
 export function usePhotoBoothCamera() {
   const api = window.electronAPI?.camera;
-  const available = Boolean(api);
 
+  const [available, setAvailable] = useState(false);
   const [status, setStatus] = useState<CameraStatus>('DISCONNECTED');
   const [liveFrame, setLiveFrame] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+    let cancelled = false;
+    api
+      .available()
+      .then((ok) => {
+        if (!cancelled) {
+          setAvailable(ok);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvailable(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [api]);
 
   useEffect(() => {
     if (!api) {
@@ -81,8 +103,7 @@ export function usePhotoBoothCamera() {
       return null;
     }
     try {
-      const result = await api.takePicture();
-      return result.dataUrl;
+      return await api.takePicture();
     } catch (err) {
       setError(String(err));
       return null;

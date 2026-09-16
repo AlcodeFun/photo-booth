@@ -7,6 +7,7 @@ import {
 } from '@photo-booth/types';
 
 export interface IElectronAPICamera {
+  available: () => Promise<boolean>;
   getStatus: () => Promise<CameraStatePayload>;
   initialize: () => Promise<CameraStatePayload>;
   startLiveView: () => Promise<CameraStatePayload>;
@@ -14,6 +15,13 @@ export interface IElectronAPICamera {
   takePicture: () => Promise<CameraCaptureResult>;
   onStatus: (callback: (payload: CameraStatePayload) => void) => () => void;
   onLiveView: (callback: (frame: CameraLiveFrame) => void) => () => void;
+  mjpeg: IElectronAPIMjpeg;
+}
+
+export interface IElectronAPIMjpeg {
+  get: () => Promise<{ running: boolean; port: number }>;
+  start: () => Promise<{ running: boolean; port: number }>;
+  stop: () => Promise<{ running: boolean; port: number }>;
 }
 
 export interface IElectronAPIWindow {

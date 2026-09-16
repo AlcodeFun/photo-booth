@@ -7,6 +7,11 @@ const triggerAnchorDownload = (href: string, fileName: string) => {
   document.body.removeChild(link);
 };
 
+/** Compact UTC timestamp used to give every download a unique filename
+ *  (`20260910T153012`), so a stale file can't be mistaken for a fresh one. */
+export const downloadStamp = (): string =>
+  new Date().toISOString().replace(/[-:T]/g, '').replace(/\..+$/, '');
+
 export const blobToDataUrl = (blob: Blob): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();

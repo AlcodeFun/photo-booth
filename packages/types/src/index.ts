@@ -84,6 +84,8 @@ export interface CameraLiveFrame {
 
 export interface CameraCaptureResult {
   dataUrl: string;
+  /** Absolute path where the full-res original was persisted on disk. */
+  filePath: string;
 }
 
 export interface CameraStatePayload {
