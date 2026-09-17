@@ -78,7 +78,8 @@ export interface CameraInfo {
 }
 
 export interface CameraLiveFrame {
-  dataUrl: string;
+  /** Raw JPEG bytes of the frame (transferred via structured clone over IPC). */
+  frame: Uint8Array;
   timestamp: number;
 }
 

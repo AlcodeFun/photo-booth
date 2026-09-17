@@ -59,23 +59,33 @@ function json(data: unknown, init: ResponseInit = {}): Response {
   });
 }
 
+type PutBody = string | ArrayBuffer | ArrayBufferView | Blob | ReadableStream | null;
+
+function putObject(env: Env, token: string, key: string, body: PutBody, contentType: string): Promise<R2Object | null> {
+  if (!body) {
+    return Promise.resolve(null);
+  }
+  return env.GALLERY_BUCKET.put(`${SESSION_PREFIX}${token}/${key}`, body, {
+    httpMetadata: {
+      contentType,
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
 async function putSessionMeta(env: Env, token: string): Promise<void> {
   await env.GALLERY_BUCKET.put(`${SESSION_PREFIX}${token}/meta.json`, JSON.stringify({ createdAt: Date.now() }), {
     httpMetadata: { contentType: 'application/json' },
   });
 }
 
+// Files are written concurrently so a slow/failed object never holds the rest
+// of the session hostage; the metadata marker is created alongside, not before.
 async function storeFiles(env: Env, token: string, files: File[]): Promise<void> {
-  const prefix = `${SESSION_PREFIX}${token}/`;
-  for (const file of files) {
-    const key = `${prefix}${sanitizeName(file.name)}`;
-    await env.GALLERY_BUCKET.put(key, file, {
-      httpMetadata: {
-        contentType: file.type || guessContentType(key),
-        cacheControl: 'public, max-age=31536000, immutable',
-      },
-    });
-  }
+  await Promise.all([
+    putSessionMeta(env, token),
+    ...files.map((file) => putObject(env, token, sanitizeName(file.name), file, file.type || guessContentType(file.name))),
+  ]);
 }
 
 async function handleCreateSession(request: Request, env: Env, origin: string): Promise<Response> {
@@ -106,9 +116,10 @@ async function handleCreateSession(request: Request, env: Env, origin: string): 
 
   const token = clientToken ?? secureToken();
   try {
-    await putSessionMeta(env, token);
     if (files.length > 0) {
       await storeFiles(env, token, files);
+    } else {
+      await putSessionMeta(env, token);
     }
   } catch (error) {
     return json({ error: `R2 write failed: ${String(error)}` }, { status: 500 });
@@ -131,8 +142,33 @@ async function handleAppendFiles(request: Request, env: Env, token: string): Pro
   }
 
   try {
-    await putSessionMeta(env, token);
     await storeFiles(env, token, files);
+  } catch (error) {
+    return json({ error: `R2 write failed: ${String(error)}` }, { status: 500 });
+  }
+
+  return json({ ok: true }, { status: 201 });
+}
+
+/**
+ * Single-file upload that streams the request body straight into R2. The booth
+ * uses this to push each output (framed PNG, originals, GIF) as its own request
+ * so uploads start immediately and failures stay isolated per file.
+ */
+async function handleStoreSingleFile(request: Request, env: Env, token: string, name: string): Promise<Response> {
+  const safeName = sanitizeName(name.split('/').pop() ?? '');
+  if (!safeName) {
+    return json({ error: 'Missing file name' }, { status: 400 });
+  }
+  if (!request.body) {
+    return json({ error: 'Empty upload body' }, { status: 400 });
+  }
+
+  try {
+    await Promise.all([
+      putSessionMeta(env, token),
+      putObject(env, token, safeName, request.body, request.headers.get('content-type') ?? guessContentType(safeName)),
+    ]);
   } catch (error) {
     return json({ error: `R2 write failed: ${String(error)}` }, { status: 500 });
   }
@@ -204,6 +240,17 @@ export default {
         return json({ error: 'Missing token' }, { status: 400 });
       }
       return handleAppendFiles(request, env, token);
+    }
+
+    // Stream a single file into an existing session: /api/sessions/:token/files/:name
+    if (request.method === 'POST' && pathname.startsWith('/api/sessions/') && pathname.includes('/files/')) {
+      const rest = pathname.slice('/api/sessions/'.length).split('/');
+      const token = rest[0];
+      const name = decodeURIComponent(rest.slice(2).join('/'));
+      if (!token || !name) {
+        return json({ error: 'Bad request' }, { status: 400 });
+      }
+      return handleStoreSingleFile(request, env, token, name);
     }
 
     // Customer gallery page.

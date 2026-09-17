@@ -20,13 +20,17 @@ export const PhotoCaptureScreen: React.FC = () => {
   const activeSlot = resolvedTemplate?.photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
   const slotAspectRatio = activeSlot && activeSlot.height > 0 ? activeSlot.width / activeSlot.height : 4 / 3;
 
-  // Canon DSLR bridge (Electron main process). Falls back to WebRTC when unavailable.
+  // Canon DSLR bridge (Electron main process). Keep the last Canon frame on screen
+  // even while the service is re-engaging Live View after a shutter; never let the
+  // PC webcam appear over a connected Canon. WebRTC is only a fallback when no
+  // Canon is available at all.
   const canon = usePhotoBoothCamera();
-  const canonActive = canon.available && canon.isLiveViewing && Boolean(canon.liveFrame);
+  const canonActive = canon.available && Boolean(canon.liveFrame);
 
   const [countdown, setCountdown] = useState(5);
   const [isFlash, setIsFlash] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
   const [isMirrored, setIsMirrored] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -39,14 +43,15 @@ export const PhotoCaptureScreen: React.FC = () => {
 
   // Auto-start Canon live view when available and it isn't already running.
   useEffect(() => {
-    if (canon.available && canon.status === 'DISCONNECTED') {
+    if (canon.available && !isStarted && (canon.status === 'DISCONNECTED' || canon.status === 'READY')) {
       void canon.start();
     }
-  }, [canon.available, canon.status, canon]);
+    // `canon.start` is a stable callback; primitives + isStarted drive re-runs.
+  }, [canon.available, canon.status, canon.start, isStarted]);
 
-  // WebRTC fallback camera (used only when the Canon bridge is unavailable/not live).
+  // WebRTC fallback camera (used ONLY when the Canon bridge is unavailable/hold no frames).
   useEffect(() => {
-    if (canonActive) {
+    if (canon.available) {
       return;
     }
     let isCancelled = false;
@@ -140,7 +145,12 @@ export const PhotoCaptureScreen: React.FC = () => {
 
   const capturePhoto = useCallback(async () => {
     if (canonActive) {
+      // Hold the capture screen until the shutter actually returned a photo;
+      // only then navigate to the review. No early redirects.
+      setIsCapturing(true);
       const result = await canon.capture();
+      setIsCapturing(false);
+      setIsFlash(false);
       const dataUrl = result?.dataUrl;
       if (dataUrl) {
         addPhotoAttempt(dataUrl);
@@ -169,6 +179,7 @@ export const PhotoCaptureScreen: React.FC = () => {
       }
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
     }
+    setIsFlash(false);
     addPhotoAttempt(canvas.toDataURL('image/jpeg', 0.92));
   }, [canonActive, canon, isMirrored, addPhotoAttempt]);
 
@@ -179,15 +190,21 @@ export const PhotoCaptureScreen: React.FC = () => {
   const capturePhotoRef = useRef(capturePhoto);
   capturePhotoRef.current = capturePhoto;
 
+  const canonRef = useRef(canon);
+  canonRef.current = canon;
+
   useEffect(() => {
     if (!isStarted) return;
     if (countdown === 0) {
       setIsFlash(true);
-      const timer = setTimeout(() => {
-        setIsFlash(false);
-        void capturePhotoRef.current();
-      }, 300);
-      return () => clearTimeout(timer);
+      const flashOff = setTimeout(() => setIsFlash(false), 350);
+      void capturePhotoRef.current();
+      return () => clearTimeout(flashOff);
+    }
+    if (countdown === 1 && canonRef.current.available) {
+      // Pre-tear-down Live View during the last countdown second so the shutter
+      // fires the moment the countdown ends (photo matches the held pose).
+      void canonRef.current.prepareCapture();
     }
 
     const interval = setInterval(() => setCountdown((value) => value - 1), 1000);
@@ -263,7 +280,6 @@ export const PhotoCaptureScreen: React.FC = () => {
 
               {isFullscreen && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-                  <div className="absolute inset-0 bg-black/55" />
                   <div
                     className="relative rounded-[10px] border-[4px] border-[#ffec5a] shadow-[0_0_0_3px_rgba(0,0,0,0.4),0_0_30px_rgba(255,236,90,0.4)]"
                     style={{
@@ -305,23 +321,16 @@ export const PhotoCaptureScreen: React.FC = () => {
                 </div>
               )}
 
-              {!isStarted ? (
-                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/35 px-6 text-center">
-                  <div className="text-2xl font-black uppercase tracking-[0.1em] text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.6)] sm:text-3xl md:text-4xl">
-                    👆 Tap anywhere to start
-                  </div>
-                  <div className="text-[0.7rem] font-bold uppercase tracking-[0.22em] text-white/85 animate-pulse sm:text-sm">
-                    Tampil sebentar lagi, lalu tap untuk foto
-                  </div>
-                </div>
-              ) : countdown > 0 ? (
+{isStarted && countdown > 0 ? (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center animate-pulse">
                   <div className="text-[110px] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.7)]">{countdown}</div>
                   <div className="mt-2 text-sm font-black uppercase tracking-[0.3em] text-white/90">Stay still</div>
                 </div>
-              ) : (
-                <div className="absolute inset-0 z-20 flex items-center justify-center text-4xl font-black uppercase tracking-[0.24em] text-white">Cheese!</div>
-              )}
+              ) : isStarted ? (
+                <div className="absolute inset-0 z-20 flex items-center justify-center text-4xl font-black uppercase tracking-[0.24em] text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.6)]">
+                  {isCapturing ? 'Foto diambil...' : 'Cheese!'}
+                </div>
+              ) : null}
             </div>
 
             <div className="flex items-center justify-center">
@@ -334,8 +343,10 @@ export const PhotoCaptureScreen: React.FC = () => {
             </div>
           </div>
 
-          <div className="mt-4 text-center text-[0.72rem] font-bold uppercase tracking-[0.2em] text-[#4d2d85]">
-            {isStarted ? 'Live camera feed active.' : 'Tap anywhere on the screen to start the countdown.'}
+          <div className="mt-4 text-center text-xs font-semibold tracking-wide text-[#4d2d85]/80">
+            {isStarted
+              ? 'Live camera feed active.'
+              : 'Click the preview to shoot — the photo is taken when the countdown ends.'}
           </div>
         </div>
       </div>

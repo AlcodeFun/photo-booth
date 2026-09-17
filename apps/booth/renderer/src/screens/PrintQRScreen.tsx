@@ -95,9 +95,13 @@ export const PrintQRScreen: React.FC = () => {
   const [showPhotos, setShowPhotos] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [modalQr, setModalQr] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ url: string; label: string } | null>(null);
   const uploadInFlight = useRef(false);
   const createInFlight = useRef(false);
   const sessionToken = useRef<string | null>(null);
+  const uploadedFiles = useRef<Set<string>>(new Set());
+  const blobCache = useRef<Map<string, Blob>>(new Map());
+  const gifFailed = useRef(false);
 
   // Cloud failure must never block the local experience, so the session can be
   // finished as soon as the physical print is done. Once the QR is available
@@ -122,6 +126,7 @@ export const PrintQRScreen: React.FC = () => {
         })
         .catch(() => {
           if (!cancelled) {
+            gifFailed.current = true;
             setGifBlob(null);
           }
         });
@@ -195,7 +200,9 @@ export const PrintQRScreen: React.FC = () => {
   }, [uploadStatus]);
 
   // Step 2: push the final outputs (framed PNG, originals, GIF) to the reserved
-  // session in the background. Runs once the GIF stage is ready.
+  // session in the background. Each file uploads on its own request as soon as
+  // it's ready — framed + originals immediately, the GIF once the stage lands —
+  // and retries only resend the files that actually failed.
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -203,20 +210,25 @@ export const PrintQRScreen: React.FC = () => {
       if (!GALLERY_URL || !store.downloadUrl || store.uploadStatus !== 'UPLOADING' || uploadInFlight.current) {
         return;
       }
-      if (multiPhoto && !gifBlob) {
-        return; // wait for the GIF stage before uploading
-      }
+      const gifPending = multiPhoto && !gifBlob && !gifFailed.current; // wait for the GIF stage before its upload
 
       uploadInFlight.current = true;
       setUploading(true);
       try {
         const files: SessionUploadFile[] = [];
+        const cache = blobCache.current;
 
         if (store.frame && store.photoSlots.length > 0) {
-          const canvas = await renderComposition(store.frame, store.photoSlots, store.filterId, {
-            includeFrame: true,
-          });
-          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+          if (!cache.has('framed.png')) {
+            const canvas = await renderComposition(store.frame, store.photoSlots, store.filterId, {
+              includeFrame: true,
+            });
+            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+            if (blob) {
+              cache.set('framed.png', blob);
+            }
+          }
+          const blob = cache.get('framed.png');
           if (blob) {
             files.push({ blob, name: 'framed.png' });
           }
@@ -224,14 +236,17 @@ export const PrintQRScreen: React.FC = () => {
 
         getAllPhotoUrls(store.photoSlots).forEach((dataUrl, index) => {
           const mime = dataUrl.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
-          const ext = mime.includes('png') ? 'png' : 'jpg';
-          files.push({
-            blob: dataUrlToBlob(dataUrl),
-            name: `photo-${String(index + 1).padStart(2, '0')}.${ext}`,
-          });
+          const name = `photo-${String(index + 1).padStart(2, '0')}.${mime.includes('png') ? 'png' : 'jpg'}`;
+          if (!cache.has(name)) {
+            cache.set(name, dataUrlToBlob(dataUrl));
+          }
+          const blob = cache.get(name);
+          if (blob) {
+            files.push({ blob, name });
+          }
         });
 
-        if (store.photoSlots.length > 1 && gifBlob) {
+        if (gifBlob && store.photoSlots.length > 1) {
           files.push({ blob: gifBlob, name: 'result.gif' });
         }
 
@@ -243,11 +258,27 @@ export const PrintQRScreen: React.FC = () => {
         // Idempotent — guarantees the session exists server-side even if the
         // register step above was interrupted or failed.
         await withTimeout(registerGallerySession(GALLERY_URL, token), 8000, 'Reserving gallery session');
-        await withTimeout(uploadSessionFiles(files, GALLERY_URL, token), 60000, 'Uploading photos');
+
+        const pending = files.filter((file) => !uploadedFiles.current.has(file.name));
+        if (pending.length > 0) {
+          const results = await withTimeout(uploadSessionFiles(pending, GALLERY_URL, token), 120000, 'Uploading photos');
+          results.forEach((result) => {
+            if (result.ok) {
+              uploadedFiles.current.add(result.name);
+            }
+          });
+          const failed = results.filter((result) => !result.ok);
+          if (failed.length > 0) {
+            throw new Error(`Upload incomplete: ${failed.map((result) => result.name).join(', ')}`);
+          }
+        }
+
         if (cancelled) {
           return;
         }
-        useSessionStore.getState().setUploadStatus('SUCCESS');
+        if (!gifPending || uploadedFiles.current.has('result.gif')) {
+          useSessionStore.getState().setUploadStatus('SUCCESS');
+        }
       } catch (error) {
         console.error('Upload failed:', error);
         if (!cancelled) {
@@ -338,6 +369,38 @@ export const PrintQRScreen: React.FC = () => {
     }
   };
 
+  // Zoom modals — click any result (framed preview, GIF, or individual photo)
+  // to view it enlarged, mirroring the existing QR enlarge modal.
+  const handleViewFramed = async () => {
+    if (!frame || photoSlots.length === 0) return;
+    try {
+      const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
+      setViewer({ url: canvas.toDataURL('image/png'), label: 'Framed photo' });
+    } catch {
+      // ignore — leave the viewer closed
+    }
+  };
+
+  const handleViewGif = () => {
+    if (gifUrl) {
+      setViewer({ url: gifUrl, label: 'Animated GIF' });
+    }
+  };
+
+  const handleViewPhoto = (dataUrl: string, index: number) => {
+    setViewer({ url: dataUrl, label: `Photo ${index + 1}` });
+  };
+
+  // Escape closes whichever zoom modal is open.
+  useEffect(() => {
+    if (!viewer) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setViewer(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [viewer]);
+
   return (
     <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none p-2 sm:p-4">
       <div className="w-full max-w-[920px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-3 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-4">
@@ -394,13 +457,21 @@ export const PrintQRScreen: React.FC = () => {
 
             {/* Framed preview */}
             <div className="print-sheet flex items-center justify-center rounded-[18px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-4">
-              <FrameCanvas
-                frame={frame}
-                photos={selectedPhotos}
-                photoSlotCount={photoSlots.length}
-                filter={frameFilter}
-                className="w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
-              />
+              <button
+                type="button"
+                onClick={() => void handleViewFramed()}
+                title="View larger"
+                aria-label="View framed photo larger"
+                className="w-full cursor-pointer bg-transparent p-0"
+              >
+                <FrameCanvas
+                  frame={frame}
+                  photos={selectedPhotos}
+                  photoSlotCount={photoSlots.length}
+                  filter={frameFilter}
+                  className="w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
+                />
+              </button>
             </div>
 
             {/* QR + GIF preview */}
@@ -467,11 +538,19 @@ export const PrintQRScreen: React.FC = () => {
               {gifUrl && multiPhoto && (
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-[0.55rem] font-black uppercase tracking-[0.24em] text-[#4d2d85]">GIF</span>
-                  <img
-                    src={gifUrl}
-                    alt="Animated result preview"
-                    className="h-20 w-auto rounded-[10px] border-[3px] border-[#7a4de3] bg-white shadow-[0_5px_0_rgba(77,45,133,0.2)]"
-                  />
+                  <button
+                    type="button"
+                    onClick={handleViewGif}
+                    title="View larger"
+                    aria-label="View animated GIF larger"
+                    className="cursor-pointer bg-transparent p-0"
+                  >
+                    <img
+                      src={gifUrl}
+                      alt="Animated result preview"
+                      className="h-20 w-auto rounded-[10px] border-[3px] border-[#7a4de3] bg-white shadow-[0_5px_0_rgba(77,45,133,0.2)]"
+                    />
+                  </button>
                 </div>
               )}
             </div>
@@ -549,7 +628,15 @@ export const PrintQRScreen: React.FC = () => {
             <div className="grid grid-cols-3 gap-2 overflow-y-auto">
               {allPhotos.map((dataUrl, index) => (
                 <div key={index} className="flex flex-col overflow-hidden rounded-[12px] bg-white shadow-[0_4px_0_rgba(77,45,133,0.15)]">
-                  <img src={dataUrl} alt={`Photo ${index + 1}`} className="block h-auto w-full" />
+                  <button
+                    type="button"
+                    onClick={() => handleViewPhoto(dataUrl, index)}
+                    title="View larger"
+                    aria-label={`View photo ${index + 1} larger`}
+                    className="block cursor-pointer bg-transparent p-0"
+                  >
+                    <img src={dataUrl} alt={`Photo ${index + 1}`} className="block h-auto w-full" />
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -591,6 +678,29 @@ export const PrintQRScreen: React.FC = () => {
             )}
             <button
               onClick={() => setQrOpen(false)}
+              className="rounded-full bg-[#ff4bb5] px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Result zoom modal — view any result enlarged, like the QR modal */}
+      {viewer && (
+        <div
+          className="print-no-show fixed inset-0 z-50 flex items-center justify-center bg-[#1a0b2e]/95 p-4"
+          onClick={() => setViewer(null)}
+        >
+          <div className="flex max-h-[94vh] w-full max-w-4xl flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={viewer.url}
+              alt={viewer.label}
+              className="max-h-[80vh] w-auto max-w-full rounded-[14px] border-[4px] border-[#ff4bb5] bg-white object-contain shadow-2xl"
+            />
+            <p className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-white">{viewer.label}</p>
+            <button
+              onClick={() => setViewer(null)}
               className="rounded-full bg-[#ff4bb5] px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
             >
               Tutup

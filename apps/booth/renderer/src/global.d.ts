@@ -12,6 +12,7 @@ export interface IElectronAPICamera {
   initialize: () => Promise<CameraStatePayload>;
   startLiveView: () => Promise<CameraStatePayload>;
   stopLiveView: () => Promise<CameraStatePayload>;
+  prepareCapture: () => Promise<CameraStatePayload>;
   takePicture: () => Promise<CameraCaptureResult>;
   onStatus: (callback: (payload: CameraStatePayload) => void) => () => void;
   onLiveView: (callback: (frame: CameraLiveFrame) => void) => () => void;

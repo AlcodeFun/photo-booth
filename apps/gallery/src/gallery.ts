@@ -26,6 +26,7 @@ export const renderGallery = (token: string): string => `<!doctype html>
   .card { background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.18); border-radius:18px; padding:16px; margin-top:22px; }
   .lbl { font-size:.78rem; text-transform:uppercase; letter-spacing:.22em; opacity:.85; margin:0 0 12px; font-weight:800; }
   .hero img { width:100%; height:auto; border-radius:12px; display:block; background:#fff; }
+  .hero-btn { width:100%; padding:0; border:none; background:none; cursor:pointer; display:block; border-radius:12px; }
   .btn { display:inline-block; margin-top:12px; background:var(--pink); color:#fff; font-weight:900; padding:10px 20px; border-radius:999px; text-decoration:none; font-size:.9rem; border:none; cursor:pointer; }
   .btn.sm { padding:8px 14px; font-size:.8rem; margin-top:0; }
   .btn.ghost { background:rgba(255,255,255,.14); }
@@ -35,7 +36,9 @@ export const renderGallery = (token: string): string => `<!doctype html>
   @media (min-width:600px){ .columns { columns:3; } }
   .tile { position:relative; background:#000; border:4px solid transparent; border-radius:12px; overflow:hidden; margin-bottom:14px; break-inside:avoid; cursor:pointer; }
   .tile img { width:100%; height:auto; display:block; }
-  .tile .check { position:absolute; top:8px; left:8px; width:26px; height:26px; border-radius:50%; background:rgba(0,0,0,.5); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; opacity:0; transition:opacity .15s; }
+  .tile .check { position:absolute; top:8px; left:8px; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; border:2px solid rgba(255,255,255,.35); cursor:pointer; opacity:0; transition:opacity .15s, transform .15s; z-index:2; }
+  .tile .check:hover { transform:scale(1.12); }
+  .tile:hover .check, .tile .check:focus-visible { opacity:1; }
   .tile:hover .check { opacity:1; }
   .tile.sel { border-color:var(--pink); }
   .tile.sel .check { opacity:1; background:var(--pink); }
@@ -46,6 +49,14 @@ export const renderGallery = (token: string): string => `<!doctype html>
   .err { text-align:center; color:#ffd0e8; padding:70px 20px; font-weight:700; }
   @keyframes pulse { 50% { opacity:.35; } }
   .pulse { animation: pulse 1.2s ease-in-out infinite; }
+  /* Fullscreen image viewer — tap any result to enlarge, like the QR modal. */
+  .viewer { position:fixed; inset:0; z-index:50; background:rgba(10,5,25,.96); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .viewer img { max-width:92vw; max-height:78vh; width:auto; height:auto; border-radius:10px; background:#fff; box-shadow:0 12px 40px rgba(0,0,0,.55); }
+  .viewer-close { position:absolute; top:16px; right:16px; width:46px; height:46px; border-radius:50%; border:none; background:var(--pink); color:#fff; font-size:1.25rem; font-weight:900; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.35); }
+  .viewer-close:hover { transform:scale(1.08); }
+  .viewer-bar { position:absolute; left:0; right:0; bottom:0; padding:18px 24px 22px; display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(0deg, rgba(10,5,25,.9), transparent); }
+  .viewer-bar .name { font-size:.82rem; font-weight:700; opacity:.9; max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .viewer .btn { margin-top:0; }
   footer { text-align:center; margin-top:34px; opacity:.6; font-size:.8rem; }
 </style>
 </head>
@@ -55,6 +66,14 @@ export const renderGallery = (token: string): string => `<!doctype html>
   <p class="sub">Your shots are ready &mdash; tap a photo to pick it, then download.</p>
   <div id="content"><div class="status pulse">Loading your memories&hellip;</div></div>
   <footer>Photo Booth</footer>
+</div>
+<div class="viewer hidden" id="viewer" role="dialog" aria-modal="true" aria-label="Enlarged photo">
+  <img id="viewerImg" src="" alt="Enlarged photo"/>
+  <button class="viewer-close" id="viewerClose" type="button" aria-label="Close viewer">&#10005;</button>
+  <div class="viewer-bar">
+    <span class="name" id="viewerName"></span>
+    <a class="btn" id="viewerDl" href="#" download>Download</a>
+  </div>
 </div>
 <script>
 const TOKEN = ${JSON.stringify(token)};
@@ -99,10 +118,15 @@ async function downloadMany(items, btnId) {
 }
 
 function tileHtml(item, i) {
-  return '<div class="tile" data-i="' + i + '" role="checkbox" aria-checked="false">' +
+  return '<div class="tile" data-i="' + i + '" role="group">' +
+    '<button class="check" type="button" aria-label="Select photo ' + (i + 1) + '" title="Select for download">&#10003;</button>' +
     '<img src="' + item.url + '" alt="Photo ' + (i + 1) + '" loading="lazy"/>' +
-    '<span class="check">&#10003;</span>' +
     '</div>';
+}
+
+function heroView(url, alt) {
+  return '<button type="button" class="hero-btn" data-url="' + url + '" data-name="' + alt + '" title="View larger">' +
+    '<img src="' + url + '" alt="' + alt + '"/></button>';
 }
 
 function syncActions() {
@@ -152,12 +176,49 @@ function downloadSelected() {
   downloadMany(items, 'dlSelected');
 }
 
+function closeViewer() {
+  document.getElementById('viewer').classList.add('hidden');
+}
+
+function openViewer(url, name) {
+  document.getElementById('viewerImg').src = url;
+  document.getElementById('viewerName').textContent = name;
+  const dl = document.getElementById('viewerDl');
+  dl.href = url;
+  dl.setAttribute('download', name);
+  document.getElementById('viewer').classList.remove('hidden');
+}
+
+function wireViewer() {
+  document.getElementById('viewer').addEventListener('click', function (e) {
+    if (e.target.id === 'viewer') closeViewer();
+  });
+  document.getElementById('viewerClose').addEventListener('click', closeViewer);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') closeViewer();
+  });
+  document.querySelectorAll('.hero-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      openViewer(btn.dataset.url, btn.dataset.name);
+    });
+  });
+}
+
 function wireActions() {
   document.getElementById('selAll').addEventListener('click', selectAllToggle);
   document.getElementById('dlAll').addEventListener('click', downloadAll);
   document.getElementById('dlSelected').addEventListener('click', downloadSelected);
   document.querySelectorAll('.tile').forEach(function (t, i) {
-    t.addEventListener('click', function () { toggleSel(i); });
+    t.addEventListener('click', function () {
+      const item = store.photos[i];
+      if (item) openViewer(item.url, item.name);
+    });
+  });
+  document.querySelectorAll('.tile .check').forEach(function (btn, i) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleSel(i);
+    });
   });
   syncActions();
 }
@@ -190,12 +251,12 @@ async function main() {
     let html = '';
     if (framed.length) {
       html += section('Framed photo',
-        '<div class="hero"><img src="' + framed[0].url + '" alt="Framed photo"/></div>' +
+        '<div class="hero">' + heroView(framed[0].url, 'Framed photo') + '</div>' +
         '<a class="btn" href="' + framed[0].url + '" download="' + framed[0].name + '">Download framed photo</a>');
     }
     if (gif.length) {
       html += section('Animated GIF',
-        '<div class="hero"><img src="' + gif[0].url + '" alt="Animated version"/></div>' +
+        '<div class="hero">' + heroView(gif[0].url, 'Animated version') + '</div>' +
         '<a class="btn" href="' + gif[0].url + '" download="' + gif[0].name + '">Download GIF</a>');
     }
     if (store.photos.length) {
@@ -209,6 +270,7 @@ async function main() {
         '</div>');
     }
     root.innerHTML = html;
+    wireViewer();
     if (store.photos.length) wireActions();
   } catch (e) {
     root.innerHTML = '<div class="err">We could not find this session. It may have expired.</div>';

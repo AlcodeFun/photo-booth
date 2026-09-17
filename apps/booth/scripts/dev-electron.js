@@ -15,11 +15,17 @@ async function fetchHtml(port) {
 }
 
 async function findRendererPort() {
-  for (const port of candidatePorts) {
-    const html = await fetchHtml(port);
-    if (html.includes('/src/main.tsx') || html.includes('/@vite/client')) {
-      return String(port);
+  const deadline = Date.now() + 30_000;
+
+  while (Date.now() < deadline) {
+    for (const port of candidatePorts) {
+      const html = await fetchHtml(port);
+      if (html.includes('/src/main.tsx') || html.includes('/@vite/client')) {
+        return String(port);
+      }
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
 
   throw new Error(`Renderer never became reachable on ports ${candidatePorts.join(', ')}`);

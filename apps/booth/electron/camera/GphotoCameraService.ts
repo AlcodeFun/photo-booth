@@ -33,8 +33,9 @@ import {
 
 const DETECT_RE = /^(.{1,48}?)\s+(usb|serial|ptpip):/m;
 const STREAM_ARGS = ['--stdout', '--capture-movie'];
-/** Throttle how often a decoded frame is forwarded to the renderer. */
-const FRAME_EMIT_INTERVAL_MS = 120;
+/** JPEG Start-Of-Image marker (FF D8) as a byte sequence — `indexOf` needs a
+ *  Buffer, not the bare number 0xffd8, which is matched as the single byte 0xd8. */
+const SOI_MARKER = Buffer.from([0xff, 0xd8]);
 /** Drop the frame buffer if it ever balloons (it never should). */
 const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
 
@@ -56,10 +57,10 @@ export class GphotoCameraService {
   private error: string | undefined;
   private model: string | null = null;
   private lastDetectAt = 0;
+  private capturePrepared = false;
 
   private movieChild: ReturnType<typeof spawn> | null = null;
   private frameBuffer: Buffer = Buffer.alloc(0);
-  private lastFrameEmitAt = 0;
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor() {
@@ -127,6 +128,7 @@ export class GphotoCameraService {
   async stopLiveView(): Promise<CameraStatePayload> {
     return this.enqueue(async () => {
       this.stopMovieStream();
+      this.capturePrepared = false;
       if (this.status === 'LIVE_VIEW') {
         await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
       }
@@ -135,19 +137,53 @@ export class GphotoCameraService {
     });
   }
 
-  async takePicture(): Promise<CameraCaptureResult> {
+  /**
+   * Pre-tears-down Live View (stop the stream, drop the mirror) so that the next
+   * `takePicture()` skips that work and fires the shutter immediately. The booth
+   * calls this during the final countdown second so the exposure lands on the
+   * customer's held pose instead of ~1s after the countdown ends. Live View is
+   * restored automatically once the capture completes.
+   */
+  async prepareCapture(): Promise<CameraStatePayload> {
     return this.enqueue(async () => {
-      this.setStatus('CAPTURING');
-      const wasLiveView = this.movieChild !== null;
-      const fileName = `photo-booth-${Date.now()}.jpg`;
+      if (this.capturePrepared) {
+        return this.state();
+      }
       try {
         await this.ensureCameraDetected();
-        if (wasLiveView) {
+        if (this.movieChild !== null) {
           this.stopMovieStream();
           await this.sleep(300);
         }
-        await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
-        await this.sleep(250);
+        if (this.status === 'LIVE_VIEW') {
+          await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
+        }
+        this.capturePrepared = true;
+        this.setStatus(this.model ? 'READY' : 'DISCONNECTED');
+        return this.state();
+      } catch (error) {
+        this.setStatus('ERROR', this.describe(error));
+        return this.state();
+      }
+    });
+  }
+
+  async takePicture(): Promise<CameraCaptureResult> {
+    return this.enqueue(async () => {
+      this.setStatus('CAPTURING');
+      const restoreLiveView = this.capturePrepared || this.movieChild !== null;
+      const fileName = `photo-booth-${Date.now()}.jpg`;
+      try {
+        await this.ensureCameraDetected();
+        if (!this.capturePrepared) {
+          if (this.movieChild !== null) {
+            this.stopMovieStream();
+            await this.sleep(300);
+          }
+          await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
+          await this.sleep(250);
+        }
+        this.capturePrepared = false;
         await this.run(['--capture-image-and-download', `--filename=${fileName}`], { timeout: 30000 });
         const buffer = await fs.readFile(path.join(this.tmpDir, fileName));
         const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
@@ -161,7 +197,7 @@ export class GphotoCameraService {
           this.error = `Capture kept in temp only: ${this.describe(error)}`;
           this.events.emit('status', this.state());
         }
-        if (wasLiveView) {
+        if (restoreLiveView) {
           await this.run(['--set-config', 'viewfinder=1'], { timeout: 10000 }).catch(() => undefined);
           this.setStatus('LIVE_VIEW');
           this.startMovieStream();
@@ -171,7 +207,8 @@ export class GphotoCameraService {
         return { dataUrl, filePath };
       } catch (error) {
         const message = this.describe(error);
-        if (wasLiveView) {
+        this.capturePrepared = false;
+        if (restoreLiveView) {
           this.startMovieStream();
           this.setStatus('LIVE_VIEW');
           this.error = message;
@@ -310,16 +347,16 @@ export class GphotoCameraService {
   private handleStreamData(chunk: Buffer): void {
     this.frameBuffer = this.frameBuffer.length ? Buffer.concat([this.frameBuffer, chunk]) : chunk;
     if (this.frameBuffer.length > MAX_BUFFER_BYTES) {
-      this.frameBuffer = this.frameBuffer.subarray(this.frameBuffer.indexOf(0xffd8));
+      this.frameBuffer = this.frameBuffer.subarray(this.frameBuffer.indexOf(SOI_MARKER));
       return;
     }
 
-    let nextSof = this.frameBuffer.indexOf(0xffd8, 1);
+    let nextSof = this.frameBuffer.indexOf(SOI_MARKER, 1);
     while (nextSof !== -1) {
       const frame = this.frameBuffer.subarray(0, nextSof);
       this.frameBuffer = this.frameBuffer.subarray(nextSof);
       this.emitFrame(frame);
-      nextSof = this.frameBuffer.indexOf(0xffd8, 1);
+      nextSof = this.frameBuffer.indexOf(SOI_MARKER, 1);
     }
   }
 
@@ -327,14 +364,9 @@ export class GphotoCameraService {
     if (this.status !== 'LIVE_VIEW') {
       return;
     }
-    const now = Date.now();
-    if (now - this.lastFrameEmitAt < FRAME_EMIT_INTERVAL_MS) {
-      return;
-    }
-    this.lastFrameEmitAt = now;
     this.events.emit('liveview', {
-      dataUrl: `data:image/jpeg;base64,${frame.toString('base64')}`,
-      timestamp: now,
+      frame,
+      timestamp: Date.now(),
     });
   }
 

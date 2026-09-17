@@ -51,8 +51,15 @@ export function usePhotoBoothCamera() {
       setError(payload.error ?? null);
       setModel(payload.info?.model ?? null);
     });
+    let liveFrameUrl: string | null = null;
     const unsubLive = api.onLiveView((frame: CameraLiveFrame) => {
-      setLiveFrame(frame.dataUrl);
+      if (liveFrameUrl !== null) {
+        URL.revokeObjectURL(liveFrameUrl);
+      }
+      const frameBytes = new Uint8Array(frame.frame.length);
+      frameBytes.set(frame.frame);
+      liveFrameUrl = URL.createObjectURL(new Blob([frameBytes], { type: 'image/jpeg' }));
+      setLiveFrame(liveFrameUrl);
     });
 
     api
@@ -67,6 +74,9 @@ export function usePhotoBoothCamera() {
     return () => {
       unsubStatus();
       unsubLive();
+      if (liveFrameUrl !== null) {
+        URL.revokeObjectURL(liveFrameUrl);
+      }
     };
   }, [api]);
 
@@ -110,6 +120,20 @@ export function usePhotoBoothCamera() {
     }
   }, [api]);
 
+  const prepareCapture = useCallback(async () => {
+    if (!api) {
+      return;
+    }
+    try {
+      const payload = await api.prepareCapture();
+      setStatus(payload.status);
+      setError(payload.error ?? null);
+      setModel(payload.info?.model ?? null);
+    } catch (err) {
+      setError(String(err));
+    }
+  }, [api]);
+
   const retry = useCallback(async () => {
     setError(null);
     await start();
@@ -125,6 +149,7 @@ export function usePhotoBoothCamera() {
     start,
     stop,
     capture,
+    prepareCapture,
     retry,
   };
 }

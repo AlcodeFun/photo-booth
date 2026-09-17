@@ -10,9 +10,6 @@ let cameraService: GphotoCameraService | null = null;
 
 const mjpegServer = new MjpegLoopbackServer();
 
-const frameDataUrlToBuffer = (dataUrl: string) =>
-  Buffer.from(dataUrl.replace(/^data:[^,]+,/, ''), 'base64');
-
 const forwardCameraEvents = () => {
   if (!cameraService) {
     return;
@@ -21,7 +18,7 @@ const forwardCameraEvents = () => {
   cameraService.onLiveView((frame) => {
     mainWindow?.webContents.send('camera:liveview', frame);
     if (mjpegServer.isRunning()) {
-      mjpegServer.push(frameDataUrlToBuffer(frame.dataUrl));
+      mjpegServer.push(Buffer.from(frame.frame));
     }
   });
 };
@@ -109,6 +106,7 @@ app.whenReady().then(() => {
   ipcMain.handle('camera:initialize', () => cameraService?.initialize() ?? null);
   ipcMain.handle('camera:startLiveView', () => cameraService?.startLiveView() ?? null);
   ipcMain.handle('camera:stopLiveView', () => cameraService?.stopLiveView() ?? null);
+  ipcMain.handle('camera:prepareCapture', () => cameraService?.prepareCapture() ?? null);
   ipcMain.handle('camera:takePicture', () => cameraService?.takePicture() ?? null);
 
   ipcMain.handle('camera:mjpeg:get', () => ({
