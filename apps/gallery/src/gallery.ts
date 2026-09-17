@@ -181,10 +181,10 @@ async function main() {
     }
     store.files = data.files;
 
-    const framed = store.files.filter(function (f) { return /framed\.png$/i.test(f.name); });
-    const gif = store.files.filter(function (f) { return /\.gif$/i.test(f.name); });
+    const framed = store.files.filter(function (f) { return /framed[.]png$/i.test(f.name); });
+    const gif = store.files.filter(function (f) { return /[.]gif$/i.test(f.name); });
     store.photos = store.files.filter(function (f) {
-      return /\.(jpe?g|png)$/i.test(f.name) && !/framed\.png$/i.test(f.name);
+      return /[.](jpe?g|png)$/i.test(f.name) && !/framed[.]png$/i.test(f.name);
     });
 
     let html = '';

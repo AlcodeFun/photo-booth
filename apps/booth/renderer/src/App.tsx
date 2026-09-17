@@ -13,13 +13,6 @@ import {
   CompleteScreen,
 } from './screens';
 
-const STEPS = [
-  { id: 'frame', label: 'Pilih Bingkai', screens: ['SELECT_FRAME'] },
-  { id: 'capture', label: 'Pratinjau & Foto', screens: ['PHOTO_CAPTURE', 'PHOTO_REVIEW'] },
-  { id: 'filter', label: 'Pilih Filter', screens: ['FILTER'] },
-  { id: 'result', label: 'Hasil', screens: ['PRINT_QR', 'COMPLETE'] },
-];
-
 const isFrameFitterPath = (path: string, hash: string) => {
   const normalizedPath = path.replace(/\/+$/, '');
   return hash === '#/admin/frame-fit' || normalizedPath.endsWith('/admin/frame-fit');
@@ -35,11 +28,10 @@ function App() {
     path: window.location.pathname,
     hash: window.location.hash,
   }));
-  const { currentScreen, sessionId, startNewSession, resetSession } = useSessionStore((state) => ({
+  const { currentScreen, sessionId, startNewSession } = useSessionStore((state) => ({
     currentScreen: state.currentScreen,
     sessionId: state.sessionId,
     startNewSession: state.startNewSession,
-    resetSession: state.resetSession,
   }));
   const isFrameFitterRoute = isFrameFitterPath(route.path, route.hash);
   const isCameraSettingsRoute = isCameraSettingsPath(route.path, route.hash);
@@ -67,9 +59,6 @@ function App() {
       startNewSession();
     }
   }, [isFrameFitterRoute, isCameraSettingsRoute, sessionId, startNewSession]);
-
-  // Determine current active step index
-  const activeStepIdx = STEPS.findIndex((step) => step.screens.includes(currentScreen));
 
   const renderScreen = () => {
     switch (currentScreen) {

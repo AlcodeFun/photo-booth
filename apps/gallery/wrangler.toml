@@ -7,3 +7,10 @@ compatibility_date = "2025-05-01"
 [[r2_buckets]]
 binding = "GALLERY_BUCKET"
 bucket_name = "photo-booth-gallery"
+
+# Supabase server SDK config. SUPABASE_SECRET_KEY is a secret: set it locally
+# in .dev.vars and remotely with `wrangler secret put SUPABASE_SECRET_KEY`.
+[vars]
+SUPABASE_URL = "https://wxctgsodatmqnizchadn.supabase.co"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gd8kDrcS8O9KO7es4OItgw_WoQNUb0e"
+SUPABASE_JWKS_URL = "https://wxctgsodatmqnizchadn.supabase.co/auth/v1/.well-known/jwks.json"

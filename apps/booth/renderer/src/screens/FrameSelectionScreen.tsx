@@ -1,14 +1,32 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { FrameConfig } from '@photo-booth/types';
 import FrameCanvas from '../components/FrameCanvas';
 import { MOCK_FRAMES } from '../data/mockData';
 import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDrafts';
+import { listFrameTemplates } from '../lib/frameTemplates';
 import { useSessionStore } from '../store/sessionStore';
 
 export const FrameSelectionScreen: React.FC = () => {
   const selectFrame = useSessionStore((state) => state.selectFrame);
-  const frames = useFramesWithTemplateDrafts(MOCK_FRAMES, 3);
+  const [frames, setFrames] = useState<FrameConfig[]>(MOCK_FRAMES);
+  const framesWithDrafts = useFramesWithTemplateDrafts(frames, 3);
   const [selected, setSelected] = useState<FrameConfig | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listFrameTemplates()
+      .then((remote) => {
+        if (!cancelled && remote.length > 0) {
+          setFrames(remote);
+        }
+      })
+      .catch(() => {
+        // Fall back to local MOCK_FRAMES when Supabase is unreachable/unconfigured.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSelect = (frame: FrameConfig) => {
     setSelected(frame);
@@ -36,7 +54,7 @@ export const FrameSelectionScreen: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 place-items-center gap-2 sm:gap-4 md:grid-cols-4">
-            {frames.map((frame) => (
+            {framesWithDrafts.map((frame) => (
               <div
                 key={frame.id}
                 onClick={() => handleSelect(frame)}

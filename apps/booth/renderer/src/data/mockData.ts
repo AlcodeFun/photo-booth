@@ -1,18 +1,6 @@
-import { LayoutConfig, FrameConfig, FrameTemplateConfig } from '@photo-booth/types';
+import { LayoutConfig, FrameConfig } from '@photo-booth/types';
 
 const publicAsset = (path: string) => `${import.meta.env.DEV ? '/' : import.meta.env.BASE_URL}${path}`;
-
-const classicTemplate = (
-  assetName: string,
-  photoSlots: FrameTemplateConfig['photoSlots'],
-): FrameTemplateConfig => ({
-  assetUrl: publicAsset(`frame-templates/${assetName}`),
-  width: 1200,
-  height: 1600,
-  backgroundColor: '#111111',
-  frameLayerZIndex: 30,
-  photoSlots,
-});
 
 const customThreePhotoTemplate: FrameConfig['templatesByPhotoSlots'] = {
   3: {
@@ -96,87 +84,6 @@ const customThreePhotoTemplate: FrameConfig['templatesByPhotoSlots'] = {
       },
     ],
   },
-};
-
-const CLASSIC_BLACK_TEMPLATES: FrameConfig['templatesByPhotoSlots'] = {
-  1: classicTemplate('classic-black-1-photo.svg', [
-    {
-      slotNumber: 1,
-      sourcePhotoSlot: 1,
-      x: 120,
-      y: 160,
-      width: 960,
-      height: 1160,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-  ]),
-  2: classicTemplate('classic-black-2-photo.svg', [
-    {
-      slotNumber: 1,
-      sourcePhotoSlot: 1,
-      x: 130,
-      y: 150,
-      width: 940,
-      height: 520,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-    {
-      slotNumber: 2,
-      sourcePhotoSlot: 2,
-      x: 130,
-      y: 740,
-      width: 940,
-      height: 520,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-  ]),
-  3: classicTemplate('classic-black-3-photo.svg', [
-    {
-      slotNumber: 1,
-      sourcePhotoSlot: 1,
-      x: 145,
-      y: 140,
-      width: 910,
-      height: 340,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-    {
-      slotNumber: 2,
-      sourcePhotoSlot: 2,
-      x: 145,
-      y: 520,
-      width: 910,
-      height: 340,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-    {
-      slotNumber: 3,
-      sourcePhotoSlot: 3,
-      x: 145,
-      y: 900,
-      width: 910,
-      height: 340,
-      borderRadius: 0,
-      zIndex: 10,
-      objectFit: 'cover',
-      objectPosition: 'center',
-    },
-  ]),
 };
 
 // Example of the correct mapping pattern:

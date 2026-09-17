@@ -2,6 +2,10 @@ import { renderGallery } from './gallery';
 
 export interface Env {
   GALLERY_BUCKET: R2Bucket;
+  SUPABASE_URL: string;
+  SUPABASE_PUBLISHABLE_KEY: string;
+  SUPABASE_SECRET_KEY: string;
+  SUPABASE_JWKS_URL: string;
 }
 
 const TOKEN_BYTES = 16;
