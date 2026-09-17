@@ -123,6 +123,11 @@ const PHOTOS = [
 export const ManualPaymentScreen: React.FC = () => {
   const confirmPayment = useSessionStore((state) => state.confirmPayment);
   const [theme, setTheme] = useState<Flavor>('pink');
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinDigits, setPinDigits] = useState<string[]>([]);
+  const [pinError, setPinError] = useState(false);
+
+  const ADMIN_PIN = '250503';
 
   const rootRef = useRef<HTMLDivElement>(null);
   const farRef = useRef<HTMLDivElement>(null);
@@ -283,6 +288,44 @@ export const ManualPaymentScreen: React.FC = () => {
     };
   }, [switchFlavor]);
 
+  /* PIN-gated camera settings: click the gear, type 111111, and only then
+     navigate to #/admin/camera. Wrong PINs clear and flash an error. */
+  const closePin = () => {
+    setPinOpen(false);
+    setPinDigits([]);
+    setPinError(false);
+  };
+
+  const handlePinKey = (digit: string) => {
+    if (pinOpen && pinDigits.length < 6) {
+      setPinError(false);
+      setPinDigits((prev) => [...prev, digit]);
+    }
+  };
+
+  const handlePinBackspace = () => {
+    setPinError(false);
+    setPinDigits((prev) => prev.slice(0, -1));
+  };
+
+  const handlePinSubmit = () => {
+    if (pinDigits.join('') === ADMIN_PIN) {
+      window.location.hash = '#/admin/camera';
+      closePin();
+    } else {
+      setPinError(true);
+      setPinDigits([]);
+    }
+  };
+
+  // Submit automatically once the 6th digit is entered.
+  useEffect(() => {
+    if (pinDigits.length === 6) {
+      handlePinSubmit();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinDigits]);
+
   const { inner, mid, outer } = THEMES.pink;
 
   return (
@@ -310,15 +353,18 @@ export const ManualPaymentScreen: React.FC = () => {
         </h2>
         </div>
 
-        <a
-          href="#/admin/camera"
-          onClick={(e) => e.stopPropagation()}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPinOpen(true);
+          }}
           title="Camera Settings"
           aria-label="Camera Settings"
-          className="absolute right-[4%] top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full border-2 border-white/30 bg-white/10 text-xl text-white backdrop-blur transition-transform hover:scale-110 hover:bg-white/25"
+          className="absolute right-[4%] top-1/2 -translate-y-1/2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-white/10 text-xl text-white backdrop-blur transition-transform hover:scale-110 hover:bg-white/25"
         >
           ⚙️
-        </a>
+        </button>
       </header>
 
       {/* Far background balloons */}
@@ -425,6 +471,88 @@ export const ManualPaymentScreen: React.FC = () => {
           Tap anywhere to start your session
         </p>
       </div>
+
+      {/* Admin PIN modal — gate to camera settings */}
+      {pinOpen && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a0b2e]/80 p-4"
+          onClick={(e) => {
+            e.stopPropagation();
+            closePin();
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Admin PIN"
+            className="w-full max-w-xs rounded-[24px] border-4 border-[#ff4bb5] bg-[#fdf3ff] p-6 text-center shadow-2xl"
+          >
+            <h3 className="text-[0.9rem] font-black uppercase tracking-[0.14em] text-[#4d2d85]">Admin PIN</h3>
+            <p className="mt-1 text-[0.7rem] font-bold tracking-wide text-[#6d6a7f]">
+              Masukkan PIN untuk membuka setting kamera
+            </p>
+
+            {/* PIN dots */}
+            <div className="mt-5 flex items-center justify-center gap-3">
+              {Array.from({ length: 6 }, (_, i) => (
+                <span
+                  key={i}
+                  className={`h-4 w-4 rounded-full border-2 ${
+                    pinDigits[i]
+                      ? pinError
+                        ? 'border-[#b0003a] bg-[#b0003a]'
+                        : 'border-[#ff4bb5] bg-[#ff4bb5]'
+                      : 'border-[#a35ef6] bg-white'
+                  }`}
+                />
+              ))}
+            </div>
+            {pinError && (
+              <p className="mt-2 text-[0.7rem] font-black uppercase tracking-[0.1em] text-[#b0003a]">
+                PIN salah — coba lagi
+              </p>
+            )}
+
+            {/* Numpad */}
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
+                <button
+                  key={digit}
+                  type="button"
+                  onClick={() => handlePinKey(digit)}
+                  className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={handlePinBackspace}
+                aria-label="Delete digit"
+                className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+              >
+                ⌫
+              </button>
+              <button
+                type="button"
+                onClick={() => handlePinKey('0')}
+                className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={closePin}
+                aria-label="Close"
+                className="rounded-[14px] border-[3px] border-[#b0003a] bg-[#ff4bb5] py-3 text-xl font-black text-white shadow-[0_3px_0_rgba(0,0,0,0.2)] active:translate-y-0.5"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
