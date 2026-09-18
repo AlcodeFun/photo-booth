@@ -186,6 +186,30 @@ async function renderTemplated(
 export const canvasToJpegBlob = (canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob | null> =>
   new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 
+/**
+ * Renders a single captured photo with the selected filter applied at its
+ * original resolution (no crop) and encodes it as a compact JPEG. Used when
+ * uploading the raw photos to the gallery so every photo matches the look of
+ * the framed result and the GIF.
+ */
+export const applyPhotoFilter = (
+  dataUrl: string,
+  filterId: string | null | undefined,
+): Promise<Blob | null> =>
+  loadImage(dataUrl).then((image) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      return null;
+    }
+    ctx.filter = getCanvasFilter(filterId);
+    ctx.drawImage(image, 0, 0);
+    ctx.filter = 'none';
+    return canvasToJpegBlob(canvas);
+  });
+
 const downloadCanvasAsJpeg = async (canvas: HTMLCanvasElement, fileName: string) => {
   if (window.electronAPI?.saveFile) {
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);

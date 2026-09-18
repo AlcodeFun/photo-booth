@@ -9,6 +9,7 @@ import {
   canvasToJpegBlob,
   createResultGif,
   renderComposition,
+  applyPhotoFilter,
 } from '../utils/resultExport';
 import {
   generateSessionToken,
@@ -240,17 +241,25 @@ export const PrintQRScreen: React.FC = () => {
           }
         }
 
-        getAllPhotoUrls(store.photoSlots).forEach((dataUrl, index) => {
-          const mime = dataUrl.match(/^data:([^;,]+)/)?.[1] ?? 'image/jpeg';
-          const name = `photo-${String(index + 1).padStart(2, '0')}.${mime.includes('png') ? 'png' : 'jpg'}`;
-          if (!cache.has(name)) {
-            cache.set(name, dataUrlToBlob(dataUrl));
-          }
-          const blob = cache.get(name);
-          if (blob) {
-            files.push({ blob, name });
-          }
-        });
+        const photoFiles: SessionUploadFile[] = [];
+        await Promise.all(
+          getAllPhotoUrls(store.photoSlots).map(async (dataUrl, index) => {
+            const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
+            let blob = cache.get(name);
+            if (!blob) {
+              try {
+                // Apply the selected filter so the uploaded photos match the
+                // framed result; falls back to the raw capture on failure.
+                blob = (await applyPhotoFilter(dataUrl, store.filterId)) ?? dataUrlToBlob(dataUrl);
+              } catch {
+                blob = dataUrlToBlob(dataUrl);
+              }
+              cache.set(name, blob);
+            }
+            photoFiles.push({ blob, name });
+          }),
+        );
+        files.push(...photoFiles);
 
         if (gifBlob && store.photoSlots.length > 1) {
           files.push({ blob: gifBlob, name: 'result.gif' });
