@@ -23,6 +23,13 @@ interface PhotoAreasPanelProps {
   onUpdateActiveArea: (updates: Partial<FramePhotoPlacement>) => void;
 }
 
+const chipClass = (active: boolean) =>
+  `h-10 rounded-[10px] border-[3px] px-4 text-xs font-black uppercase tracking-[0.12em] transition-all ${
+    active
+      ? 'border-[#ff4bb5] bg-[#ff4bb5] text-white'
+      : 'border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]'
+  }`;
+
 export const PhotoAreasPanel = ({
   areas,
   activeArea,
@@ -34,46 +41,49 @@ export const PhotoAreasPanel = ({
   onDeleteArea,
   onUpdateActiveArea,
 }: PhotoAreasPanelProps) => (
-  <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-    <div className="mb-4 flex flex-wrap gap-2">
+  <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+    <div className="mb-3 flex flex-wrap items-center gap-2">
+      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Photo Areas</h2>
+      <span className="rounded-[8px] border-2 border-[#4acaf1] bg-[#e3f6ff] px-2 py-0.5 text-xs font-black text-[#1b7fa8]">
+        {areas.length}
+      </span>
+    </div>
+
+    <div className="mb-3 flex flex-wrap gap-2">
       {areas.map((area) => (
         <button
           key={area.slotNumber}
           type="button"
           onClick={() => onSelectArea(area.slotNumber)}
-          className={`h-10 rounded-lg border px-4 text-sm font-semibold transition-colors ${
-            activeAreaNumber === area.slotNumber
-              ? 'border-sky-300 bg-sky-300 text-black'
-              : 'border-zinc-700 bg-zinc-950 text-zinc-300 hover:border-zinc-500'
-          }`}
+          className={chipClass(activeAreaNumber === area.slotNumber)}
         >
           Area {area.slotNumber}
         </button>
       ))}
     </div>
 
-    <div className="mb-4 flex flex-wrap gap-3">
+    <div className="mb-4 flex flex-wrap gap-2">
       <button
         type="button"
         onClick={onAddArea}
-        className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-4 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500"
+        className="h-10 rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition-all hover:-translate-y-0.5 hover:bg-[#e9ff9e] active:translate-y-0"
       >
-        Add Area
+        + Add Area
       </button>
       <button
         type="button"
         onClick={onDuplicateArea}
-        className="h-10 rounded-lg border border-zinc-700 bg-zinc-950 px-4 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500"
+        className="h-10 rounded-[10px] border-[3px] border-[#c9b8ff] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition-colors hover:bg-[#efe8ff]"
       >
-        Duplicate Area
+        Duplicate
       </button>
       <button
         type="button"
         onClick={onDeleteArea}
         disabled={areas.length <= 1}
-        className="h-10 rounded-lg border border-rose-800 px-4 text-sm font-semibold text-rose-200 transition-colors hover:border-rose-500 disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-10 rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#b3206e] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
       >
-        Delete Area
+        Delete
       </button>
     </div>
 

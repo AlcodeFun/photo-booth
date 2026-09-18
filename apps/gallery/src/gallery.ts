@@ -25,8 +25,15 @@ export const renderGallery = (token: string): string => `<!doctype html>
   .sub { text-align:center; opacity:.82; margin:8px 0 0; }
   .card { background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.18); border-radius:18px; padding:16px; margin-top:22px; }
   .lbl { font-size:.78rem; text-transform:uppercase; letter-spacing:.22em; opacity:.85; margin:0 0 12px; font-weight:800; }
+  .hero { position:relative; }
   .hero img { width:100%; height:auto; border-radius:12px; display:block; background:#fff; }
   .hero-btn { width:100%; padding:0; border:none; background:none; cursor:pointer; display:block; border-radius:12px; }
+  .hero-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+  .hero-head .lbl { margin:0; }
+  .hero-head .btn { margin-top:0; }
+  .eye { position:absolute; top:10px; right:10px; width:34px; height:34px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.35); cursor:pointer; z-index:2; opacity:.85; transition:opacity .15s, transform .15s; }
+  .eye:hover { transform:scale(1.1); opacity:1; }
+  .eye svg { width:18px; height:18px; display:block; }
   .btn { display:inline-block; margin-top:12px; background:var(--pink); color:#fff; font-weight:900; padding:10px 20px; border-radius:999px; text-decoration:none; font-size:.9rem; border:none; cursor:pointer; }
   .btn.sm { padding:8px 14px; font-size:.8rem; margin-top:0; }
   .btn.ghost { background:rgba(255,255,255,.14); }
@@ -36,12 +43,9 @@ export const renderGallery = (token: string): string => `<!doctype html>
   @media (min-width:600px){ .columns { columns:3; } }
   .tile { position:relative; background:#000; border:4px solid transparent; overflow:hidden; margin-bottom:14px; break-inside:avoid; cursor:pointer; }
   .tile img { width:100%; height:auto; display:block; }
-  .tile .check { position:absolute; top:8px; left:8px; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; border:2px solid rgba(255,255,255,.35); cursor:pointer; opacity:0; transition:opacity .15s, transform .15s; z-index:2; }
-  .tile .check:hover { transform:scale(1.12); }
-  .tile:hover .check, .tile .check:focus-visible { opacity:1; }
-  .tile:hover .check { opacity:1; }
+  .tile .badge { position:absolute; top:8px; left:8px; width:26px; height:26px; border-radius:50%; background:var(--pink); color:#fff; display:none; align-items:center; justify-content:center; font-size:13px; font-weight:900; z-index:2; }
   .tile.sel { border-color:var(--pink); }
-  .tile.sel .check { opacity:1; background:var(--pink); }
+  .tile.sel .badge { display:flex; }
   .tile.sel img { opacity:.85; }
   .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; align-items:center; }
   .count { font-size:.8rem; font-weight:800; opacity:.9; margin-left:auto; }
@@ -64,7 +68,7 @@ export const renderGallery = (token: string): string => `<!doctype html>
 <body>
 <div class="wrap">
   <h1>Your Photo Booth Memories</h1>
-  <p class="sub">Your shots are ready &mdash; tap a photo to pick it, then download.</p>
+  <p class="sub">Your shots are ready &mdash; tap a photo to select it, then download. Tap the eye to view it larger.</p>
   <div id="content"><div class="status pulse">Loading your memories&hellip;</div></div>
   <footer>Photo Booth</footer>
 </div>
@@ -98,6 +102,8 @@ function sleep(ms) {
   return new Promise(function (resolve) { setTimeout(resolve, ms); });
 }
 
+const EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>';
+
 // Browsers only honor a limited number of programmatic downloads per gesture,
 // so trigger them one at a time with a short gap and show progress on the
 // invoking button. Otherwise only the last file (the GIF) would download.
@@ -119,15 +125,29 @@ async function downloadMany(items, btnId) {
 }
 
 function tileHtml(item, i) {
-  return '<div class="tile" data-i="' + i + '" role="group">' +
-    '<button class="check" type="button" aria-label="Select photo ' + (i + 1) + '" title="Select for download">&#10003;</button>' +
+  return '<div class="tile" data-i="' + i + '" role="button" tabindex="0" aria-checked="false" aria-label="Select photo ' + (i + 1) + '">' +
+    '<span class="badge">&#10003;</span>' +
+    '<button class="eye" type="button" data-url="' + item.url + '" data-name="' + item.name + '" title="View larger" aria-label="View photo ' + (i + 1) + ' larger">' + EYE_SVG + '</button>' +
     '<img src="' + item.url + '" alt="Photo ' + (i + 1) + '" loading="lazy"/>' +
     '</div>';
 }
 
-function heroView(url, alt) {
-  return '<button type="button" class="hero-btn" data-url="' + url + '" data-name="' + alt + '" title="View larger">' +
-    '<img src="' + url + '" alt="' + alt + '"/></button>';
+function heroView(url, alt, name) {
+  return '<div class="hero">' +
+    '<button type="button" class="hero-btn" data-url="' + url + '" data-name="' + name + '" title="View larger">' +
+    '<img src="' + url + '" alt="' + alt + '"/></button>' +
+    '<button type="button" class="eye" data-url="' + url + '" data-name="' + name + '" title="View larger" aria-label="View ' + alt.toLowerCase() + ' larger">' + EYE_SVG + '</button>' +
+    '</div>';
+}
+
+function heroSection(title, url, alt, downloadName) {
+  return '<div class="card">' +
+    '<div class="hero-head">' +
+      '<p class="lbl">' + title + '</p>' +
+      '<a class="btn sm" href="' + url + '" download="' + downloadName + '">Download</a>' +
+    '</div>' +
+    heroView(url, alt, downloadName) +
+  '</div>';
 }
 
 function syncActions() {
@@ -201,7 +221,7 @@ function wireViewer() {
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') closeViewer();
   });
-  document.querySelectorAll('.hero-btn').forEach(function (btn) {
+  document.querySelectorAll('.hero-btn, .eye').forEach(function (btn) {
     btn.addEventListener('click', function () {
       openViewer(btn.dataset.url, btn.dataset.name);
     });
@@ -213,15 +233,16 @@ function wireActions() {
   document.getElementById('dlAll').addEventListener('click', downloadAll);
   document.getElementById('dlSelected').addEventListener('click', downloadSelected);
   document.querySelectorAll('.tile').forEach(function (t, i) {
-    t.addEventListener('click', function () {
-      const item = store.photos[i];
-      if (item) openViewer(item.url, item.name);
-    });
-  });
-  document.querySelectorAll('.tile .check').forEach(function (btn, i) {
-    btn.addEventListener('click', function (e) {
-      e.stopPropagation();
+    t.addEventListener('click', function (e) {
+      if (e.target.closest('.eye')) return;
       toggleSel(i);
+    });
+    t.addEventListener('keydown', function (e) {
+      if (e.target.closest('.eye')) return;
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggleSel(i);
+      }
     });
   });
   syncActions();
@@ -254,14 +275,10 @@ async function main() {
 
     let html = '';
     if (framed.length) {
-      html += section('Framed photo',
-        '<div class="hero">' + heroView(framed[0].url, 'Framed photo') + '</div>' +
-        '<a class="btn" href="' + framed[0].url + '" download="' + framed[0].name + '">Download framed photo</a>');
+      html += heroSection('Framed photo', framed[0].url, 'Framed photo', framed[0].name);
     }
     if (gif.length) {
-      html += section('Animated GIF',
-        '<div class="hero">' + heroView(gif[0].url, 'Animated version') + '</div>' +
-        '<a class="btn" href="' + gif[0].url + '" download="' + gif[0].name + '">Download GIF</a>');
+      html += heroSection('Animated GIF', gif[0].url, 'Animated version', gif[0].name);
     }
     if (store.photos.length) {
       html += section('All photos',

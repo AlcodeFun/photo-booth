@@ -9,7 +9,6 @@ import {
   canvasToJpegBlob,
   createResultGif,
   renderComposition,
-  applyPhotoFilter,
 } from '../utils/resultExport';
 import {
   generateSessionToken,
@@ -247,13 +246,10 @@ export const PrintQRScreen: React.FC = () => {
             const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
             let blob = cache.get(name);
             if (!blob) {
-              try {
-                // Apply the selected filter so the uploaded photos match the
-                // framed result; falls back to the raw capture on failure.
-                blob = (await applyPhotoFilter(dataUrl, store.filterId)) ?? dataUrlToBlob(dataUrl);
-              } catch {
-                blob = dataUrlToBlob(dataUrl);
-              }
+              // Upload the raw capture bytes — the selected filter is only
+              // applied to the framed result and the GIF, so the gallery
+              // keeps the original photos untouched.
+              blob = dataUrlToBlob(dataUrl);
               cache.set(name, blob);
             }
             photoFiles.push({ blob, name });

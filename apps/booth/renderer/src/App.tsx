@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
 import {
-  ManualPaymentScreen,
+  ContextBumperScreen,
   TutorialScreen,
   FrameSelectionScreen,
   FrameTemplateAdminScreen,
@@ -62,8 +62,8 @@ function App() {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'MANUAL_PAYMENT':
-        return <ManualPaymentScreen />;
+      case 'CONTEXT_BUMPER':
+        return <ContextBumperScreen />;
       case 'TUTORIAL':
         return <TutorialScreen />;
       case 'SELECT_FRAME':
@@ -79,7 +79,7 @@ function App() {
       case 'COMPLETE':
         return <CompleteScreen />;
       default:
-        return <ManualPaymentScreen />;
+        return <ContextBumperScreen />;
     }
   };
 

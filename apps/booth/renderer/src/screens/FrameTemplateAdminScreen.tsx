@@ -10,6 +10,7 @@ import React, {
 import { FrameConfig, FramePhotoPlacement, FrameTemplateConfig } from '@photo-booth/types';
 import { MOCK_FRAMES, MOCK_LAYOUTS } from '../data/mockData';
 import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDrafts';
+import { useTemplateHistory } from '../hooks/useTemplateHistory';
 import {
   deleteFrameTemplate,
   getAuthStatus,
@@ -20,14 +21,13 @@ import {
   signOutOfSupabase,
   uploadFrameAsset,
 } from '../lib/frameTemplates';
-import { useSessionStore } from '../store/sessionStore';
+import { processFrameAsset } from '../utils/greenScreenDetection';
 import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
 import {
   clearFrameTemplateDraft,
   getFrameTemplateDraft,
   saveFrameTemplateDraft,
 } from '../utils/frameTemplateDrafts';
-import { ExportPanel } from './admin/ExportPanel';
 import { ColorField, FileField, NumberField, SelectField, TextField } from './admin/fields';
 import { PhotoAreasPanel } from './admin/PhotoAreasPanel';
 import { SupabasePanel } from './admin/SupabasePanel';
@@ -37,6 +37,7 @@ import { CanvasPoint, DragState, DrawingRectangle } from './admin/types';
 const MAX_SOURCE_PHOTOS = 9;
 const MAX_PHOTO_AREAS = 16;
 const MIN_DRAW_SIZE = 24;
+const DEFAULT_FRAME_THEME = 'bg-zinc-950 border-zinc-900 text-white';
 
 const readFileAsDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
@@ -47,6 +48,20 @@ const readFileAsDataUrl = (file: File) =>
   });
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
+
+const slugify = (name: string) =>
+  name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'frame';
+
+const dataUrlToBlob = (dataUrl: string): Blob => {
+  const [meta, base64] = dataUrl.split(',');
+  const mime = meta.match(/data:(.*?);/)?.[1] ?? 'image/png';
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new Blob([bytes], { type: mime });
+};
 
 const normalizeSourcePhotoSlot = (value: number | undefined, sourcePhotoCount: number) =>
   clamp(Math.floor(value ?? 1), 1, sourcePhotoCount);
@@ -92,11 +107,22 @@ function createDefaultArea(
 }
 
 export const FrameTemplateAdminScreen: React.FC = () => {
-  const resetSession = useSessionStore((state) => state.resetSession);
+  const handleBackToBooth = () => {
+    const pathname = window.location.pathname.replace(/\/+$/, '');
+    const adminSuffix = /\/admin\/(?:frame-fit|camera)$/;
 
-  const handleAdminReset = () => {
-    resetSession();
-    window.location.hash = '#/';
+    // Path-based admin route (e.g. hosted at /admin/frame-fit): strip the
+    // segment so the booth flow detects the route change.
+    if (adminSuffix.test(pathname)) {
+      const basePath = pathname.replace(adminSuffix, '') || '/';
+      window.location.replace(`${basePath}${window.location.search}#/`);
+      return;
+    }
+
+    // Hash-based admin route: safe to switch the hash in place.
+    if (window.location.hash !== '#/') {
+      window.location.hash = '#/';
+    }
   };
 
   const defaultSourcePhotoCount = useMemo(() => {
@@ -112,19 +138,32 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   const selectedFrame = isNewFrame ? null : frames.find((frame) => frame.id === selectedFrameId) ?? frames[0] ?? null;
   const baseFrame = isNewFrame ? null : catalogFrames.find((frame) => frame.id === selectedFrameId) ?? catalogFrames[0] ?? null;
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
-  const [draftTemplate, setDraftTemplate] = useState<FrameTemplateConfig>(() =>
-    cloneTemplate(resolveFrameTemplate(MOCK_FRAMES[0], defaultSourcePhotoCount), defaultSourcePhotoCount),
-  );
+  const [frameName, setFrameName] = useState('Custom Static Frame');
   const [activeAreaNumber, setActiveAreaNumber] = useState(1);
   const [samplePhotos, setSamplePhotos] = useState<Array<string | undefined>>([]);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [status, setStatus] = useState('');
   const canvasRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
 
-  // Frame-level identity fields (editable directly in the form)
-  const [frameId, setFrameId] = useState('custom-static-frame');
-  const [frameName, setFrameName] = useState('Custom Static Frame');
-  const [frameTheme, setFrameTheme] = useState('bg-zinc-950 border-zinc-900 text-white');
+  const initialTemplate = useMemo(
+    () => cloneTemplate(resolveFrameTemplate(MOCK_FRAMES[0], defaultSourcePhotoCount), defaultSourcePhotoCount),
+    [defaultSourcePhotoCount],
+  );
+  const {
+    template: draftTemplate,
+    commit: setDraftTemplate,
+    replace: replaceDraftTemplate,
+    snapshot: pushHistorySnapshot,
+    reset: resetDraftTemplate,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useTemplateHistory(initialTemplate);
+
+  const frameId = isNewFrame ? slugify(frameName) : selectedFrame?.id ?? slugify(frameName);
+  const frameTheme = isNewFrame ? DEFAULT_FRAME_THEME : (selectedFrame?.theme ?? DEFAULT_FRAME_THEME);
 
   const loadRemoteFrames = useCallback(async (notify: boolean) => {
     try {
@@ -179,13 +218,10 @@ export const FrameTemplateAdminScreen: React.FC = () => {
 
   useEffect(() => {
     if (isNewFrame) {
-      // Blank start: fallback template (no asset, rectangular slots).
       const blankTemplate = cloneTemplate(resolveFrameTemplate(null, sourcePhotoCount), sourcePhotoCount);
-      setDraftTemplate(blankTemplate);
+      resetDraftTemplate(blankTemplate);
       setActiveAreaNumber(blankTemplate.photoSlots[0]?.slotNumber ?? 1);
-      setFrameId('custom-static-frame');
       setFrameName('Custom Static Frame');
-      setFrameTheme('bg-zinc-950 border-zinc-900 text-white');
       return;
     }
 
@@ -193,7 +229,6 @@ export const FrameTemplateAdminScreen: React.FC = () => {
       return;
     }
 
-    // Adopt the frame's designed photo count so its template loads instead of a blank fallback.
     const adoptedCount = selectedFrame.photoSlots ?? sourcePhotoCount;
     if (adoptedCount > 0 && adoptedCount !== sourcePhotoCount) {
       setSourcePhotoCount(adoptedCount);
@@ -204,11 +239,9 @@ export const FrameTemplateAdminScreen: React.FC = () => {
       storedDraft ?? resolveFrameTemplate(selectedFrame, adoptedCount),
       adoptedCount,
     );
-    setDraftTemplate(nextTemplate);
+    resetDraftTemplate(nextTemplate);
     setActiveAreaNumber(nextTemplate.photoSlots[0]?.slotNumber ?? 1);
-    setFrameId(selectedFrame.id);
     setFrameName(selectedFrame.name);
-    setFrameTheme(selectedFrame.theme || 'bg-zinc-950 border-zinc-900 text-white');
   }, [isNewFrame, selectedFrame, selectedFrameId]);
 
   useEffect(() => {
@@ -217,38 +250,37 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     );
   }, [sourcePhotoCount]);
 
-  const activeArea = draftTemplate.photoSlots.find((area) => area.slotNumber === activeAreaNumber);
-  const exportFrame = useMemo(() => {
-    const jsonText = JSON.stringify(draftTemplate, null, 2);
-    const tsTemplateText = jsonText.replace(/"([A-Za-z_][A-Za-z0-9_]*)":/g, '$1:');
-
-    const normalizedAssetUrl = !draftTemplate.assetUrl
-      ? "''"
-      : draftTemplate.assetUrl.startsWith('/')
-        ? `'${draftTemplate.assetUrl}'`
-        : `publicAsset('${draftTemplate.assetUrl}')`;
-
-    return `{
-  id: '${frameId.replace(/'/g, "\\'")}',
-  name: '${frameName.replace(/'/g, "\\'")}',
-  previewUrl: ${normalizedAssetUrl},
-  theme: '${frameTheme.replace(/'/g, "\\'")}',
-  photoSlots: ${sourcePhotoCount},
-  templatesByPhotoSlots: {
-    ${sourcePhotoCount}: ${tsTemplateText},
-  },
-},`;
-  }, [draftTemplate, frameId, frameName, frameTheme, sourcePhotoCount]);
-
-  const exportTemplate = exportFrame;
-  const drawingRectangle: DrawingRectangle | null = dragState && dragState.type === 'draw'
-    ? {
-        x: Math.min(dragState.start.x, dragState.current.x),
-        y: Math.min(dragState.start.y, dragState.current.y),
-        width: Math.abs(dragState.current.x - dragState.start.x),
-        height: Math.abs(dragState.current.y - dragState.start.y),
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey)) {
+        return;
       }
-    : null;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && event.shiftKey) {
+        event.preventDefault();
+        redo();
+      } else if (key === 'z') {
+        event.preventDefault();
+        undo();
+      } else if (key === 'y') {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
+
+  const activeArea = draftTemplate.photoSlots.find((area) => area.slotNumber === activeAreaNumber);
+  const drawingRectangle: DrawingRectangle | null =
+    dragState && dragState.type === 'draw'
+      ? {
+          x: Math.min(dragState.start.x, dragState.current.x),
+          y: Math.min(dragState.start.y, dragState.current.y),
+          width: Math.abs(dragState.current.x - dragState.start.x),
+          height: Math.abs(dragState.current.y - dragState.start.y),
+        }
+      : null;
 
   const getCanvasPoint = (event: { clientX: number; clientY: number }): CanvasPoint | null => {
     const canvas = canvasRef.current;
@@ -273,19 +305,22 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const updateActiveArea = (updates: Partial<FramePhotoPlacement>) => {
-    setDraftTemplate((template) => ({
+    const updater = (template: FrameTemplateConfig): FrameTemplateConfig => ({
       ...template,
       photoSlots: template.photoSlots.map((area) =>
         area.slotNumber === activeAreaNumber ? { ...area, ...updates } : area,
       ),
-    }));
+    });
+    if (draggingRef.current) {
+      replaceDraftTemplate(updater);
+    } else {
+      setDraftTemplate(updater);
+    }
     setStatus('');
   };
 
   const handleSourcePhotoCountChange = (value: number) => {
     const nextCount = clamp(Math.floor(value), 1, MAX_SOURCE_PHOTOS);
-    // Only update the source photo count. Existing slot areas are preserved
-    // as-is (no reset / remap). Use the "Photo Areas" control to add/remove.
     setActiveAreaNumber((currentAreaNumber) => clamp(currentAreaNumber, 1, nextCount));
     setSourcePhotoCount(nextCount);
     setStatus('');
@@ -479,6 +514,8 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setActiveAreaNumber(area.slotNumber);
+    pushHistorySnapshot();
+    draggingRef.current = true;
     setDragState({
       type: 'move',
       areaSlotNumber: area.slotNumber,
@@ -519,6 +556,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const handleAreaPointerUp = (event: PointerEvent<HTMLButtonElement>, area: FramePhotoPlacement) => {
+    draggingRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -534,6 +572,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
       (dragState.type === 'move' || dragState.type === 'resize') &&
       dragState.areaSlotNumber === area.slotNumber
     ) {
+      draggingRef.current = false;
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
@@ -554,6 +593,8 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
     setActiveAreaNumber(area.slotNumber);
+    pushHistorySnapshot();
+    draggingRef.current = true;
     setDragState({
       type: 'resize',
       areaSlotNumber: area.slotNumber,
@@ -596,6 +637,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   const handleResizePointerUp = (event: PointerEvent<HTMLDivElement>, area: FramePhotoPlacement) => {
+    draggingRef.current = false;
     if (event.currentTarget.hasPointerCapture(event.pointerId)) {
       event.currentTarget.releasePointerCapture(event.pointerId);
     }
@@ -612,6 +654,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
       dragState.areaSlotNumber === area.slotNumber &&
       event.currentTarget.hasPointerCapture(event.pointerId)
     ) {
+      draggingRef.current = false;
       event.currentTarget.releasePointerCapture(event.pointerId);
       setDragState(null);
     }
@@ -636,9 +679,72 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     event.target.value = '';
   };
 
+  const handleLoadFrameFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) {
+      return;
+    }
+
+    setStatus('Loading frame, detecting green screen...');
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      const processed = await processFrameAsset(dataUrl);
+
+      let assetUrl = processed.assetUrl;
+      let uploaded = false;
+
+      if (sessionEmail) {
+        try {
+          const pngFile = new File([dataUrlToBlob(processed.assetUrl)], `${frameId}-processed.png`, {
+            type: 'image/png',
+          });
+          assetUrl = await uploadFrameAsset(frameId, pngFile);
+          uploaded = true;
+        } catch {
+          // Keep the local data URL when the upload fails.
+        }
+      }
+
+      const nextSlots: FramePhotoPlacement[] = processed.regions.map((region, index) => ({
+        slotNumber: index + 1,
+        sourcePhotoSlot: clamp(index + 1, 1, Math.max(sourcePhotoCount, processed.regions.length)),
+        x: Math.round(region.x),
+        y: Math.round(region.y),
+        width: Math.round(region.width),
+        height: Math.round(region.height),
+        borderRadius: 0,
+        zIndex: 10,
+        objectFit: 'cover',
+        objectPosition: 'center',
+      }));
+
+      setDraftTemplate((template) => ({
+        ...template,
+        assetUrl,
+        width: processed.width,
+        height: processed.height,
+        photoSlots: nextSlots.length > 0 ? nextSlots : template.photoSlots,
+      }));
+
+      setActiveAreaNumber(1);
+
+      if (processed.regions.length > 0) {
+        setSourcePhotoCount((current) => clamp(Math.max(current, processed.regions.length), 1, MAX_SOURCE_PHOTOS));
+        setStatus(
+          `Detected ${processed.regions.length} green screen area(s), green keyed to transparent${uploaded ? '' : ' (local)'}`,
+        );
+      } else {
+        setStatus('No green screen detected - draw areas manually');
+      }
+    } catch (error) {
+      setStatus(`Load failed: ${String(error)}`);
+    }
+  };
+
   const handleSaveDraft = () => {
     if (isNewFrame) {
-      setStatus('New frames need no saving - copy the template directly');
+      setStatus('New frames are saved directly to Supabase');
       return;
     }
 
@@ -653,7 +759,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   const handleResetDraft = () => {
     if (isNewFrame) {
       const blankTemplate = cloneTemplate(resolveFrameTemplate(null, sourcePhotoCount), sourcePhotoCount);
-      setDraftTemplate(blankTemplate);
+      resetDraftTemplate(blankTemplate);
       setActiveAreaNumber(blankTemplate.photoSlots[0]?.slotNumber ?? 1);
       setStatus('Reset to blank');
       return;
@@ -665,19 +771,9 @@ export const FrameTemplateAdminScreen: React.FC = () => {
 
     clearFrameTemplateDraft(baseFrame.id, sourcePhotoCount);
     const nextTemplate = cloneTemplate(resolveFrameTemplate(baseFrame, sourcePhotoCount), sourcePhotoCount);
-    setDraftTemplate(nextTemplate);
+    resetDraftTemplate(nextTemplate);
     setActiveAreaNumber(nextTemplate.photoSlots[0]?.slotNumber ?? 1);
     setStatus('Draft reset');
-  };
-
-  const handleCopyTemplate = async () => {
-    if (!navigator.clipboard) {
-      setStatus('Clipboard unavailable');
-      return;
-    }
-
-    await navigator.clipboard.writeText(exportTemplate);
-    setStatus('Template copied');
   };
 
   const handleRefreshFrames = async () => {
@@ -686,7 +782,7 @@ export const FrameTemplateAdminScreen: React.FC = () => {
 
   const handleSaveToSupabase = async () => {
     if (!frameId.trim()) {
-      setStatus('Frame ID is required');
+      setStatus('Frame name is required');
       return;
     }
 
@@ -734,17 +830,6 @@ export const FrameTemplateAdminScreen: React.FC = () => {
     }
   };
 
-  const handleUploadAsset = async (file: File) => {
-    setStatus('Uploading asset...');
-    try {
-      const url = await uploadFrameAsset(frameId.trim() || 'custom-static-frame', file);
-      updateTemplate({ assetUrl: url });
-      setStatus('Asset uploaded');
-    } catch (error) {
-      setStatus(`Upload failed: ${String(error)}`);
-    }
-  };
-
   const handleSignIn = async (email: string, password: string) => {
     setStatus('Signing in...');
     try {
@@ -765,157 +850,162 @@ export const FrameTemplateAdminScreen: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
-      <header className="border-b border-zinc-800 px-6 py-4">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-sky-300">Hidden Admin</p>
-            <h1 className="text-2xl font-black tracking-tight">Frame Fitter</h1>
+    <div className="relative flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center p-2 sm:p-4">
+      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-2 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-4">
+        <div className="rounded-[14px] bg-white p-4 md:p-6">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-[0.7rem] font-black uppercase tracking-[0.28em] text-[#a35ef6]">Hidden Admin</p>
+              <h1 className="text-2xl font-black uppercase tracking-[-0.04em] text-[#4d2d85]">Frame Fitter</h1>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleBackToBooth}
+                className="rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition-all hover:-translate-y-0.5 hover:bg-[#e9ff9e] active:translate-y-0"
+              >
+                Back to Booth
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <a
-              href="#/"
-              className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-semibold text-zinc-200 transition-colors hover:border-zinc-500 hover:bg-zinc-900"
-            >
-              Booth Flow
-            </a>
-            <button
-              type="button"
-              onClick={handleAdminReset}
-              className="rounded-lg border border-rose-800 bg-rose-950/40 px-4 py-2 text-sm font-semibold text-rose-200 transition-colors hover:border-rose-500 hover:bg-rose-900/60"
-            >
-              Reset Session
-            </button>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(360px,0.9fr)_minmax(440px,1.1fr)]">
+            <div className="grid gap-4">
+              <TemplateCanvasEditor
+                template={draftTemplate}
+                frame={selectedFrame}
+                photos={samplePhotos}
+                photoSlotCount={sourcePhotoCount}
+                activeAreaNumber={activeAreaNumber}
+                drawingRectangle={drawingRectangle}
+                canvasRef={canvasRef}
+                status={status}
+                canUndo={canUndo}
+                canRedo={canRedo}
+                onUndo={undo}
+                onRedo={redo}
+                onSaveDraft={handleSaveDraft}
+                onClearPhotos={() => setSamplePhotos([])}
+                onResetDraft={handleResetDraft}
+                onDrawStart={handleDrawStart}
+                onDrawMove={handleDrawMove}
+                onDrawEnd={handleDrawEnd}
+                onAreaPointerDown={handleAreaPointerDown}
+                onAreaPointerMove={handleAreaPointerMove}
+                onAreaPointerUp={handleAreaPointerUp}
+                onAreaPointerLeave={handleAreaPointerLeave}
+                onResizePointerDown={handleResizePointerDown}
+                onResizePointerMove={handleResizePointerMove}
+                onResizePointerUp={handleResizePointerUp}
+                onResizePointerLeave={handleResizePointerLeave}
+              />
+            </div>
+
+            <section className="grid gap-4">
+              <div className="grid grid-cols-1 gap-3 rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4 sm:grid-cols-2">
+                <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
+                  <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Frame</h2>
+                  <span className="rounded-[8px] border-2 border-[#4acaf1] bg-[#e3f6ff] px-2 py-0.5 font-mono text-xs font-black text-[#1b7fa8]">
+                    {frameId}
+                  </span>
+                </div>
+
+                <SelectField label="Frame" value={selectedFrameId} onChange={setSelectedFrameId}>
+                  <option value="__new__">New Frame (blank)</option>
+                  {frames.map((frame) => (
+                    <option key={frame.id} value={frame.id}>
+                      {frame.name}
+                    </option>
+                  ))}
+                </SelectField>
+
+                <TextField
+                  label="Frame Name"
+                  value={frameName}
+                  onChange={setFrameName}
+                  placeholder="Custom Static Frame"
+                />
+
+                <NumberField
+                  label="Source Photos"
+                  value={sourcePhotoCount}
+                  min={1}
+                  max={MAX_SOURCE_PHOTOS}
+                  onChange={handleSourcePhotoCountChange}
+                />
+
+                <NumberField
+                  label="Photo Areas"
+                  value={draftTemplate.photoSlots.length}
+                  min={1}
+                  max={MAX_PHOTO_AREAS}
+                  onChange={setPhotoAreaCount}
+                />
+
+                <NumberField
+                  label="Frame Z"
+                  value={draftTemplate.frameLayerZIndex}
+                  min={0}
+                  onChange={(value) => updateTemplate({ frameLayerZIndex: value })}
+                />
+
+                <NumberField
+                  label="Canvas Width"
+                  value={draftTemplate.width}
+                  min={1}
+                  onChange={(value) => updateTemplate({ width: value })}
+                />
+                <NumberField
+                  label="Canvas Height"
+                  value={draftTemplate.height}
+                  min={1}
+                  onChange={(value) => updateTemplate({ height: value })}
+                />
+
+                <ColorField
+                  label="Background"
+                  value={draftTemplate.backgroundColor ?? '#111111'}
+                  onChange={(value) => updateTemplate({ backgroundColor: value })}
+                />
+
+                <FileField label="Sample Photos" accept="image/*" multiple onChange={handleSampleUpload} />
+
+                <div className="sm:col-span-2">
+                  <FileField label="Load Frame File" accept="image/*" onChange={handleLoadFrameFile} />
+                  <p className="mt-1.5 text-xs font-semibold leading-relaxed text-[#7a4de3]">
+                    Detects the green screen areas, keys the green to transparent, and auto-places a photo slot over
+                    each detected area.
+                  </p>
+                </div>
+              </div>
+
+              <PhotoAreasPanel
+                areas={draftTemplate.photoSlots}
+                activeArea={activeArea}
+                activeAreaNumber={activeAreaNumber}
+                sourcePhotoCount={sourcePhotoCount}
+                onSelectArea={setActiveAreaNumber}
+                onAddArea={handleAddArea}
+                onDuplicateArea={handleDuplicateArea}
+                onDeleteArea={handleDeleteArea}
+                onUpdateActiveArea={updateActiveArea}
+              />
+
+              <SupabasePanel
+                remoteActive={remoteActive}
+                sessionEmail={sessionEmail}
+                isNewFrame={isNewFrame}
+                onSignIn={handleSignIn}
+                onSignOut={handleSignOut}
+                onSave={handleSaveToSupabase}
+                onDelete={handleDeleteFromSupabase}
+                onRefresh={handleRefreshFrames}
+              />
+            </section>
           </div>
         </div>
-      </header>
-
-      <main className="mx-auto grid max-w-7xl grid-cols-1 gap-6 px-6 py-6 lg:grid-cols-[minmax(360px,0.9fr)_minmax(440px,1.1fr)]">
-        <TemplateCanvasEditor
-          template={draftTemplate}
-          frame={selectedFrame}
-          photos={samplePhotos}
-          photoSlotCount={sourcePhotoCount}
-          activeAreaNumber={activeAreaNumber}
-          drawingRectangle={drawingRectangle}
-          canvasRef={canvasRef}
-          onDrawStart={handleDrawStart}
-          onDrawMove={handleDrawMove}
-          onDrawEnd={handleDrawEnd}
-          onAreaPointerDown={handleAreaPointerDown}
-          onAreaPointerMove={handleAreaPointerMove}
-          onAreaPointerUp={handleAreaPointerUp}
-          onAreaPointerLeave={handleAreaPointerLeave}
-          onResizePointerDown={handleResizePointerDown}
-          onResizePointerMove={handleResizePointerMove}
-          onResizePointerUp={handleResizePointerUp}
-          onResizePointerLeave={handleResizePointerLeave}
-        />
-
-        <section className="grid gap-4">
-          <div className="grid grid-cols-1 gap-3 rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 sm:grid-cols-2">
-            <SelectField label="Frame" value={selectedFrameId} onChange={setSelectedFrameId}>
-              <option value="__new__">New Frame (blank)</option>
-              {frames.map((frame) => (
-                <option key={frame.id} value={frame.id}>
-                  {frame.name}
-                </option>
-              ))}
-            </SelectField>
-
-            <TextField label="Frame ID" value={frameId} onChange={setFrameId} placeholder="custom-static-frame" />
-
-            <TextField label="Frame Name" value={frameName} onChange={setFrameName} className="sm:col-span-2" />
-
-            <TextField label="Theme" value={frameTheme} onChange={setFrameTheme} className="sm:col-span-2" />
-
-            <NumberField
-              label="Source Photos"
-              value={sourcePhotoCount}
-              min={1}
-              max={MAX_SOURCE_PHOTOS}
-              onChange={handleSourcePhotoCountChange}
-            />
-
-            <NumberField
-              label="Photo Areas"
-              value={draftTemplate.photoSlots.length}
-              min={1}
-              max={MAX_PHOTO_AREAS}
-              onChange={setPhotoAreaCount}
-            />
-
-            <NumberField
-              label="Frame Z"
-              value={draftTemplate.frameLayerZIndex}
-              min={0}
-              onChange={(value) => updateTemplate({ frameLayerZIndex: value })}
-            />
-
-            <TextField
-              label="Template Asset"
-              value={draftTemplate.assetUrl}
-              onChange={(value) => updateTemplate({ assetUrl: value })}
-              className="sm:col-span-2"
-            />
-
-            <NumberField
-              label="Canvas Width"
-              value={draftTemplate.width}
-              min={1}
-              onChange={(value) => updateTemplate({ width: value })}
-            />
-            <NumberField
-              label="Canvas Height"
-              value={draftTemplate.height}
-              min={1}
-              onChange={(value) => updateTemplate({ height: value })}
-            />
-
-            <ColorField
-              label="Background"
-              value={draftTemplate.backgroundColor ?? '#111111'}
-              onChange={(value) => updateTemplate({ backgroundColor: value })}
-            />
-
-            <FileField label="Sample Photos" accept="image/*" multiple onChange={handleSampleUpload} />
-          </div>
-
-          <PhotoAreasPanel
-            areas={draftTemplate.photoSlots}
-            activeArea={activeArea}
-            activeAreaNumber={activeAreaNumber}
-            sourcePhotoCount={sourcePhotoCount}
-            onSelectArea={setActiveAreaNumber}
-            onAddArea={handleAddArea}
-            onDuplicateArea={handleDuplicateArea}
-            onDeleteArea={handleDeleteArea}
-            onUpdateActiveArea={updateActiveArea}
-          />
-
-          <SupabasePanel
-            remoteActive={remoteActive}
-            sessionEmail={sessionEmail}
-            isNewFrame={isNewFrame}
-            onSignIn={handleSignIn}
-            onSignOut={handleSignOut}
-            onSave={handleSaveToSupabase}
-            onDelete={handleDeleteFromSupabase}
-            onRefresh={handleRefreshFrames}
-            onUploadAsset={handleUploadAsset}
-          />
-
-          <ExportPanel
-            exportTemplate={exportTemplate}
-            status={status}
-            onSaveDraft={handleSaveDraft}
-            onCopyTemplate={handleCopyTemplate}
-            onClearPhotos={() => setSamplePhotos([])}
-            onResetDraft={handleResetDraft}
-          />
-        </section>
-      </main>
+      </div>
     </div>
   );
 };

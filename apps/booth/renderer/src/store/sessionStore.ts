@@ -6,7 +6,7 @@ import {
 } from '@photo-booth/types';
 
 export type ScreenName =
-  | 'MANUAL_PAYMENT'
+  | 'CONTEXT_BUMPER'
   | 'TUTORIAL'
   | 'SELECT_FRAME'
   | 'READY'
@@ -55,7 +55,7 @@ export interface SessionStore {
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
-  currentScreen: 'MANUAL_PAYMENT',
+  currentScreen: 'CONTEXT_BUMPER',
   setScreen: (screen) => set({ currentScreen: screen }),
 
   sessionId: null,
@@ -81,7 +81,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,
-      currentScreen: 'MANUAL_PAYMENT',
+      currentScreen: 'CONTEXT_BUMPER',
     });
   },
 

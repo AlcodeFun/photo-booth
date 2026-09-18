@@ -36,7 +36,7 @@
   }
 }
 
-/* ---- Immersive birthday balloon hero (ManualPaymentScreen) ---- */
+/* ---- Immersive birthday balloon hero (ContextBumperScreen) ---- */
 .pb-balloon {
   --bcolor: #ff4bb5;
   position: absolute;
@@ -135,12 +135,6 @@
   will-change: transform;
 }
 
-.pb-hud-left,
-.pb-hud-right {
-  z-index: 100;
-  pointer-events: auto;
-}
-
 /* Center photo collage */
 .pb-hero-center {
   position: absolute;
@@ -152,7 +146,6 @@
   pointer-events: none;
   opacity: 0;
   animation: pb-fade 1.5s ease-out 0.3s forwards, pb-float 6s ease-in-out infinite;
-  background: radial-gradient(circle at center, rgba(255, 75, 181, 0.12) 0%, transparent 70%);
 }
 
 @keyframes pb-fade {
@@ -230,30 +223,65 @@
 }
 
 .pb-main {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   perspective: 1400px;
   pointer-events: none;
 }
 
 .pb-collage {
   position: relative;
-  width: 340px;
-  height: 500px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2.5vh, 28px);
   transform-style: preserve-3d;
 }
 
+/* Landscape: horizontal side-by-side strip */
+@media (orientation: landscape) {
+  .pb-collage {
+    flex-direction: row;
+  }
+
+  .pb-court {
+    width: min(30vh, 28vw, 320px);
+  }
+}
+
+/* Portrait: vertical stacked strip */
+@media (orientation: portrait) {
+  .pb-collage {
+    flex-direction: column;
+  }
+
+  .pb-court {
+    width: min(30vh, 48vw, 320px);
+  }
+}
+
 .pb-court {
-  position: absolute;
-  width: 190px;
+  position: relative;
+  width: min(30vh, 28vw, 320px);
   background: #fff6ff;
   border-radius: 14px;
   padding: 10px 10px 16px;
   box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35);
   border: 6px solid #fff;
   transform-style: preserve-3d;
+}
+
+.pb-court.court-1 {
+  transform: rotateY(-12deg) rotateZ(-2.5deg);
+}
+
+.pb-court.court-2 {
+  transform: rotateY(2deg) rotateZ(0.5deg);
+}
+
+.pb-court.court-3 {
+  transform: rotateY(12deg) rotateZ(2.5deg);
 }
 
 .pb-lime .pb-court {
@@ -263,7 +291,7 @@
 
 .pb-court .pb-photo {
   width: 100%;
-  height: 150px;
+  aspect-ratio: 4 / 5;
   object-fit: cover;
   border-radius: 8px;
   display: block;
@@ -281,15 +309,6 @@
 
 .pb-lime .pb-court .pb-cap {
   color: #4c7712;
-}
-
-/* Highlighted text: stays readable on both flavor backgrounds */
-.pb-highlight {
-  color: #d9f85a;
-}
-
-.pb-lime .pb-highlight {
-  color: #ff4bb5;
 }
 
 /* Rising sparkle/confetti */
@@ -319,59 +338,14 @@
   }
 }
 
-/* ---- Responsive: stacked, scrollable layout for tablet & mobile ---- */
+/* ---- Responsive: gentle scale for tablet & mobile ---- */
 .pb-screen {
   overflow: hidden;
 }
 
 @media (max-width: 1024px) {
-  .pb-screen {
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-  }
-
   .pb-layer {
-    height: 100vh;
     --bs: 0.66;
-  }
-
-  .pb-hero-center {
-    position: relative;
-    inset: auto;
-    height: 58vh;
-    min-height: 480px;
-    flex-shrink: 0;
-  }
-
-  .pb-main {
-    position: relative;
-    top: auto;
-    left: auto;
-    transform: none;
-  }
-
-  .pb-hud-left {
-    position: relative;
-    left: auto;
-    top: auto;
-    transform: none;
-    width: 100%;
-    max-width: none;
-    align-items: center;
-    text-align: center;
-    padding: 1.25rem 6% 2.5rem;
-  }
-
-  .pb-hud-right {
-    position: relative;
-    right: auto;
-    top: auto;
-    transform: none;
-    width: 100%;
-    align-items: center;
-    text-align: center;
-    padding: 0 6% 3.5rem;
   }
 }
 
@@ -380,13 +354,8 @@
     --bs: 0.5;
   }
 
-  .pb-hero-center {
-    height: 52vh;
-    min-height: 400px;
-  }
-
-  .pb-main {
-    transform: scale(0.8);
+  .pb-collage {
+    gap: 14px;
   }
 }
 

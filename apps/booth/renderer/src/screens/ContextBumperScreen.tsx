@@ -102,11 +102,11 @@ const Balloon: React.FC<BalloonProps> = ({ className, color }) => {
 interface CourtProps {
   src: string;
   caption: string;
-  style: React.CSSProperties;
+  className?: string;
 }
 
-const Court: React.FC<CourtProps> = ({ src, caption, style }) => (
-  <div className="pb-court" style={style}>
+const Court: React.FC<CourtProps> = ({ src, caption, className }) => (
+  <div className={`pb-court ${className ?? ''}`}>
     <img className="pb-photo" src={src} alt={caption} />
     <div className="pb-cap">{caption}</div>
   </div>
@@ -120,7 +120,7 @@ const PHOTOS = [
   photoAsset('photos/3.jpg'),
 ];
 
-export const ManualPaymentScreen: React.FC = () => {
+export const ContextBumperScreen: React.FC = () => {
   const confirmPayment = useSessionStore((state) => state.confirmPayment);
   const [theme, setTheme] = useState<Flavor>('pink');
   const [pinOpen, setPinOpen] = useState(false);
@@ -132,7 +132,6 @@ export const ManualPaymentScreen: React.FC = () => {
   const rootRef = useRef<HTMLDivElement>(null);
   const farRef = useRef<HTMLDivElement>(null);
   const bgRef = useRef<HTMLDivElement>(null);
-  const fgRef = useRef<HTMLDivElement>(null);
   const collageWrapRef = useRef<HTMLDivElement>(null);
   const collageRef = useRef<HTMLDivElement>(null);
   const sparkleRef = useRef<HTMLDivElement>(null);
@@ -178,7 +177,6 @@ export const ManualPaymentScreen: React.FC = () => {
       if (collage) {
         collage.style.transform = `rotateY(${cur.x * 40 + spinRef.current}deg) rotateX(${-cur.y * 20}deg)`;
       }
-      if (fgRef.current) fgRef.current.style.transform = `translate(${cur.x * 60}px, ${cur.y * 60}px)`;
       if (bgRef.current) bgRef.current.style.transform = `translate(${cur.x * -30}px, ${cur.y * -30}px)`;
       if (farRef.current) farRef.current.style.transform = `translate(${cur.x * -15}px, ${cur.y * -15}px)`;
 
@@ -343,14 +341,14 @@ export const ManualPaymentScreen: React.FC = () => {
       }
     >
       {/* Header */}
-      <header className="sticky top-0 z-[120] flex items-center justify-center bg-[#1a0b2e]/30 px-[4%]  py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
+      <header className="sticky top-0 z-[120] flex items-center justify-center bg-[#1a0b2e]/30 px-[4%] py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
         <div className="flex items-center gap-2 text-lg md:text-xl" style={{ fontFamily: "'Galada', cursive" }}>
-         <h2
-          className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
-          style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
-        >
-          <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>Photostrip</span>
-        </h2>
+          <h2
+            className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
+            style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
+          >
+            <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>Photostrip</span>
+          </h2>
         </div>
 
         <button
@@ -382,84 +380,19 @@ export const ManualPaymentScreen: React.FC = () => {
         <Balloon className="b9" color="#ff4bb5" />
       </div>
 
-      {/* Center product: 3D photo collage */}
+      {/* Center product: 3D photo collage (horizontal on landscape, vertical on portrait) */}
       <div className="pb-hero-center">
         <div ref={collageWrapRef} className="pb-main">
           <div ref={collageRef} className="pb-collage">
-            <Court src={PHOTOS[0]} caption="The Best" style={{ left: -30, top: 20, transform: 'rotateY(-18deg)' }} />
-            <Court src={PHOTOS[1]} caption="Photostrip" style={{ left: 150, top: 110, transform: 'rotateY(18deg)' }} />
-            <Court src={PHOTOS[2]} caption="Experience" style={{ left: 20, top: 280, transform: 'rotateY(-6deg) rotateX(6deg)' }} />
+            <Court src={PHOTOS[0]} caption="The Best" className="court-1" />
+            <Court src={PHOTOS[1]} caption="Photostrip" className="court-2" />
+            <Court src={PHOTOS[2]} caption="Experience" className="court-3" />
           </div>
         </div>
       </div>
-
-      {/* Foreground balloons (above everything) */}
-      {/* <div ref={fgRef} className="pb-layer" style={{ zIndex: 110 }}>
-        <Balloon className="b1" color="#ff4bb5" />
-        <Balloon className="b2" color="#ffec5a" />
-        <Balloon className="b3" color="#a35ef6" />
-        <Balloon className="b4" color="#4acaf1" />
-        <Balloon className="b5" color="#ff7d57" />
-        <Balloon className="b6" color="#d9f85a" />
-      </div> */}
 
       {/* Rising sparkles */}
       <div ref={sparkleRef} className="pointer-events-none absolute inset-0 z-[5]" />
-
-      {/* Left column: feature chips */}
-      <div className="pointer-events-none absolute left-[3%] top-1/2 z-[10] hidden -translate-y-1/2 flex-col gap-5 md:flex" style={{ animation: 'pb-fade 0.7s ease-out 0.8s both' }}>
-        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
-          <span className="text-2xl">📸</span>
-          <div>
-            <div className="text-sm font-black uppercase tracking-wider text-white">Foto </div>
-            <div className="text-xs text-white/60">snap a trio</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
-          <span className="text-2xl">🖼️</span>
-          <div>
-            <div className="text-sm font-black uppercase tracking-wider text-white">Pilih frame favoritmu</div>
-            <div className="text-xs text-white/60">make it yours</div>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-5 py-3 backdrop-blur-md">
-          <span className="text-2xl">🖨️</span>
-          <div>
-            <div className="text-sm font-black uppercase tracking-wider text-white">Cetak Instan</div>
-            <div className="text-xs text-white/60">and QR share</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Right column: how it works */}
-      <div className="pointer-events-none absolute right-[3%] top-1/2 z-[10] hidden -translate-y-1/2 flex-col items-end gap-6 text-right md:flex" style={{ animation: 'pb-fade 0.7s ease-out 0.9s both' }}>
-        <h3 className="font-black uppercase tracking-[0.25em] text-white/80" style={{ fontFamily: "'Galada', cursive" }}>
-          How it works
-        </h3>
-        <div className="flex flex-col items-end gap-4">
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="text-sm font-black text-white">1 · Snap</div>
-              <div className="text-xs text-white/55">follow the countdown</div>
-            </div>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ffec5a] text-base font-black text-[#4a1870]">1</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="text-sm font-black text-white">2 · Frame</div>
-              <div className="text-xs text-white/55">add your style</div>
-            </div>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#ff7d57] text-base font-black text-black/70">2</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <div>
-              <div className="text-sm font-black text-white">3 · Print</div>
-              <div className="text-xs text-white/55">grab your strip</div>
-            </div>
-            <span className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-[#4acaf1] text-base font-black text-black/70">3</span>
-          </div>
-        </div>
-      </div>
 
       {/* Tap-to-start instruction */}
       <div className="absolute inset-x-0 bottom-0 z-[110] flex justify-center pb-10">
@@ -468,7 +401,7 @@ export const ManualPaymentScreen: React.FC = () => {
           style={{ fontFamily: "'Galada', cursive", animation: 'pb-bounce-in 1.4s ease 1s both, pb-glow 2.4s ease-in-out 2s infinite' }}
         >
           <span className="inline-block" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>👆</span>
-          Tap anywhere to start your session
+          Click dimana saja untuk mulai
         </p>
       </div>
 
@@ -557,4 +490,4 @@ export const ManualPaymentScreen: React.FC = () => {
   );
 };
 
-export default ManualPaymentScreen;
+export default ContextBumperScreen;

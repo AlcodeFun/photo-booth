@@ -5,10 +5,12 @@ import { MOCK_FRAMES } from '../data/mockData';
 import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDrafts';
 import { listFrameTemplates } from '../lib/frameTemplates';
 import { useSessionStore } from '../store/sessionStore';
+import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
 
 export const FrameSelectionScreen: React.FC = () => {
   const selectFrame = useSessionStore((state) => state.selectFrame);
   const [frames, setFrames] = useState<FrameConfig[]>(MOCK_FRAMES);
+  const [isLoading, setIsLoading] = useState(true);
   const framesWithDrafts = useFramesWithTemplateDrafts(frames, 3);
   const [selected, setSelected] = useState<FrameConfig | null>(null);
 
@@ -22,6 +24,11 @@ export const FrameSelectionScreen: React.FC = () => {
       })
       .catch(() => {
         // Fall back to local MOCK_FRAMES when Supabase is unreachable/unconfigured.
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       });
     return () => {
       cancelled = true;
@@ -42,6 +49,13 @@ export const FrameSelectionScreen: React.FC = () => {
     }
   };
 
+  const selectedPreviewRatio = selected
+    ? (() => {
+        const template = resolveFrameTemplate(selected, selected.photoSlots ?? 3);
+        return template.width / template.height;
+      })()
+    : 0.75;
+
   return (
     <div className="flex h-[calc(100vh-3rem)] items-center justify-center select-none overflow-hidden p-2 sm:p-4 md:p-6">
       <div className="flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-2 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-4 md:p-6">
@@ -54,7 +68,17 @@ export const FrameSelectionScreen: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 place-items-center gap-2 sm:gap-4 md:grid-cols-4">
-            {framesWithDrafts.map((frame) => (
+            {isLoading
+              ? Array.from({ length: 8 }, (_, index) => (
+                  <div
+                    key={`skeleton-${index}`}
+                    className="flex w-full select-none flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 sm:p-3"
+                  >
+                    <div className="mb-2 aspect-[3/4] w-full animate-pulse rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-4" />
+                    <div className="mx-auto mb-3 h-[1.05rem] w-3/4 animate-pulse rounded-full bg-[#7a4de3]/25" />
+                  </div>
+                ))
+              : framesWithDrafts.map((frame) => (
               <div
                 key={frame.id}
                 onClick={() => handleSelect(frame)}
@@ -73,31 +97,45 @@ export const FrameSelectionScreen: React.FC = () => {
       </div>
 
       {selected && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 p-2 backdrop-blur-sm sm:p-6" style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}>
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
+          style={{
+            background: 'rgba(10,5,25,.96)',
+            animation: 'pb-modal-fade 0.25s ease-out both',
+          }}
+          onClick={handleClose}
+        >
           <div
-            className="flex max-h-full w-full max-w-sm flex-col overflow-hidden rounded-[20px] border-4 border-[#4acaf1] bg-[#fffdf6] p-3 shadow-[0_0_40px_rgba(74,202,241,0.4)] sm:max-w-md sm:p-4 md:p-6"
+            className="relative flex max-h-[82vh] max-w-[92vw] items-center justify-center"
             style={{ animation: 'pb-modal-zoom 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div className="mb-4 flex shrink-0 items-center justify-between gap-2">
-              <h2 className="truncate text-lg font-black uppercase tracking-[-0.03em] text-[#4d2d85] sm:text-xl md:text-2xl">{selected.name}</h2>
-              <button
-                onClick={handleClose}
-                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ff4bb5] text-lg font-black text-white transition-transform hover:scale-110 active:scale-95 sm:h-11 sm:w-11 sm:text-xl"
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-
             <FrameCanvas
               frame={selected}
               photoSlotCount={selected.photoSlots ?? 3}
-              className="mb-5 w-full rounded-[14px] border-[3px] border-[#7a4de3] bg-[#f3dcee]"
+              className="rounded-[14px] border-[3px] border-[#4acaf1] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+              style={{
+                width: `min(80vh * ${selectedPreviewRatio}, 92vw)`,
+                aspectRatio: `${selectedPreviewRatio}`,
+              }}
             />
+          </div>
 
+          <button
+            onClick={handleClose}
+            className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full bg-[#ff4bb5] text-[1.05rem] font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95 sm:h-9 sm:w-9"
+            aria-label="Close"
+          >
+            &#10005;
+          </button>
+
+          <div className="absolute inset-x-0 bottom-0 flex items-center gap-4 px-6 pb-8 pt-16">
+            <span className="mr-auto max-w-[52%] truncate text-[0.82rem] font-black uppercase tracking-[0.08em] text-white sm:text-[0.9rem]">
+              {selected.name}
+            </span>
             <button
               onClick={handleConfirm}
-              className="w-full shrink-0 rounded-[12px] bg-[#4acaf1] px-8 py-3 text-[0.85rem] font-black uppercase tracking-[0.18em] text-white shadow-[0_5px_0_rgba(0,0,0,0.18)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:py-4 sm:text-[0.9rem]"
+              className="shrink-0 rounded-full bg-[#4acaf1] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] text-[#4d2d85] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
             >
               Pilih bingkai
             </button>

@@ -1,4 +1,4 @@
-export { default as ManualPaymentScreen } from './ManualPaymentScreen';
+export { default as ContextBumperScreen } from './ContextBumperScreen';
 export { default as TutorialScreen } from './TutorialScreen';
 export { default as FrameSelectionScreen } from './FrameSelectionScreen';
 export { default as FrameTemplateAdminScreen } from './FrameTemplateAdminScreen';
