@@ -13,6 +13,12 @@ const loadImage = (src: string): Promise<HTMLImageElement> => {
   }
   const promise = new Promise<HTMLImageElement>((resolve, reject) => {
     const img = new Image();
+    // Remote frame assets (e.g. Supabase storage) must be fetched as CORS-clean
+    // images, otherwise drawing them taints the canvas and toBlob/toDataURL
+    // throw — which would silently abort the whole framed-photo upload.
+    if (/^https?:/i.test(src)) {
+      img.crossOrigin = 'anonymous';
+    }
     img.onload = () => resolve(img);
     img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
     img.src = src;
@@ -172,26 +178,34 @@ async function renderTemplated(
   }
 }
 
-const downloadCanvasAsPng = async (canvas: HTMLCanvasElement, fileName: string) => {
+/**
+ * Encodes a canvas as a compact high-quality JPEG. JPEG 0.92 is visually
+ * indistinguishable from lossless PNG for photographic strips, but is a small
+ * fraction of the size — uploads and downloads complete much faster.
+ */
+export const canvasToJpegBlob = (canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob | null> =>
+  new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
+
+const downloadCanvasAsJpeg = async (canvas: HTMLCanvasElement, fileName: string) => {
   if (window.electronAPI?.saveFile) {
-    const dataUrl = canvas.toDataURL('image/png');
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     await window.electronAPI.saveFile(fileName, dataUrl);
     return;
   }
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+  const blob = await canvasToJpegBlob(canvas);
   if (blob) {
     await downloadBlob(blob, fileName);
   }
 };
 
-/** Downloads the composed framed photo (with frame + filter applied) as a PNG. */
+/** Downloads the composed framed photo (with frame + filter applied) as a JPEG. */
 export async function downloadFramedPhoto(
   frame: FrameConfig,
   photoSlots: PhotoSlotState[],
   filterId: string | null | undefined,
 ): Promise<void> {
   const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
-  await downloadCanvasAsPng(canvas, `photo-booth-${downloadStamp()}-result.png`);
+  await downloadCanvasAsJpeg(canvas, `photo-booth-${downloadStamp()}-result.jpg`);
 }
 
 const drawContain = (

@@ -6,6 +6,7 @@ import { getCanvasFilter } from '../utils/filters';
 import { downloadBlob, downloadDataUrl, downloadStamp } from '../utils/download';
 import {
   downloadFramedPhoto,
+  canvasToJpegBlob,
   createResultGif,
   renderComposition,
 } from '../utils/resultExport';
@@ -95,7 +96,8 @@ export const PrintQRScreen: React.FC = () => {
   const [showPhotos, setShowPhotos] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [modalQr, setModalQr] = useState<string | null>(null);
-  const [viewer, setViewer] = useState<{ url: string; label: string } | null>(null);
+  const [viewer, setViewer] = useState<{ url: string; label: string; rounded: boolean } | null>(null);
+  const [recheck, setRecheck] = useState(0);
   const uploadInFlight = useRef(false);
   const createInFlight = useRef(false);
   const sessionToken = useRef<string | null>(null);
@@ -124,8 +126,9 @@ export const PrintQRScreen: React.FC = () => {
             setGifBlob(blob);
           }
         })
-        .catch(() => {
+        .catch((error) => {
           if (!cancelled) {
+            console.error('GIF generation failed:', error);
             gifFailed.current = true;
             setGifBlob(null);
           }
@@ -202,7 +205,8 @@ export const PrintQRScreen: React.FC = () => {
   // Step 2: push the final outputs (framed PNG, originals, GIF) to the reserved
   // session in the background. Each file uploads on its own request as soon as
   // it's ready — framed + originals immediately, the GIF once the stage lands —
-  // and retries only resend the files that actually failed.
+  // and retries only resend the files that actually failed. `recheck` bumps a
+  // fresh run when a file is generated mid-batch so no file is ever left behind.
   useEffect(() => {
     let cancelled = false;
     const run = async () => {
@@ -210,12 +214,12 @@ export const PrintQRScreen: React.FC = () => {
       if (!GALLERY_URL || !store.downloadUrl || store.uploadStatus !== 'UPLOADING' || uploadInFlight.current) {
         return;
       }
-      const gifPending = multiPhoto && !gifBlob && !gifFailed.current; // wait for the GIF stage before its upload
-
       uploadInFlight.current = true;
       setUploading(true);
+      const gifPending = multiPhoto && !gifBlob && !gifFailed.current;
+
+      const files: SessionUploadFile[] = [];
       try {
-        const files: SessionUploadFile[] = [];
         const cache = blobCache.current;
 
         if (store.frame && store.photoSlots.length > 0) {
@@ -223,7 +227,9 @@ export const PrintQRScreen: React.FC = () => {
             const canvas = await renderComposition(store.frame, store.photoSlots, store.filterId, {
               includeFrame: true,
             });
-            const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+            // JPEG 0.92: a fraction of the PNG size at no visible quality loss,
+            // so the framed result uploads (and later downloads) much faster.
+            const blob = await canvasToJpegBlob(canvas);
             if (blob) {
               cache.set('framed.png', blob);
             }
@@ -249,7 +255,31 @@ export const PrintQRScreen: React.FC = () => {
         if (gifBlob && store.photoSlots.length > 1) {
           files.push({ blob: gifBlob, name: 'result.gif' });
         }
+      } catch (error) {
+        console.error('Preparing uploads failed:', error);
+        if (!cancelled) {
+          useSessionStore.getState().setUploadStatus('ERROR');
+        }
+        uploadInFlight.current = false;
+        setUploading(false);
+        return;
+      }
 
+      const pending = files.filter((file) => !uploadedFiles.current.has(file.name));
+      if (pending.length === 0) {
+        if (!cancelled && !gifPending) {
+          useSessionStore.getState().setUploadStatus('SUCCESS');
+        } else if (cancelled) {
+          // This pass was superseded while files were being prepared; let a
+          // fresh pass take over so nothing is dropped.
+          setRecheck((n) => n + 1);
+        }
+        uploadInFlight.current = false;
+        setUploading(false);
+        return;
+      }
+
+      try {
         const match = /\/p\/([^/?#]+)/.exec(store.downloadUrl);
         const token = sessionToken.current ?? (match ? match[1] : '');
         if (!token) {
@@ -259,25 +289,24 @@ export const PrintQRScreen: React.FC = () => {
         // register step above was interrupted or failed.
         await withTimeout(registerGallerySession(GALLERY_URL, token), 8000, 'Reserving gallery session');
 
-        const pending = files.filter((file) => !uploadedFiles.current.has(file.name));
-        if (pending.length > 0) {
-          const results = await withTimeout(uploadSessionFiles(pending, GALLERY_URL, token), 120000, 'Uploading photos');
-          results.forEach((result) => {
-            if (result.ok) {
-              uploadedFiles.current.add(result.name);
-            }
-          });
-          const failed = results.filter((result) => !result.ok);
-          if (failed.length > 0) {
-            throw new Error(`Upload incomplete: ${failed.map((result) => result.name).join(', ')}`);
+        const results = await withTimeout(uploadSessionFiles(pending, GALLERY_URL, token), 120000, 'Uploading photos');
+        results.forEach((result) => {
+          if (result.ok) {
+            uploadedFiles.current.add(result.name);
           }
+        });
+        const failed = results.filter((result) => !result.ok);
+        if (failed.length > 0) {
+          throw new Error(`Upload incomplete: ${failed.map((result) => result.name).join(', ')}`);
         }
 
-        if (cancelled) {
-          return;
-        }
-        if (!gifPending || uploadedFiles.current.has('result.gif')) {
+        const remaining = files.filter((file) => !uploadedFiles.current.has(file.name));
+        if (!cancelled && remaining.length === 0 && !gifPending) {
           useSessionStore.getState().setUploadStatus('SUCCESS');
+        } else if (cancelled || remaining.length > 0) {
+          // This run was superseded mid-flight (e.g. the GIF finished while we
+          // were uploading) — schedule one more pass to collect any leftovers.
+          setRecheck((n) => n + 1);
         }
       } catch (error) {
         console.error('Upload failed:', error);
@@ -286,16 +315,14 @@ export const PrintQRScreen: React.FC = () => {
         }
       } finally {
         uploadInFlight.current = false;
-        if (!cancelled) {
-          setUploading(false);
-        }
+        setUploading(false);
       }
     };
     run();
     return () => {
       cancelled = true;
     };
-  }, [downloadUrl, uploadStatus, filterId, frame, gifBlob, multiPhoto, photoSlots]);
+  }, [downloadUrl, uploadStatus, filterId, frame, gifBlob, multiPhoto, photoSlots, recheck]);
 
   // Real QR once the gallery session is reserved (immediately — before the
   // background file upload finishes).
@@ -375,7 +402,7 @@ export const PrintQRScreen: React.FC = () => {
     if (!frame || photoSlots.length === 0) return;
     try {
       const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
-      setViewer({ url: canvas.toDataURL('image/png'), label: 'Framed photo' });
+      setViewer({ url: canvas.toDataURL('image/jpeg', 0.92), label: 'Framed photo', rounded: true });
     } catch {
       // ignore — leave the viewer closed
     }
@@ -383,12 +410,12 @@ export const PrintQRScreen: React.FC = () => {
 
   const handleViewGif = () => {
     if (gifUrl) {
-      setViewer({ url: gifUrl, label: 'Animated GIF' });
+      setViewer({ url: gifUrl, label: 'Animated GIF', rounded: true });
     }
   };
 
   const handleViewPhoto = (dataUrl: string, index: number) => {
-    setViewer({ url: dataUrl, label: `Photo ${index + 1}` });
+    setViewer({ url: dataUrl, label: `Photo ${index + 1}`, rounded: false });
   };
 
   // Escape closes whichever zoom modal is open.
@@ -469,7 +496,7 @@ export const PrintQRScreen: React.FC = () => {
                   photos={selectedPhotos}
                   photoSlotCount={photoSlots.length}
                   filter={frameFilter}
-                  className="w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
+                  className="mx-auto w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
                 />
               </button>
             </div>
@@ -536,21 +563,23 @@ export const PrintQRScreen: React.FC = () => {
               </div>
 
               {gifUrl && multiPhoto && (
-                <div className="flex flex-col items-center gap-1">
+                <div className="flex flex-col items-center gap-1.5">
                   <span className="text-[0.55rem] font-black uppercase tracking-[0.24em] text-[#4d2d85]">GIF</span>
-                  <button
-                    type="button"
-                    onClick={handleViewGif}
-                    title="View larger"
-                    aria-label="View animated GIF larger"
-                    className="cursor-pointer bg-transparent p-0"
-                  >
-                    <img
-                      src={gifUrl}
-                      alt="Animated result preview"
-                      className="h-20 w-auto rounded-[10px] border-[3px] border-[#7a4de3] bg-white shadow-[0_5px_0_rgba(77,45,133,0.2)]"
-                    />
-                  </button>
+                  <div className="relative flex h-40 w-40 items-center justify-center rounded-[18px] border-[4px] border-[#a35ef6] bg-white p-2 shadow-[0_8px_0_rgba(77,45,133,0.25)]">
+                    <button
+                      type="button"
+                      onClick={handleViewGif}
+                      title="View larger"
+                      aria-label="View animated GIF larger"
+                      className="h-full w-full cursor-pointer"
+                    >
+                      <img
+                        src={gifUrl}
+                        alt="Animated result preview"
+                        className="h-full w-full rounded-[10px] object-contain"
+                      />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -627,7 +656,7 @@ export const PrintQRScreen: React.FC = () => {
             </div>
             <div className="grid grid-cols-3 gap-2 overflow-y-auto">
               {allPhotos.map((dataUrl, index) => (
-                <div key={index} className="flex flex-col overflow-hidden rounded-[12px] bg-white shadow-[0_4px_0_rgba(77,45,133,0.15)]">
+                <div key={index} className="flex flex-col overflow-hidden bg-white shadow-[0_4px_0_rgba(77,45,133,0.15)]">
                   <button
                     type="button"
                     onClick={() => handleViewPhoto(dataUrl, index)}
@@ -696,7 +725,9 @@ export const PrintQRScreen: React.FC = () => {
             <img
               src={viewer.url}
               alt={viewer.label}
-              className="max-h-[80vh] w-auto max-w-full rounded-[14px] border-[4px] border-[#ff4bb5] bg-white object-contain shadow-2xl"
+              className={`max-h-[80vh] w-auto max-w-full bg-white object-contain shadow-2xl ${
+                viewer.rounded ? 'rounded-[14px] border-[4px] border-[#ff4bb5]' : ''
+              }`}
             />
             <p className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-white">{viewer.label}</p>
             <button

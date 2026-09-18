@@ -34,7 +34,7 @@ export const renderGallery = (token: string): string => `<!doctype html>
   /* Photos keep their raw camera ratio — masonry columns, never cropped. */
   .columns { columns:2; column-gap:14px; }
   @media (min-width:600px){ .columns { columns:3; } }
-  .tile { position:relative; background:#000; border:4px solid transparent; border-radius:12px; overflow:hidden; margin-bottom:14px; break-inside:avoid; cursor:pointer; }
+  .tile { position:relative; background:#000; border:4px solid transparent; overflow:hidden; margin-bottom:14px; break-inside:avoid; cursor:pointer; }
   .tile img { width:100%; height:auto; display:block; }
   .tile .check { position:absolute; top:8px; left:8px; width:30px; height:30px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:900; border:2px solid rgba(255,255,255,.35); cursor:pointer; opacity:0; transition:opacity .15s, transform .15s; z-index:2; }
   .tile .check:hover { transform:scale(1.12); }
@@ -52,6 +52,7 @@ export const renderGallery = (token: string): string => `<!doctype html>
   /* Fullscreen image viewer — tap any result to enlarge, like the QR modal. */
   .viewer { position:fixed; inset:0; z-index:50; background:rgba(10,5,25,.96); display:flex; align-items:center; justify-content:center; padding:24px; }
   .viewer img { max-width:92vw; max-height:78vh; width:auto; height:auto; border-radius:10px; background:#fff; box-shadow:0 12px 40px rgba(0,0,0,.55); }
+  .viewer img.square { border-radius:0; }
   .viewer-close { position:absolute; top:16px; right:16px; width:46px; height:46px; border-radius:50%; border:none; background:var(--pink); color:#fff; font-size:1.25rem; font-weight:900; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.35); }
   .viewer-close:hover { transform:scale(1.08); }
   .viewer-bar { position:absolute; left:0; right:0; bottom:0; padding:18px 24px 22px; display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(0deg, rgba(10,5,25,.9), transparent); }
@@ -181,7 +182,10 @@ function closeViewer() {
 }
 
 function openViewer(url, name) {
-  document.getElementById('viewerImg').src = url;
+  const img = document.getElementById('viewerImg');
+  img.src = url;
+  // Raw captured photos stay square; framed/GIF results keep their rounding.
+  img.classList.toggle('square', /photo-[0-9]+[.](jpe?g|png)$/i.test(name));
   document.getElementById('viewerName').textContent = name;
   const dl = document.getElementById('viewerDl');
   dl.href = url;
