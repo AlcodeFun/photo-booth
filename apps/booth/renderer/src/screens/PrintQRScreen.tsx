@@ -1,79 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
 import { getCanvasFilter } from '../utils/filters';
-import { downloadBlob, downloadDataUrl, downloadStamp } from '../utils/download';
-import {
-  downloadFramedPhoto,
-  canvasToJpegBlob,
-  createResultGif,
-  renderComposition,
-} from '../utils/resultExport';
-import {
-  generateSessionToken,
-  registerGallerySession,
-  uploadSessionFiles,
-  dataUrlToBlob,
-  withTimeout,
-  SessionUploadFile,
-} from '../utils/sessionUpload';
+import { createResultGif, renderComposition } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
-import { GALLERY_URL } from '../config';
-
-const DownloadIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className ?? 'h-5 w-5'}>
-    <path
-      d="M12 3v12m0 0l-4-4m4 4l4-4"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-    />
-  </svg>
-);
-
-const GifIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className ?? 'h-5 w-5'}>
-    <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth="2" />
-    <path d="M7 10h3M8.5 10v4M13 14v-4h3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-  </svg>
-);
-
-const ImageIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className ?? 'h-5 w-5'}>
-    <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
-    <circle cx="9" cy="10" r="2" stroke="currentColor" strokeWidth="2" />
-    <path d="M5.5 19l4.5-4 3 2.5L16 14l3 4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-);
-
-interface DownloadActionProps {
-  label: string;
-  icon: React.ReactNode;
-  busy?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}
-
-const DownloadAction: React.FC<DownloadActionProps> = ({ label, icon, busy, disabled, onClick }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled || busy}
-    title={label}
-    aria-label={label}
-    className="flex w-16 flex-col items-center gap-1 rounded-[12px] border-[3px] border-[#a35ef6] bg-white px-2 py-2 text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.25)] transition-transform hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
-  >
-    <span className={busy ? 'animate-pulse' : undefined}>{icon}</span>
-    <span className="text-[0.55rem] font-black uppercase tracking-[0.08em] leading-none">{busy ? '...' : label}</span>
-  </button>
-);
 
 export const PrintQRScreen: React.FC = () => {
   const { frame, filterId, photoSlots, printStatus, uploadStatus, downloadUrl, completeSession } = useSessionStore(
@@ -91,23 +22,18 @@ export const PrintQRScreen: React.FC = () => {
   const [gifBlob, setGifBlob] = useState<Blob | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [downloading, setDownloading] = useState<'framed' | 'gif' | null>(null);
-  const [showPhotos, setShowPhotos] = useState(false);
   const [qrOpen, setQrOpen] = useState(false);
   const [modalQr, setModalQr] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [slideIndex, setSlideIndex] = useState(0);
   const [viewer, setViewer] = useState<{ url: string; label: string; rounded: boolean } | null>(null);
-  const [recheck, setRecheck] = useState(0);
-  const uploadInFlight = useRef(false);
-  const createInFlight = useRef(false);
-  const sessionToken = useRef<string | null>(null);
-  const uploadedFiles = useRef<Set<string>>(new Set());
-  const blobCache = useRef<Map<string, Blob>>(new Map());
-  const gifFailed = useRef(false);
+  const [celebrate, setCelebrate] = useState(false);
 
   // Cloud failure must never block the local experience, so the session can be
   // finished as soon as the physical print is done. Once the QR is available
   // (downloadUrl is set), the customer can leave even while files still upload.
+  // The upload itself runs in lib/uploadJob (store-level, never tied to this
+  // screen's mount), so finishing early never interrupts it.
   const isDone =
     printStatus === 'SUCCESS' &&
     (uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl));
@@ -116,7 +42,7 @@ export const PrintQRScreen: React.FC = () => {
   const allPhotos = useMemo(() => getAllPhotoUrls(photoSlots), [photoSlots]);
   const frameFilter = getCanvasFilter(filterId);
 
-  // Generate the animated GIF once for multi-photo strips (shared by preview + upload).
+  // Local animated GIF preview (upload copies are produced by uploadJob).
   useEffect(() => {
     let cancelled = false;
     if (multiPhoto) {
@@ -129,7 +55,6 @@ export const PrintQRScreen: React.FC = () => {
         .catch((error) => {
           if (!cancelled) {
             console.error('GIF generation failed:', error);
-            gifFailed.current = true;
             setGifBlob(null);
           }
         });
@@ -152,182 +77,21 @@ export const PrintQRScreen: React.FC = () => {
     return () => URL.revokeObjectURL(url);
   }, [gifBlob]);
 
-  // Step 1: generate the session token locally so the QR renders instantly
-  // (no server round-trip), then register the session in the background.
-  // Falls back to a simulated success when no gallery endpoint is configured.
+  // Slideshow: loop through all captured photos automatically.
   useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const store = useSessionStore.getState();
-      if (store.uploadStatus !== 'UPLOADING' || sessionToken.current || createInFlight.current) {
-        return;
-      }
+    if (allPhotos.length <= 1) {
+      setSlideIndex(0);
+      return;
+    }
+    const timer = setInterval(() => {
+      setSlideIndex((current) => (current + 1) % allPhotos.length);
+    }, 2500);
+    return () => clearInterval(timer);
+  }, [allPhotos.length]);
 
-      if (!GALLERY_URL) {
-        setTimeout(() => {
-          if (!cancelled) {
-            store.setUploadStatus('SUCCESS');
-          }
-        }, 3000);
-        return;
-      }
-
-      createInFlight.current = true;
-      setUploading(true);
-      // Token (and thus the URL) is generated client-side, so the QR is ready
-      // to render in the same frame — the background work never delays it.
-      const token = generateSessionToken();
-      sessionToken.current = token;
-      useSessionStore.getState().setDownloadUrl(`${GALLERY_URL}/p/${token}`);
-      try {
-        await withTimeout(registerGallerySession(GALLERY_URL, token), 8000, 'Reserving gallery session');
-        if (cancelled) {
-          return;
-        }
-      } catch (error) {
-        console.error('Session register failed:', error);
-        if (!cancelled) {
-          useSessionStore.getState().setUploadStatus('ERROR');
-        }
-      } finally {
-        createInFlight.current = false;
-        if (!cancelled) {
-          setUploading(false);
-        }
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [uploadStatus]);
-
-  // Step 2: push the final outputs (framed PNG, originals, GIF) to the reserved
-  // session in the background. Each file uploads on its own request as soon as
-  // it's ready — framed + originals immediately, the GIF once the stage lands —
-  // and retries only resend the files that actually failed. `recheck` bumps a
-  // fresh run when a file is generated mid-batch so no file is ever left behind.
-  useEffect(() => {
-    let cancelled = false;
-    const run = async () => {
-      const store = useSessionStore.getState();
-      if (!GALLERY_URL || !store.downloadUrl || store.uploadStatus !== 'UPLOADING' || uploadInFlight.current) {
-        return;
-      }
-      uploadInFlight.current = true;
-      setUploading(true);
-      const gifPending = multiPhoto && !gifBlob && !gifFailed.current;
-
-      const files: SessionUploadFile[] = [];
-      try {
-        const cache = blobCache.current;
-
-        if (store.frame && store.photoSlots.length > 0) {
-          if (!cache.has('framed.png')) {
-            const canvas = await renderComposition(store.frame, store.photoSlots, store.filterId, {
-              includeFrame: true,
-            });
-            // JPEG 0.92: a fraction of the PNG size at no visible quality loss,
-            // so the framed result uploads (and later downloads) much faster.
-            const blob = await canvasToJpegBlob(canvas);
-            if (blob) {
-              cache.set('framed.png', blob);
-            }
-          }
-          const blob = cache.get('framed.png');
-          if (blob) {
-            files.push({ blob, name: 'framed.png' });
-          }
-        }
-
-        const photoFiles: SessionUploadFile[] = [];
-        await Promise.all(
-          getAllPhotoUrls(store.photoSlots).map(async (dataUrl, index) => {
-            const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
-            let blob = cache.get(name);
-            if (!blob) {
-              // Upload the raw capture bytes — the selected filter is only
-              // applied to the framed result and the GIF, so the gallery
-              // keeps the original photos untouched.
-              blob = dataUrlToBlob(dataUrl);
-              cache.set(name, blob);
-            }
-            photoFiles.push({ blob, name });
-          }),
-        );
-        files.push(...photoFiles);
-
-        if (gifBlob && store.photoSlots.length > 1) {
-          files.push({ blob: gifBlob, name: 'result.gif' });
-        }
-      } catch (error) {
-        console.error('Preparing uploads failed:', error);
-        if (!cancelled) {
-          useSessionStore.getState().setUploadStatus('ERROR');
-        }
-        uploadInFlight.current = false;
-        setUploading(false);
-        return;
-      }
-
-      const pending = files.filter((file) => !uploadedFiles.current.has(file.name));
-      if (pending.length === 0) {
-        if (!cancelled && !gifPending) {
-          useSessionStore.getState().setUploadStatus('SUCCESS');
-        } else if (cancelled) {
-          // This pass was superseded while files were being prepared; let a
-          // fresh pass take over so nothing is dropped.
-          setRecheck((n) => n + 1);
-        }
-        uploadInFlight.current = false;
-        setUploading(false);
-        return;
-      }
-
-      try {
-        const match = /\/p\/([^/?#]+)/.exec(store.downloadUrl);
-        const token = sessionToken.current ?? (match ? match[1] : '');
-        if (!token) {
-          throw new Error('Missing session token');
-        }
-        // Idempotent — guarantees the session exists server-side even if the
-        // register step above was interrupted or failed.
-        await withTimeout(registerGallerySession(GALLERY_URL, token), 8000, 'Reserving gallery session');
-
-        const results = await withTimeout(uploadSessionFiles(pending, GALLERY_URL, token), 120000, 'Uploading photos');
-        results.forEach((result) => {
-          if (result.ok) {
-            uploadedFiles.current.add(result.name);
-          }
-        });
-        const failed = results.filter((result) => !result.ok);
-        if (failed.length > 0) {
-          throw new Error(`Upload incomplete: ${failed.map((result) => result.name).join(', ')}`);
-        }
-
-        const remaining = files.filter((file) => !uploadedFiles.current.has(file.name));
-        if (!cancelled && remaining.length === 0 && !gifPending) {
-          useSessionStore.getState().setUploadStatus('SUCCESS');
-        } else if (cancelled || remaining.length > 0) {
-          // This run was superseded mid-flight (e.g. the GIF finished while we
-          // were uploading) — schedule one more pass to collect any leftovers.
-          setRecheck((n) => n + 1);
-        }
-      } catch (error) {
-        console.error('Upload failed:', error);
-        if (!cancelled) {
-          useSessionStore.getState().setUploadStatus('ERROR');
-        }
-      } finally {
-        uploadInFlight.current = false;
-        setUploading(false);
-      }
-    };
-    run();
-    return () => {
-      cancelled = true;
-    };
-  }, [downloadUrl, uploadStatus, filterId, frame, gifBlob, multiPhoto, photoSlots, recheck]);
+  // Step 1 + Step 2 (token generation, registration, file upload) are owned by
+  // lib/uploadJob, a store-level job that keeps running even after the customer
+  // leaves. The screen only renders what the store already knows.
 
   // Real QR once the gallery session is reserved (immediately — before the
   // background file upload finishes).
@@ -353,10 +117,6 @@ export const PrintQRScreen: React.FC = () => {
     };
   }, [downloadUrl]);
 
-  const handleRetryUpload = () => {
-    useSessionStore.getState().setUploadStatus('UPLOADING');
-  };
-
   // Generate a larger QR for the enlarge modal when it is opened.
   useEffect(() => {
     if (!qrOpen || !downloadUrl) {
@@ -380,33 +140,17 @@ export const PrintQRScreen: React.FC = () => {
     };
   }, [qrOpen, downloadUrl]);
 
-  const handleDownloadFramed = async () => {
-    if (!frame || photoSlots.length === 0) return;
-    setDownloading('framed');
-    try {
-      await downloadFramedPhoto(frame, photoSlots, filterId);
-    } finally {
-      setDownloading(null);
-    }
-  };
+  // Zoom modals — click any result (framed, GIF, or individual photo) to view
+  // it enlarged, mirroring the QR enlarge modal. The framed sheet prints via
+  // the hidden print-only FrameCanvas.
 
-  const handleDownloadGif = async () => {
-    if (photoSlots.length === 0 || !multiPhoto) return;
-    setDownloading('gif');
-    try {
-      const blob = await createResultGif(photoSlots, filterId);
-      await downloadBlob(blob, `photo-booth-${downloadStamp()}-result.gif`);
-    } finally {
-      setDownloading(null);
-    }
-  };
-
-  // Zoom modals — click any result (framed preview, GIF, or individual photo)
-  // to view it enlarged, mirroring the existing QR enlarge modal.
   const handleViewFramed = async () => {
     if (!frame || photoSlots.length === 0) return;
     try {
-      const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
+      const canvas = await renderComposition(frame, photoSlots, filterId, {
+        includeFrame: true,
+        qrCodeUrl: qrDataUrl ?? undefined,
+      });
       setViewer({ url: canvas.toDataURL('image/jpeg', 0.92), label: 'Framed photo', rounded: true });
     } catch {
       // ignore — leave the viewer closed
@@ -425,263 +169,381 @@ export const PrintQRScreen: React.FC = () => {
 
   // Escape closes whichever zoom modal is open.
   useEffect(() => {
-    if (!viewer) return;
+    if (!viewer && !galleryOpen) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setViewer(null);
+      if (e.key === 'Escape') {
+        if (viewer) {
+          setViewer(null);
+        } else if (galleryOpen) {
+          setGalleryOpen(false);
+        }
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [viewer]);
+  }, [viewer, galleryOpen]);
+
+  // Burst of rising sparkles as soon as everything is ready.
+  useEffect(() => {
+    if (celebrate || !isDone) return;
+    setCelebrate(true);
+    const timer = setTimeout(() => setCelebrate(false), 4200);
+    return () => clearTimeout(timer);
+  }, [celebrate, isDone]);
+
+  const confetti = useMemo(
+    () =>
+      Array.from({ length: 22 }, (_, i) => ({
+        left: `${8 + ((i * 37) % 84)}%`,
+        color: ['#ff4bb5', '#a35ef6', '#4d2d85', '#ffec5a', '#ffffff'][i % 5],
+        size: 8 + ((i * 3) % 8),
+        duration: 2.6 + ((i * 7) % 18) / 10,
+        delay: (i % 6) * 0.35,
+      })),
+    [],
+  );
 
   return (
-    <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center select-none p-2 sm:p-4">
-      <div className="w-full max-w-[920px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-3 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-4">
-        <style>{`
-          @media print {
-            body { background: white !important; margin: 0; }
-            .print-no-show { display: none !important; }
-            .print-sheet {
-              width: 4in !important; height: 6in !important;
-              margin: 0 auto !important;
-              box-shadow: none !important; border-radius: 0 !important;
-            }
-          }
-        `}</style>
+    <div
+      className="print-qrpage fixed inset-0 z-40 flex select-none flex-col overflow-hidden bg-[#d9f85a]"
+      style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}
+    >
+      <style>{`
+        @media print {
+          body { background: white !important; margin: 0; }
+          .print-no-show { display: none !important; }
+          .print-only { display: block !important; }
+          .print-qrpage { position: static !important; height: auto !important; background: white !important; }
+          .print-sheet-inner { width: 4in !important; height: 6in !important; margin: 0 auto !important; }
+        }
+      `}</style>
 
-        <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-4">
-          {/* Header */}
-          <div className="print-no-show mb-3 text-center text-[#4d2d85]">
-            <div className="text-[0.65rem] font-black uppercase tracking-[0.28em]">Delivering Your Memories</div>
-            <h1 className="mt-1 text-[1.3rem] font-black uppercase tracking-[-0.08em] md:text-[1.8rem]">
-              Preparing print
-            </h1>
-          </div>
-
-          {/* Main row */}
-          <div className="print-no-show grid grid-cols-1 items-center gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)]">
-            {/* Status card */}
-            <div className="rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-3 text-[#4d2d85]">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between rounded-[12px] bg-[#ffefde] px-3 py-2">
-                  <span className="text-[0.7rem] font-black uppercase tracking-[0.12em]">Physical Print</span>
-                  <span className={`text-[0.6rem] font-black uppercase tracking-[0.12em] ${printStatus === 'SUCCESS' ? 'text-[#118f6d]' : printStatus === 'PRINTING' ? 'text-[#b25800]' : 'text-[#6d6a7f]'}`}>
-                    {printStatus === 'PRINTING' && 'Printing...'}
-                    {printStatus === 'SUCCESS' && 'Completed'}
-                    {printStatus === 'IDLE' && 'Pending'}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between rounded-[12px] bg-[#dffbff] px-3 py-2">
-                  <span className="text-[0.7rem] font-black uppercase tracking-[0.12em]">Digital Upload</span>
-                  <span className={`text-[0.6rem] font-black uppercase tracking-[0.12em] ${uploadStatus === 'SUCCESS' ? 'text-[#118f6d]' : uploadStatus === 'UPLOADING' ? 'text-[#b25800]' : 'text-[#6d6a7f]'}`}>
-                    {uploadStatus === 'UPLOADING' && 'Uploading...'}
-                    {uploadStatus === 'SUCCESS' && 'Uploaded'}
-                    {uploadStatus === 'IDLE' && 'Pending'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="mt-3 flex items-center justify-center gap-3 rounded-full border-[3px] border-[#a35ef6] bg-[#fff3ff] px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#4d2d85]">
-                <span>Print size</span>
-                <span className="rounded-full bg-[#ff7d57] px-2 py-0.5 text-[0.55rem] text-white">4R / 4×6 in</span>
-              </div>
-            </div>
-
-            {/* Framed preview */}
-            <div className="print-sheet flex items-center justify-center rounded-[18px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-4">
-              <button
-                type="button"
-                onClick={() => void handleViewFramed()}
-                title="View larger"
-                aria-label="View framed photo larger"
-                className="w-full cursor-pointer bg-transparent p-0"
-              >
-                <FrameCanvas
-                  frame={frame}
-                  photos={selectedPhotos}
-                  photoSlotCount={photoSlots.length}
-                  filter={frameFilter}
-                  className="mx-auto w-full max-w-[210px] rounded-[14px] border-[3px] border-[#7a4de3] bg-white"
-                />
-              </button>
-            </div>
-
-            {/* QR + GIF preview */}
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="relative flex h-32 w-32 items-center justify-center rounded-[18px] border-[4px] border-[#a35ef6] bg-white p-3 shadow-[0_8px_0_rgba(77,45,133,0.25)]">
-                  {downloadUrl && qrDataUrl ? (
-                    <>
-                      <button
-                        onClick={() => setQrOpen(true)}
-                        className="h-full w-full cursor-pointer"
-                        aria-label="Enlarge QR code"
-                      >
-                        <img src={qrDataUrl} alt="Scan to download your photos" className="h-full w-full rounded-[6px]" />
-                      </button>
-                      <span className="pointer-events-none absolute -right-2.5 -top-2.5 z-10">
-                        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#ff4bb5] opacity-75" />
-                        <span className="relative inline-flex h-7 w-7 animate-bounce items-center justify-center rounded-full border-[3px] border-white bg-[#ff4bb5] text-[0.7rem] shadow-[0_2px_0_rgba(0,0,0,0.2)]">
-                          🔍
-                        </span>
-                      </span>
-                    </>
-                  ) : uploadStatus === 'SUCCESS' && !downloadUrl ? (
-                    <div className="flex h-full w-full items-center justify-center text-center">
-                      <span className="text-[0.55rem] font-black uppercase tracking-[0.12em] text-[#4d2d85]">
-                        Offline — grab photos below
-                      </span>
-                    </div>
-                  ) : uploadStatus === 'ERROR' ? (
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-center">
-                      <span className="text-base">⚠️</span>
-                      <span className="text-[0.55rem] font-black uppercase tracking-[0.12em] text-[#b0003a]">
-                        Upload failed
-                      </span>
-                      <button
-                        onClick={handleRetryUpload}
-                        className="rounded-full bg-[#ff4bb5] px-3 py-1 text-[0.55rem] font-black uppercase tracking-[0.12em] text-white shadow-[0_2px_0_rgba(0,0,0,0.15)]"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-center text-[0.6rem] font-black uppercase tracking-[0.18em] text-[#4d2d85]">
-                      <span className="animate-spin text-base">⏳</span>
-                      {uploading ? 'Uploading...' : 'Generating QR...'}
-                    </div>
-                  )}
-                </div>
-                {downloadUrl && qrDataUrl && (
-                  <span className="animate-pulse text-[0.55rem] font-black uppercase tracking-[0.18em] text-[#4d2d85]">
-                    Tap untuk memperbesar
-                  </span>
-                )}
-                {downloadUrl && uploadStatus === 'ERROR' && (
-                  <button
-                    onClick={handleRetryUpload}
-                    className="animate-pulse rounded-full border-[3px] border-[#b0003a] bg-[#fff3ff] px-3 py-1 text-[0.55rem] font-black uppercase tracking-[0.12em] text-[#b0003a]"
-                  >
-                    Upload interrupted — retry
-                  </button>
-                )}
-              </div>
-
-              {gifUrl && multiPhoto && (
-                <div className="flex flex-col items-center gap-1.5">
-                  <span className="text-[0.55rem] font-black uppercase tracking-[0.24em] text-[#4d2d85]">GIF</span>
-                  <div className="relative flex h-40 w-40 items-center justify-center rounded-[18px] border-[4px] border-[#a35ef6] bg-white p-2 shadow-[0_8px_0_rgba(77,45,133,0.25)]">
-                    <button
-                      type="button"
-                      onClick={handleViewGif}
-                      title="View larger"
-                      aria-label="View animated GIF larger"
-                      className="h-full w-full cursor-pointer"
-                    >
-                      <img
-                        src={gifUrl}
-                        alt="Animated result preview"
-                        className="h-full w-full rounded-[10px] object-contain"
-                      />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {downloadUrl ? (
-            <p className="print-no-show mt-2 text-center text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#4d2d85]">
-              Scan the QR code to download your photos
-            </p>
-          ) : uploadStatus === 'SUCCESS' && (
-            <p className="print-no-show mt-2 text-center text-[0.6rem] font-bold uppercase tracking-[0.2em] text-[#4d2d85]">
-              Photos are ready on the booth below
-            </p>
-          )}
-
-          {/* Download icons + finish */}
-          <div className="print-no-show mt-4 flex flex-wrap items-center justify-center gap-4">
-            <DownloadAction
-              label="With frame"
-              icon={<DownloadIcon />}
-              busy={downloading === 'framed'}
-              disabled={!frame || photoSlots.length === 0}
-              onClick={handleDownloadFramed}
+      {/* Celebratory rising sparkles */}
+      {celebrate && (
+        <div className="print-no-show pointer-events-none absolute inset-0 z-30 overflow-hidden">
+          {confetti.map((sparkle, index) => (
+            <span
+              key={index}
+              className="pb-sparkle"
+              style={
+                {
+                  left: sparkle.left,
+                  bottom: '-18px',
+                  width: `${sparkle.size}px`,
+                  height: `${sparkle.size}px`,
+                  '--sc': sparkle.color,
+                  animationDuration: `${sparkle.duration}s`,
+                  animationDelay: `${sparkle.delay}s`,
+                } as React.CSSProperties
+              }
             />
-            <DownloadAction
-              label="Photos"
-              icon={<ImageIcon />}
-              disabled={allPhotos.length === 0}
-              onClick={() => setShowPhotos(true)}
-            />
-            {multiPhoto && (
-              <DownloadAction
-                label="GIF"
-                icon={<GifIcon />}
-                busy={downloading === 'gif'}
-                disabled={photoSlots.length === 0}
-                onClick={handleDownloadGif}
-              />
-            )}
+          ))}
+        </div>
+      )}
 
-            <button
-              onClick={completeSession}
-              disabled={!isDone}
-              className={`rounded-[12px] px-6 py-2.5 text-[0.7rem] font-black uppercase tracking-[0.16em] transition-all ${
-                isDone
-                  ? 'bg-[#d9f85a] text-[#2d2866] shadow-[0_4px_0_rgba(0,0,0,0.18)] hover:-translate-y-0.5 active:translate-y-0'
-                  : 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
-              }`}
-            >
-              Finish Session
-            </button>
-          </div>
+      {/* Header */}
+      <header
+        className="print-no-show relative flex shrink-0 items-center justify-center gap-3 border-b-[3px] border-[#ff4bb5] bg-[#ff4bb5] px-5 py-3 md:py-4"
+        style={{ animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
+      >
+        <span
+          className="pointer-events-none absolute left-[7%] top-1/2 -translate-y-1/2 text-2xl md:text-3xl"
+          style={{ animation: 'pb-float 3.2s ease-in-out infinite' }}
+        >
+          ✨
+        </span>
+        <span
+          className="pointer-events-none absolute right-[7%] top-1/2 -translate-y-1/2 text-2xl md:text-3xl"
+          style={{ animation: 'pb-float 3.8s ease-in-out 0.5s infinite' }}
+        >
+          💖
+        </span>
+        <div className="flex flex-col items-center gap-0.5">
+          <h1
+            className="mt-0.5 text-[1.4rem] font-black uppercase tracking-[-0.08em] text-white md:text-[1.8rem]"
+            style={{ animation: 'pb-glow 2.6s ease-in-out infinite' }}
+          >
+            Hasil
+          </h1>
+          <p
+            className="pb-tap text-[0.55rem] font-black uppercase tracking-[0.3em] text-white/90 md:text-[0.7rem]"
+            style={{ animation: 'pb-tap 2.4s ease-in-out infinite' }}
+          >
+            Your memories are ready 🎉
+          </p>
+        </div>
+      </header>
+
+      {/* Print-only framed sheet (physical print safety net) */}
+      <div className="print-sheet print-only" style={{ display: 'none' }}>
+        <div className="print-sheet-inner">
+          <FrameCanvas
+            frame={frame}
+            photos={selectedPhotos}
+            photoSlotCount={photoSlots.length}
+            filter={frameFilter}
+            qrCodeUrl={qrDataUrl ?? undefined}
+            className="h-full w-full bg-white"
+            style={{ height: '100%' }}
+          />
         </div>
       </div>
 
-      {/* Photos overlay — displays the captured photos without zipping */}
-      {showPhotos && (
-        <div
-          className="print-no-show fixed inset-0 z-50 flex items-center justify-center bg-[#1a0b2e]/90 p-4"
-          onClick={() => setShowPhotos(false)}
-        >
-          <div
-            className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#fdf3ff] p-4"
-            onClick={(e) => e.stopPropagation()}
+      {/* Main result — framed (left), photo slideshow + GIF (middle), QR (right) */}
+      <div className="print-no-show pb-scroll relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 lg:overflow-hidden">
+        {/* Floating background cuteness */}
+        <div className="pointer-events-none absolute inset-0 z-0">
+          {[
+            { left: '6%', top: '14%', size: 'text-xl', delay: '0s', rot: '12deg' },
+            { right: '10%', top: '10%', size: 'text-2xl', delay: '0.6s', rot: '-6deg' },
+            { left: '14%', bottom: '12%', size: 'text-2xl', delay: '1.1s', rot: '4deg' },
+            { right: '12%', bottom: '16%', size: 'text-xl', delay: '1.6s', rot: '-10deg' },
+          ].map((s, i) => (
+            <span
+              key={i}
+              className={`absolute ${s.size} opacity-30 select-none`}
+              style={{
+                left: s.left,
+                right: s.right,
+                top: s.top,
+                bottom: s.bottom,
+                transform: `rotate(${s.rot})`,
+                animation: 'pb-balloon-float 6s ease-in-out infinite',
+                animationDelay: s.delay,
+                ['--dx' as string]: '14px',
+                ['--dy' as string]: '-16px',
+                ['--rot' as string]: s.rot,
+              }}
+            >
+              {['💖', '⭐', '🎀', '✨'][i]}
+            </span>
+          ))}
+        </div>
+
+        <div className="relative z-10 flex min-h-0 flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch">
+          {/* Left: framed photo — bare, clickable to zoom */}
+          <button
+            type="button"
+            onClick={() => void handleViewFramed()}
+            title="View framed photo larger"
+            aria-label="View framed photo larger"
+            className="group relative mx-auto flex h-[34vh] w-full max-w-[260px] min-h-0 shrink-0 cursor-pointer items-center justify-center self-center bg-transparent p-0 sm:max-w-[300px] lg:h-auto lg:max-w-none lg:flex-1 lg:self-auto"
+            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
           >
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[0.9rem] font-black uppercase tracking-[0.14em] text-[#4d2d85]">Your Photos</h2>
-              <button
-                onClick={() => setShowPhotos(false)}
-                className="rounded-full border-[3px] border-[#a35ef6] bg-white px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.12em] text-[#4d2d85]"
-              >
-                Close
-              </button>
-            </div>
-            <div className="grid grid-cols-3 gap-2 overflow-y-auto">
-              {allPhotos.map((dataUrl, index) => (
-                <div key={index} className="flex flex-col overflow-hidden bg-white shadow-[0_4px_0_rgba(77,45,133,0.15)]">
-                  <button
-                    type="button"
-                    onClick={() => handleViewPhoto(dataUrl, index)}
-                    title="View larger"
-                    aria-label={`View photo ${index + 1} larger`}
-                    className="block cursor-pointer bg-transparent p-0"
+            {frame && photoSlots.length > 0 ? (
+              <>
+                <div className="relative flex h-full w-full min-h-0 items-center justify-center">
+                  <FrameCanvas
+                    frame={frame}
+                    photos={selectedPhotos}
+                    photoSlotCount={photoSlots.length}
+                    filter={frameFilter}
+                    qrCodeUrl={qrDataUrl ?? undefined}
+                    className="max-h-full w-auto max-w-full rounded-md bg-white shadow-[0_14px_30px_rgba(77,45,133,0.25)] transition-transform group-hover:scale-[1.02]"
+                    style={{ height: '100%', aspectRatio: '3 / 4' }}
+                  />
+                  <span
+                    className="pointer-events-none absolute -right-1.5 -top-1.5 text-2xl"
+                    style={{ animation: 'pb-float 3.5s ease-in-out infinite' }}
                   >
-                    <img src={dataUrl} alt={`Photo ${index + 1}`} className="block h-auto w-full" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      void downloadDataUrl(dataUrl, `photo-booth-${downloadStamp()}-${String(index + 1).padStart(2, '0')}.jpg`);
-                    }}
-                    className="block w-full py-1.5 text-center text-[0.6rem] font-black uppercase tracking-[0.1em] text-[#4d2d85]"
-                  >
-                    Save
-                  </button>
+                    💖
+                  </span>
                 </div>
-              ))}
+              </>
+            ) : (
+              <span className="rounded-lg bg-white/60 px-4 py-6 text-center text-sm font-bold text-[#4d2d85]/60">
+                No framed photo
+              </span>
+            )}
+          </button>
+
+          {/* Middle: photo slideshow (opens gallery) + GIF below, same size */}
+          <div
+            className="flex min-h-0 flex-1 flex-col gap-3"
+            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.08s both' }}
+          >
+            <button
+              type="button"
+              onClick={() => setGalleryOpen(true)}
+              title="View all photos"
+              aria-label="View all photos"
+              className="group relative flex min-h-0 min-h-[26vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(77,45,133,0.2)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+            >
+              {allPhotos.length > 0 ? (
+                <>
+                  <div className="relative m-auto h-full w-full overflow-hidden rounded-md bg-black/10">
+                    <div
+                      className="flex h-full w-full transition-transform duration-700 ease-out"
+                      style={{ transform: `translateX(-${slideIndex * 100}%)` }}
+                    >
+                      {allPhotos.map((dataUrl, index) => (
+                        <img
+                          key={index}
+                          src={dataUrl}
+                          alt={`Photo ${index + 1}`}
+                          draggable={false}
+                          className="h-full w-full shrink-0 object-cover"
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  {/* Slideshow dots */}
+                  {allPhotos.length > 1 && (
+                    <span className="pointer-events-none absolute inset-x-0 top-2 flex justify-center gap-1.5">
+                      {allPhotos.map((_, index) => (
+                        <span
+                          key={index}
+                          className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
+                            index === slideIndex % allPhotos.length
+                              ? 'w-5 bg-[#ff4bb5] shadow-[0_0_6px_rgba(255,75,181,0.8)]'
+                              : 'bg-[#4d2d85]/30'
+                          }`}
+                        />
+                      ))}
+                    </span>
+                  )}
+                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#ff4bb5]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                    💖 View all photos ({allPhotos.length})
+                  </span>
+                </>
+              ) : (
+                <span className="text-center text-sm font-bold text-[#4d2d85]/60">
+                  No individual photos recorded.
+                </span>
+              )}
+            </button>
+
+            {/* GIF result below — same size as the photo slideshow */}
+            {gifUrl && multiPhoto && (
+              <button
+                type="button"
+                onClick={handleViewGif}
+                title="View animated GIF"
+                aria-label="View animated GIF"
+                className="group relative flex min-h-0 min-h-[26vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(77,45,133,0.2)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+              >
+                <img
+                  src={gifUrl}
+                  alt="Animated result preview"
+                  className="h-full w-full rounded-md object-cover"
+                />
+                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#ff4bb5]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                  ✨ GIF
+                </span>
+              </button>
+            )}
+          </div>
+
+          {/* Right: QR + Finish Session */}
+          <div
+            className="flex min-h-0 shrink-0 flex-col items-center justify-center gap-5 lg:w-64 lg:gap-[9rem] xl:w-72"
+            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.16s both' }}
+          >
+            <div className="flex flex-col items-center gap-2">
+             <span className="text-center text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#4d2d85]">
+             Scan QR to download your photos
+            </span>
+            <button
+              onClick={() => setQrOpen(true)}
+              aria-label="Enlarge QR code"
+              className="relative block cursor-pointer overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-3 shadow-[0_8px_0_rgba(77,45,133,0.25)] transition-transform hover:-translate-y-0.5 hover:shadow-[0_12px_0_rgba(77,45,133,0.3)] hover:border-[#ff4bb5]"
+            >
+              {downloadUrl && qrDataUrl ? (
+                <>
+                  <img src={qrDataUrl} alt="Scan to download your photos" className="h-40 w-40 sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64" />
+                  {/* Pulsing aura */}
+                  <span
+                    className="pointer-events-none absolute inset-0 rounded-[14px]"
+                    style={{ animation: 'pb-pulse-ring 2.4s ease-out infinite' }}
+                  />
+                  {/* Scanning line */}
+                  <span
+                    className="pointer-events-none absolute inset-x-4 top-4 z-10 h-[3px] rounded-full bg-[#ff4bb5]/80 shadow-[0_0_10px_rgba(255,75,181,0.9)]"
+                    style={{ animation: 'pb-scan 2.8s ease-in-out infinite' }}
+                  />
+                 
+                </>
+              ) : (
+                <div className="flex h-40 w-40 flex-col items-center justify-center gap-1 text-center text-[0.6rem] font-black uppercase tracking-[0.18em] text-[#4d2d85] sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64">
+                  <span className="pb-tap text-base" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>⏳</span>
+                  Generating QR...
+                </div>
+              )}
+            </button>
+            </div>
+            
+             <button
+          onClick={completeSession}
+          disabled={!isDone}
+          title="Finish Session"
+          className={`shrink-0 rounded-[12px] px-6 py-3 text-[1.2rem] font-black uppercase tracking-[0.16em] transition-all md:px-8 ${
+            isDone
+              ? 'bg-[#ff4bb5] text-[#ffffff] shadow-[0_4px_0_rgba(0,0,0,0.18)] hover:-translate-y-0.5 hover:shadow-[0_7px_0_rgba(0,0,0,0.18)] active:translate-y-0'
+              : 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
+          }`}
+          style={isDone ? { animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' } : undefined}
+        >
+          {isDone ? '✓ Selesai 🎉' : 'Finish Session'}
+        </button>
+          </div>
+          
+        </div>
+        
+      </div>
+
+      {/* Fullscreen gallery — all photos */}
+      {galleryOpen && (
+        <div
+          className="print-no-show fixed inset-0 z-50 flex flex-col bg-[#1a0b2e]"
+          style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}
+          onMouseDown={() => setGalleryOpen(false)}
+        >
+          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#1a0b2e]/80 px-5 py-4 backdrop-blur">
+            <div>
+              <h3 className="text-lg font-bold text-white">Your photos</h3>
+              <p className="text-xs text-white/40">
+                {allPhotos.length} photo{allPhotos.length === 1 ? '' : 's'}
+              </p>
+            </div>
+            <button
+              onClick={() => setGalleryOpen(false)}
+              className="grid h-9 w-9 place-items-center rounded-full bg-[#ff4bb5] text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95"
+              aria-label="Close"
+            >
+              &#10005;
+            </button>
+          </header>
+          <div
+            className="pb-scroll min-h-0 flex-1 overflow-y-auto"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div
+              className="mx-auto w-full max-w-6xl p-5 sm:p-8"
+              style={{ animation: 'pb-modal-zoom 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
+            >
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
+                {allPhotos.map((dataUrl, index) => (
+                  <button
+                    type="button"
+                    key={index}
+                    onClick={() => handleViewPhoto(dataUrl, index)}
+                    title={`View photo ${index + 1}`}
+                    aria-label={`View photo ${index + 1}`}
+                    className="group relative block w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-[#2b1a4a]"
+                  >
+                    <div className="aspect-square w-full overflow-hidden bg-black/30">
+                      <img
+                        src={dataUrl}
+                        alt={`Photo ${index + 1}`}
+                        className="h-full w-full object-cover transition transform group-hover:scale-105"
+                      />
+                    </div>
+                    <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-black/70 px-2 py-1.5 text-xs text-white/90">
+                      Photo {index + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

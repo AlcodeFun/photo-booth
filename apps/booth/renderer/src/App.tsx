@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
+import { AdminApp } from './screens/admin/AdminApp';
 import {
   ContextBumperScreen,
   TutorialScreen,
   FrameSelectionScreen,
-  FrameTemplateAdminScreen,
   CameraSettingsScreen,
   PhotoCaptureScreen,
   PhotoReviewScreen,
@@ -15,12 +15,20 @@ import {
 
 const isFrameFitterPath = (path: string, hash: string) => {
   const normalizedPath = path.replace(/\/+$/, '');
-  return hash === '#/admin/frame-fit' || normalizedPath.endsWith('/admin/frame-fit');
+  return hash.startsWith('#/admin/frame-fit') || normalizedPath.endsWith('/admin/frame-fit');
 };
 
 const isCameraSettingsPath = (path: string, hash: string) => {
   const normalizedPath = path.replace(/\/+$/, '');
   return hash === '#/admin/camera' || normalizedPath.endsWith('/admin/camera');
+};
+
+const isAdminPath = (path: string, hash: string) => {
+  if (hash === '#/admin' || hash.startsWith('#/admin/')) {
+    return true;
+  }
+  const normalizedPath = path.replace(/\/+$/, '');
+  return normalizedPath === '/admin' || normalizedPath.startsWith('/admin/');
 };
 
 function App() {
@@ -35,6 +43,7 @@ function App() {
   }));
   const isFrameFitterRoute = isFrameFitterPath(route.path, route.hash);
   const isCameraSettingsRoute = isCameraSettingsPath(route.path, route.hash);
+  const isAdminRoute = isAdminPath(route.path, route.hash);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -55,10 +64,10 @@ function App() {
 
   // Initialize new session on launch
   useEffect(() => {
-    if (!isFrameFitterRoute && !isCameraSettingsRoute && !sessionId) {
+    if (!isFrameFitterRoute && !isCameraSettingsRoute && !isAdminRoute && !sessionId) {
       startNewSession();
     }
-  }, [isFrameFitterRoute, isCameraSettingsRoute, sessionId, startNewSession]);
+  }, [isFrameFitterRoute, isCameraSettingsRoute, isAdminRoute, sessionId, startNewSession]);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -83,12 +92,12 @@ function App() {
     }
   };
 
-  if (isFrameFitterRoute) {
-    return <FrameTemplateAdminScreen />;
-  }
-
   if (isCameraSettingsRoute) {
     return <CameraSettingsScreen />;
+  }
+
+  if (isAdminRoute) {
+    return <AdminApp />;
   }
 
   return (

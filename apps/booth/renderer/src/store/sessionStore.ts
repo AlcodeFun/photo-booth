@@ -4,6 +4,7 @@ import {
   PhotoAttempt,
   FrameConfig,
 } from '@photo-booth/types';
+import { SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
@@ -34,6 +35,14 @@ export interface SessionStore {
   uploadStatus: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
   downloadUrl: string | null;
 
+  // Persisted session mirror (kept in the store so status patches survive the
+  // PRINT_QR component unmounting when the round advances to COMPLETE).
+  sessionToken: string | null;
+  // Per-token file state. Keyed by token so a late-finishing background upload
+  // can keep patching its own session's files without ever touching a newer,
+  // already-started session after a reset.
+  sessionFilesByToken: Record<string, SessionFileState[]>;
+
   // Actions
   startNewSession: () => void;
   confirmPayment: () => void;
@@ -50,6 +59,9 @@ export interface SessionStore {
   startPrinting: () => void;
   setUploadStatus: (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR') => void;
   setDownloadUrl: (url: string) => void;
+  setSessionToken: (token: string | null) => void;
+  setSessionFilesForToken: (token: string, files: SessionFileState[]) => void;
+  _syncSessionRow: () => void;
   completeSession: () => void;
   resetSession: () => void;
 }
@@ -68,6 +80,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
   downloadUrl: null,
+  sessionToken: null,
+  sessionFilesByToken: {},
 
   startNewSession: () => {
     const randomId = 'session_' + Math.random().toString(36).substring(2, 11);
@@ -81,6 +95,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,
+      sessionToken: null,
+      sessionFilesByToken: {},
       currentScreen: 'CONTEXT_BUMPER',
     });
   },
@@ -226,15 +242,49 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // in PRINT_QR (or a simulated success fallback when no gallery is configured).
     setTimeout(() => {
       set({ printStatus: 'SUCCESS' });
+      // Patches the row from inside the store action (not a React effect), so
+      // the final status lands even after the PRINT_QR screen has unmounted.
+      get()._syncSessionRow();
     }, 4000);
   },
 
   setUploadStatus: (status) => {
     set({ uploadStatus: status });
+    get()._syncSessionRow();
   },
 
   setDownloadUrl: (url) => {
     set({ downloadUrl: url });
+    get()._syncSessionRow();
+  },
+
+  setSessionToken: (token) => {
+    set({ sessionToken: token });
+    get()._syncSessionRow();
+  },
+
+  setSessionFilesForToken: (token, files) => {
+    set((state) => ({ sessionFilesByToken: { ...state.sessionFilesByToken, [token]: files } }));
+    get()._syncSessionRow();
+  },
+
+  // Mirrors current session state to public.sessions. Runs from store actions
+  // only, so persistence does not depend on any mounted screen, effect, or
+  // subscription.
+  _syncSessionRow: () => {
+    const state = get();
+    if (!state.sessionToken) {
+      return;
+    }
+    if (state.printStatus === 'IDLE' && state.uploadStatus === 'IDLE') {
+      return;
+    }
+    updateSessionRecord(state.sessionToken, {
+      print_status: normalizePrintStatus(state.printStatus),
+      upload_status: normalizeUploadStatus(state.uploadStatus),
+      download_url: state.downloadUrl ?? undefined,
+      files: state.sessionFilesByToken[state.sessionToken] ?? [],
+    });
   },
 
   completeSession: () => {

@@ -1,8 +1,17 @@
-import { ChangeEvent, ReactNode } from 'react';
+import { ChangeEvent, ReactNode, useEffect, useRef, useState } from 'react';
 
 const toNumericValue = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const sanitizeNumberInput = (raw: string, allowDecimal: boolean) => {
+  const cleaned = raw.replace(allowDecimal ? /[^0-9.]/g : /[^0-9]/g, '');
+  if (!allowDecimal) {
+    return cleaned;
+  }
+  const [head, ...rest] = cleaned.split('.');
+  return rest.length > 0 ? `${head}.${rest.join('')}` : head;
 };
 
 const FIELD_CLASS =
@@ -15,7 +24,9 @@ interface FieldLabelProps {
 }
 
 const FieldLabel = ({ label, className = 'flex flex-col gap-1', children }: FieldLabelProps) => (
-  <label className={`${className} text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#7a4de3]`}>
+  <label
+    className={`${className} min-w-0 text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#7a4de3]`}
+  >
     {label}
     {children}
   </label>
@@ -26,23 +37,51 @@ interface NumberFieldProps {
   value: number | undefined;
   min?: number;
   max?: number;
-  step?: number;
+  allowDecimal?: boolean;
   onChange: (value: number) => void;
 }
 
-export const NumberField = ({ label, value, min, max, step = 1, onChange }: NumberFieldProps) => (
-  <FieldLabel label={label}>
-    <input
-      type="number"
-      value={value ?? 0}
-      min={min}
-      max={max}
-      step={step}
-      onChange={(event) => onChange(toNumericValue(event.target.value))}
-      className={FIELD_CLASS}
-    />
-  </FieldLabel>
-);
+export const NumberField = ({ label, value, min, max, allowDecimal = false, onChange }: NumberFieldProps) => {
+  const [text, setText] = useState(value == null ? '' : String(value));
+  const editingRef = useRef(false);
+
+  useEffect(() => {
+    if (!editingRef.current) {
+      setText(value == null ? '' : String(value));
+    }
+  }, [value]);
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    editingRef.current = true;
+    const sanitized = sanitizeNumberInput(event.target.value, allowDecimal);
+    setText(sanitized);
+    onChange(toNumericValue(sanitized));
+  };
+
+  const handleBlur = () => {
+    editingRef.current = false;
+    let next = toNumericValue(text);
+    if (min != null) next = Math.max(next, min);
+    if (max != null) next = Math.min(next, max);
+    setText(next === 0 ? '' : String(next));
+    onChange(next);
+  };
+
+  return (
+    <FieldLabel label={label}>
+      <input
+        type="text"
+        inputMode={allowDecimal ? 'decimal' : 'numeric'}
+        value={text}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        placeholder="0"
+        aria-invalid={min != null && text !== '' && toNumericValue(text) < min}
+        className={FIELD_CLASS}
+      />
+    </FieldLabel>
+  );
+};
 
 interface TextFieldProps {
   label: string;
@@ -50,19 +89,37 @@ interface TextFieldProps {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  required?: boolean;
+  error?: string;
 }
 
-export const TextField = ({ label, value, onChange, placeholder, className }: TextFieldProps) => (
-  <FieldLabel label={label} className={`flex flex-col gap-1 ${className ?? ''}`}>
-    <input
-      type="text"
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder={placeholder}
-      className={FIELD_CLASS}
-    />
-  </FieldLabel>
-);
+export const TextField = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  className,
+  required = false,
+  error,
+}: TextFieldProps) => {
+  const showError = Boolean(error) && value.trim() === '';
+  const fieldClass = showError ? `${FIELD_CLASS} border-[#ff4bb5]` : FIELD_CLASS;
+
+  return (
+    <FieldLabel label={label} className={`flex flex-col gap-1 ${className ?? ''}`}>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
+        aria-invalid={showError}
+        className={fieldClass}
+      />
+      {showError ? <span className="text-[0.65rem] font-bold normal-case text-[#b3206e]">{error}</span> : null}
+    </FieldLabel>
+  );
+};
 
 interface SelectFieldProps {
   label: string;

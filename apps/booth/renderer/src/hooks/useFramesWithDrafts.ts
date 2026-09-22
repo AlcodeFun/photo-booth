@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { FrameConfig } from '@photo-booth/types';
-import { FRAME_TEMPLATE_DRAFTS_EVENT, mergeFrameTemplateDrafts } from '../utils/frameTemplateDrafts';
+import { FRAME_TEMPLATE_DRAFTS_EVENT, mergeFrameTemplateDrafts } from '../utils/frameDrafts';
 
-export const useFramesWithTemplateDrafts = (
+export const useFramesWithDrafts = (
   frames: FrameConfig[],
   photoSlotCount?: number,
 ): FrameConfig[] => {

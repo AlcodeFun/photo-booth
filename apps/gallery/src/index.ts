@@ -48,7 +48,7 @@ function guessContentType(name: string): string {
 
 const corsHeaders = (): Record<string, string> => ({
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET, POST, OPTIONS',
+  'access-control-allow-methods': 'GET, POST, DELETE, OPTIONS',
   'access-control-allow-headers': 'content-type',
 });
 
@@ -198,6 +198,24 @@ async function handleList(env: Env, token: string, origin: string): Promise<Resp
   return json({ token, exists, files });
 }
 
+/** Deletes every object (files + meta marker) belonging to a session. */
+async function handleDeleteSession(env: Env, token: string): Promise<Response> {
+  const prefix = `${SESSION_PREFIX}${token}/`;
+  try {
+    let cursor: string | undefined;
+    do {
+      const listed = await env.GALLERY_BUCKET.list({ prefix, cursor });
+      if (listed.objects.length > 0) {
+        await env.GALLERY_BUCKET.delete(listed.objects.map((object) => object.key));
+      }
+      cursor = listed.truncated ? listed.cursor : undefined;
+    } while (cursor);
+  } catch (error) {
+    return json({ error: `R2 delete failed: ${String(error)}` }, { status: 500 });
+  }
+  return json({ ok: true, deleted: true });
+}
+
 async function handleDownload(env: Env, token: string, name: string): Promise<Response> {
   if (!name) {
     return json({ error: 'Missing file name' }, { status: 400 });
@@ -262,6 +280,15 @@ export default {
       return new Response(renderGallery(token), {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
+    }
+
+    // Delete a session and all of its objects (files + meta marker).
+    if (request.method === 'DELETE' && pathname.startsWith('/api/sessions/')) {
+      const token = pathname.slice('/api/sessions/'.length).split('/')[0];
+      if (!token) {
+        return json({ error: 'Missing token' }, { status: 400 });
+      }
+      return handleDeleteSession(env, token);
     }
 
     // Gallery file list (consumed by the page's fetch).

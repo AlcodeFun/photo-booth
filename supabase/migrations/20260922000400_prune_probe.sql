@@ -1,0 +1,1 @@
+delete from public.sessions where token in ('final-check');

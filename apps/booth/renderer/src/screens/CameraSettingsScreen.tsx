@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CameraCaptureResult, CameraStatus } from '@photo-booth/types';
 import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
+import { navigateToBooth } from '../lib/navigation';
 
 const STATUS_STYLES: Record<CameraStatus, string> = {
   DISCONNECTED: 'border-rose-400 bg-rose-50 text-rose-700',
@@ -248,7 +249,11 @@ export const CameraSettingsScreen: React.FC = () => {
 
           <div className="mt-6 text-center">
             <a
-              href="#/"
+              href="/"
+              onClick={(event) => {
+                event.preventDefault();
+                navigateToBooth();
+              }}
               className="inline-block rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-6 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]"
             >
               Back to Booth

@@ -80,7 +80,6 @@ export const PhotoAreasPanel = ({
       <button
         type="button"
         onClick={onDeleteArea}
-        disabled={areas.length <= 1}
         className="h-10 rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#b3206e] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
       >
         Delete
@@ -88,7 +87,7 @@ export const PhotoAreasPanel = ({
     </div>
 
     {activeArea && (
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-3">
         <SelectField
           label="Source"
           value={activeArea.sourcePhotoSlot ?? activeArea.slotNumber}
@@ -121,7 +120,7 @@ export const PhotoAreasPanel = ({
         <NumberField
           label="Rotation"
           value={activeArea.rotation ?? 0}
-          step={0.5}
+          allowDecimal
           onChange={(value) => onUpdateActiveArea({ rotation: value })}
         />
         <NumberField

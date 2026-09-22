@@ -1,7 +1,7 @@
 export { default as ContextBumperScreen } from './ContextBumperScreen';
 export { default as TutorialScreen } from './TutorialScreen';
 export { default as FrameSelectionScreen } from './FrameSelectionScreen';
-export { default as FrameTemplateAdminScreen } from './FrameTemplateAdminScreen';
+export { default as FrameAdminScreen } from './FrameAdminScreen';
 export { default as CameraSettingsScreen } from './CameraSettingsScreen';
 export { default as ReadyScreen } from './ReadyScreen';
 export { default as PhotoCaptureScreen } from './PhotoCaptureScreen';

@@ -2,16 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { FrameConfig } from '@photo-booth/types';
 import FrameCanvas from '../components/FrameCanvas';
 import { MOCK_FRAMES } from '../data/mockData';
-import { useFramesWithTemplateDrafts } from '../hooks/useFramesWithTemplateDrafts';
-import { listFrameTemplates } from '../lib/frameTemplates';
+import { useFramesWithDrafts } from '../hooks/useFramesWithDrafts';
+import { listFrameTemplates } from '../lib/frames';
 import { useSessionStore } from '../store/sessionStore';
-import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
+import { resolveFrameTemplate } from '../utils/frameConfig';
 
 export const FrameSelectionScreen: React.FC = () => {
   const selectFrame = useSessionStore((state) => state.selectFrame);
   const [frames, setFrames] = useState<FrameConfig[]>(MOCK_FRAMES);
   const [isLoading, setIsLoading] = useState(true);
-  const framesWithDrafts = useFramesWithTemplateDrafts(frames, 3);
+  const framesWithDrafts = useFramesWithDrafts(frames, 3);
   const [selected, setSelected] = useState<FrameConfig | null>(null);
 
   useEffect(() => {

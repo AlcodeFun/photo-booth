@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
-import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
+import { resolveFrameTemplate } from '../utils/frameConfig';
 
 export const PhotoReviewScreen: React.FC = () => {
   const { currentPhotoSlot, photoSlots, frame, usePhoto, retakePhoto } = useSessionStore((state) => ({

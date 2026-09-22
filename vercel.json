@@ -1,3 +1,7 @@
 {
-  "outputDirectory": "apps/booth/dist/renderer"
+  "outputDirectory": "apps/booth/dist/renderer",
+  "rewrites": [
+    { "source": "/admin/:path*", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" }
+  ]
 }

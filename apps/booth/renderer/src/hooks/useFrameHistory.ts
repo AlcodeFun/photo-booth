@@ -79,7 +79,7 @@ const reducer = (state: HistoryState, action: HistoryAction): HistoryState => {
   }
 };
 
-export const useTemplateHistory = (initial: FrameTemplateConfig) => {
+export const useFrameHistory = (initial: FrameTemplateConfig) => {
   const [state, dispatch] = useReducer(reducer, initial, (present) => ({
     present,
     past: [],

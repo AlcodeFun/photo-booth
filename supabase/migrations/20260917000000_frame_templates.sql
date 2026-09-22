@@ -3,7 +3,6 @@
 create table public.frame_templates (
   id text primary key,
   name text not null,
-  theme text not null default '',
   preview_url text not null default '',
   photo_slots integer,
   template jsonb,

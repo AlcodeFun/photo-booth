@@ -74,7 +74,7 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
-    fullscreen: !isDev && process.env.BOOTH_WINDOWED !== '1',
+    fullscreen: process.env.BOOTH_WINDOWED !== '1',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,

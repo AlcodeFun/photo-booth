@@ -116,7 +116,7 @@ export const createFallbackFrameTemplate = (photoSlotCount: number): FrameTempla
     assetUrl: '',
     width: DEFAULT_FRAME_CANVAS.width,
     height: DEFAULT_FRAME_CANVAS.height,
-    backgroundColor: '#111111',
+    backgroundColor: '#ffffff',
     frameLayerZIndex: 30,
     photoSlots: DEFAULT_SLOT_LAYOUTS[normalizedSlotCount] ?? createStackedSlots(normalizedSlotCount),
   };

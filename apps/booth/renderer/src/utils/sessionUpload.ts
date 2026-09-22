@@ -57,6 +57,26 @@ export async function registerGallerySession(endpoint: string, token: string): P
   return response.json();
 }
 
+/** Deletes a session and all of its objects (files + meta marker) from the gallery. */
+export async function deleteGallerySession(endpoint: string, token: string): Promise<void> {
+  const response = await fetch(`${endpoint}/api/sessions/${encodeURIComponent(token)}`, {
+    method: 'DELETE',
+  });
+
+  if (!response.ok) {
+    let detail = `Gallery delete failed with HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      if (body && typeof body.error === 'string') {
+        detail = body.error;
+      }
+    } catch {
+      // keep generic message
+    }
+    throw new Error(detail);
+  }
+}
+
 const UPLOAD_CONCURRENCY = 2;
 
 /**

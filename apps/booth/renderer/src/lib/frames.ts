@@ -5,7 +5,6 @@ import { requireSupabase } from './supabase';
 export interface FrameTemplateRow {
   id: string;
   name: string;
-  theme: string;
   preview_url: string;
   photo_slots: number | null;
   template: FrameTemplateConfig | null;
@@ -20,7 +19,6 @@ const mapRowToFrame = (row: FrameTemplateRow): FrameConfig => ({
   id: row.id,
   name: row.name,
   previewUrl: row.preview_url,
-  theme: row.theme,
   photoSlots: row.photo_slots ?? undefined,
   template: row.template ?? undefined,
   templatesByPhotoSlots: row.templates_by_photo_slots ?? undefined,
@@ -45,7 +43,6 @@ const requireAuthClient = async () => {
 const mapFrameToRow = (frame: FrameConfig): FrameTemplateRow => ({
   id: frame.id,
   name: frame.name,
-  theme: frame.theme,
   preview_url: frame.previewUrl,
   photo_slots: frame.photoSlots ?? null,
   template: frame.template ?? null,
@@ -63,6 +60,22 @@ export const listFrameTemplates = async (): Promise<FrameConfig[]> => {
     .eq('enabled', true)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as unknown as FrameTemplateRow[] | null)?.map(mapRowToFrame) ?? [];
+};
+
+/** Admin view of the catalog — includes disabled templates, newest first. */
+export const listAdminFrameTemplates = async (): Promise<FrameConfig[]> => {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from('frame_templates')
+    .select('*')
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: false });
 
   if (error) {
     throw new Error(error.message);

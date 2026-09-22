@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
+import { navigateToAdmin } from '../lib/navigation';
 
 type Flavor = 'pink' | 'lime';
 
@@ -308,7 +309,7 @@ export const ContextBumperScreen: React.FC = () => {
 
   const handlePinSubmit = () => {
     if (pinDigits.join('') === ADMIN_PIN) {
-      window.location.hash = '#/admin/camera';
+      navigateToAdmin('camera');
       closePin();
     } else {
       setPinError(true);

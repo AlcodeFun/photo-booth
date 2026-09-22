@@ -1,5 +1,5 @@
-import { FrameConfig, FramePhotoPlacement, PhotoSlotState } from '@photo-booth/types';
-import { resolveFrameTemplate } from './frameTemplateConfig';
+import { FrameConfig, FramePhotoPlacement, FrameQRPlacement, PhotoSlotState } from '@photo-booth/types';
+import { resolveFrameTemplate } from './frameConfig';
 import { getSelectedPhotoUrls } from './photoSlots';
 import { getCanvasFilter } from './filters';
 import { downloadBlob, downloadStamp } from './download';
@@ -108,9 +108,44 @@ const drawSlotImage = async (
   ctx.restore();
 };
 
+const drawQrSlotImage = async (
+  ctx: CanvasRenderingContext2D,
+  slot: FrameQRPlacement,
+  qrCodeUrl: string | undefined,
+) => {
+  if (!qrCodeUrl) {
+    return;
+  }
+  try {
+    const image = await loadImage(qrCodeUrl);
+    // QR placeholders are square; fit the QR into the slot centered.
+    const size = Math.min(slot.width, slot.height);
+    const centerX = slot.x + slot.width / 2;
+    const centerY = slot.y + slot.height / 2;
+    const drawX = centerX - size / 2;
+    const drawY = centerY - size / 2;
+    const radius = slot.borderRadius ?? 0;
+
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    if (slot.rotation) {
+      ctx.rotate((slot.rotation * Math.PI) / 180);
+    }
+    ctx.translate(-centerX, -centerY);
+    roundedRect(ctx, drawX, drawY, size, size, radius);
+    ctx.clip();
+    ctx.drawImage(image, drawX, drawY, size, size);
+    ctx.restore();
+  } catch {
+    // QR image is optional; skip the slot if it can't be drawn.
+  }
+};
+
 export interface RenderOptions {
   scale?: number;
   includeFrame?: boolean;
+  /** Real QR code (PNG/JPEG data URL) to compose into the frame's QR placeholders. */
+  qrCodeUrl?: string;
 }
 
 /**
@@ -123,7 +158,7 @@ export async function renderComposition(
   filterId: string | null | undefined,
   options: RenderOptions = {},
 ): Promise<HTMLCanvasElement> {
-  const { scale = 1, includeFrame = true } = options;
+  const { scale = 1, includeFrame = true, qrCodeUrl } = options;
   const photos = getSelectedPhotoUrls(photoSlots);
   const template = resolveFrameTemplate(frame, photoSlots.length);
   const width = Math.round(template.width * scale);
@@ -142,39 +177,94 @@ export async function renderComposition(
   if (scale !== 1) {
     ctx.save();
     ctx.scale(scale, scale);
-    await renderTemplated(ctx, template.photoSlots, photos, template, canvasFilter, template.width, template.height, includeFrame);
+    await renderTemplated(
+      ctx,
+      template.photoSlots,
+      photos,
+      template,
+      canvasFilter,
+      template.width,
+      template.height,
+      includeFrame,
+      qrCodeUrl,
+    );
     ctx.restore();
   } else {
-    await renderTemplated(ctx, template.photoSlots, photos, template, canvasFilter, template.width, template.height, includeFrame);
+    await renderTemplated(
+      ctx,
+      template.photoSlots,
+      photos,
+      template,
+      canvasFilter,
+      template.width,
+      template.height,
+      includeFrame,
+      qrCodeUrl,
+    );
   }
 
   return canvas;
 }
+
+type DrawOp = { zIndex: number; draw: () => Promise<void> };
+
 async function renderTemplated(
   ctx: CanvasRenderingContext2D,
   slots: FramePhotoPlacement[],
   photos: Array<string | undefined>,
-  template: { width: number; height: number; backgroundColor?: string; assetUrl?: string },
+  template: {
+    width: number;
+    height: number;
+    backgroundColor?: string;
+    assetUrl?: string;
+    frameLayerZIndex?: number;
+    qrSlots?: FrameQRPlacement[];
+  },
   canvasFilter: string,
   width: number,
   height: number,
   includeFrame: boolean,
+  qrCodeUrl?: string,
 ) {
   ctx.fillStyle = template.backgroundColor ?? '#111111';
   ctx.fillRect(0, 0, width, height);
 
+  // Paint every layer in ascending z-index so QR placeholders, photos, and the
+  // frame art stack exactly like the on-screen FrameCanvas preview.
+  const ops: DrawOp[] = [];
+
   for (const slot of slots) {
     const photoUrl = photos[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1];
-    await drawSlotImage(ctx, slot, photoUrl, canvasFilter);
+    ops.push({
+      zIndex: slot.zIndex ?? 10,
+      draw: () => drawSlotImage(ctx, slot, photoUrl, canvasFilter),
+    });
+  }
+
+  for (const qrSlot of template.qrSlots ?? []) {
+    ops.push({
+      zIndex: qrSlot.zIndex ?? 30,
+      draw: () => drawQrSlotImage(ctx, qrSlot, qrCodeUrl),
+    });
   }
 
   if (template.assetUrl && includeFrame) {
-    try {
-      const asset = await loadImage(template.assetUrl);
-      ctx.drawImage(asset, 0, 0, width, height);
-    } catch {
-      // Frame asset is optional; still export the photo composition.
-    }
+    ops.push({
+      zIndex: template.frameLayerZIndex ?? 30,
+      draw: async () => {
+        try {
+          const asset = await loadImage(template.assetUrl!);
+          ctx.drawImage(asset, 0, 0, width, height);
+        } catch {
+          // Frame asset is optional; still export the photo composition.
+        }
+      },
+    });
+  }
+
+  ops.sort((a, b) => a.zIndex - b.zIndex);
+  for (const op of ops) {
+    await op.draw();
   }
 }
 
@@ -227,8 +317,9 @@ export async function downloadFramedPhoto(
   frame: FrameConfig,
   photoSlots: PhotoSlotState[],
   filterId: string | null | undefined,
+  qrCodeUrl?: string,
 ): Promise<void> {
-  const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
+  const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true, qrCodeUrl });
   await downloadCanvasAsJpeg(canvas, `photo-booth-${downloadStamp()}-result.jpg`);
 }
 

@@ -45,6 +45,17 @@ export interface FramePhotoPlacement {
   objectPosition?: string;
 }
 
+export interface FrameQRPlacement {
+  slotNumber: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation?: number;
+  borderRadius?: number;
+  zIndex?: number;
+}
+
 export interface FrameTemplateConfig {
   assetUrl: string;
   width: number;
@@ -52,13 +63,13 @@ export interface FrameTemplateConfig {
   backgroundColor?: string;
   frameLayerZIndex?: number;
   photoSlots: FramePhotoPlacement[];
+  qrSlots?: FrameQRPlacement[];
 }
 
 export interface FrameConfig {
   id: string;
   name: string;
   previewUrl: string;
-  theme: string;
   photoSlots?: number;
   template?: FrameTemplateConfig;
   templatesByPhotoSlots?: Partial<Record<number, FrameTemplateConfig>>;

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
-import { resolveFrameTemplate } from '../utils/frameTemplateConfig';
+import { resolveFrameTemplate } from '../utils/frameConfig';
 import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
 
 export const PhotoCaptureScreen: React.FC = () => {

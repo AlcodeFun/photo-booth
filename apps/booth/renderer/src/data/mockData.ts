@@ -141,7 +141,6 @@ export const MOCK_FRAMES: FrameConfig[] = [
     id: 'frame-static-3-photo',
     name: 'Biru Culture',
     previewUrl: publicAsset('frame-templates/3-photo.png'),
-    theme: 'bg-blue-600 border-blue-400 text-white',
     photoSlots: 3,
     templatesByPhotoSlots: {
       3: customThreePhotoTemplate[3],
