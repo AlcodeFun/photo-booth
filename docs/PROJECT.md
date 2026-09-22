@@ -131,6 +131,9 @@ Retake attempts stay local only; rejected attempts are **not** uploaded to the c
 - Camera health check: `--get-config /main/settings/capturetarget` must not time out.
 - gphoto2 build on the booth: MSYS2 `C:\msys64\mingw64\bin\gphoto2.exe`; needs
   `IOLIBS`/`CAMLIBS` (auto-derived in `spawnEnv()`, see service source).
+- **Capture latency experiment** (untested on hardware — keep OFF): set
+  `CAMERA_SKIP_VIEWFINDER_DROP=1` to skip the `viewfinder=0` drop before the
+  shutter and shoot directly after the live-view stream stops. Default off.
 
 ### Capture persistence (current behavior)
 

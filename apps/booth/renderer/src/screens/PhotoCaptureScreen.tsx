@@ -31,6 +31,10 @@ export const PhotoCaptureScreen: React.FC = () => {
   const [isFlash, setIsFlash] = useState(false);
   const [isStarted, setIsStarted] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
+  /** Live View is being torn down for the shutter — countdown holds at 1. */
+  const [isPreparing, setIsPreparing] = useState(false);
+  /** prepareCapture finished; the countdown may tick to 0 (flash + shutter). */
+  const [isArmed, setIsArmed] = useState(false);
   const [isMirrored, setIsMirrored] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -96,6 +100,8 @@ export const PhotoCaptureScreen: React.FC = () => {
   useEffect(() => {
     setCountdown(5);
     setIsStarted(false);
+    setIsPreparing(false);
+    setIsArmed(false);
   }, [currentPhotoSlot]);
 
   const toggleFullscreen = async () => {
@@ -157,6 +163,7 @@ export const PhotoCaptureScreen: React.FC = () => {
       } else {
         setCameraError('Photo could not be captured. Please try again.');
         setIsStarted(false);
+        setIsArmed(false);
       }
       return;
     }
@@ -165,6 +172,7 @@ export const PhotoCaptureScreen: React.FC = () => {
     if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) {
       setCameraError('The camera is not ready yet. Please try again.');
       setIsStarted(false);
+      setIsArmed(false);
       return;
     }
 
@@ -201,15 +209,46 @@ export const PhotoCaptureScreen: React.FC = () => {
       void capturePhotoRef.current();
       return () => clearTimeout(flashOff);
     }
-    if (countdown === 1 && canonRef.current.available) {
-      // Pre-tear-down Live View during the last countdown second so the shutter
-      // fires the moment the countdown ends (photo matches the held pose).
-      void canonRef.current.prepareCapture();
+
+    // Last second: tear Live View down and WAIT until the shutter is armed.
+    // The countdown only ticks to 0 (flash + capture) once prepare resolves,
+    // so the flash always coincides with the actual shutter — never with a
+    // still-pending mode switch.
+    if (countdown === 1 && canonRef.current.available && !isArmed) {
+      let cancelled = false;
+      setIsPreparing(true);
+      void (async () => {
+        let armed = false;
+        try {
+          const result = await Promise.race([
+            canonRef.current.prepareCapture().then((payload) => ({
+              ok: payload !== null && payload.status !== 'ERROR' && !payload.error,
+            })),
+            new Promise<{ ok: boolean }>((resolve) =>
+              setTimeout(() => resolve({ ok: false }), 3000),
+            ),
+          ]);
+          armed = result.ok;
+        } catch {
+          armed = false;
+        }
+        if (cancelled) return;
+        setIsPreparing(false);
+        if (!armed) {
+          setCameraError('Camera could not prepare to shoot. Please try again.');
+          setIsStarted(false);
+          return;
+        }
+        setIsArmed(true);
+      })();
+      return () => {
+        cancelled = true;
+      };
     }
 
     const interval = setInterval(() => setCountdown((value) => value - 1), 1000);
     return () => clearInterval(interval);
-  }, [countdown, isStarted]);
+  }, [countdown, isStarted, isArmed]);
 
   return (
     <div className="relative flex min-h-[calc(100vh-3rem)] select-none flex-col items-center justify-center">
@@ -278,6 +317,10 @@ export const PhotoCaptureScreen: React.FC = () => {
               </div>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(24,24,27,0.08)_0%,rgba(9,9,11,0.6)_100%)] z-10" />
 
+              {isPreparing && (
+                <div className="pointer-events-none absolute inset-0 z-10 bg-black/45" aria-hidden="true" />
+              )}
+
               {isFullscreen && (
                 <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                   <div
@@ -324,7 +367,9 @@ export const PhotoCaptureScreen: React.FC = () => {
 {isStarted && countdown > 0 ? (
                 <div className="absolute inset-0 z-20 flex flex-col items-center justify-center animate-pulse">
                   <div className="text-[110px] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.7)]">{countdown}</div>
-                  <div className="mt-2 text-sm font-black uppercase tracking-[0.3em] text-white/90">Stay still</div>
+                  <div className="mt-2 text-sm font-black uppercase tracking-[0.3em] text-white/90">
+                    {isPreparing ? 'Hold still…' : 'Stay still'}
+                  </div>
                 </div>
               ) : isStarted ? (
                 <div className="absolute inset-0 z-20 flex items-center justify-center text-4xl font-black uppercase tracking-[0.24em] text-white drop-shadow-[0_3px_10px_rgba(0,0,0,0.6)]">

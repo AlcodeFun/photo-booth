@@ -120,17 +120,19 @@ export function usePhotoBoothCamera() {
     }
   }, [api]);
 
-  const prepareCapture = useCallback(async () => {
+  const prepareCapture = useCallback(async (): Promise<CameraStatePayload | null> => {
     if (!api) {
-      return;
+      return null;
     }
     try {
       const payload = await api.prepareCapture();
       setStatus(payload.status);
       setError(payload.error ?? null);
       setModel(payload.info?.model ?? null);
+      return payload;
     } catch (err) {
       setError(String(err));
+      return null;
     }
   }, [api]);
 

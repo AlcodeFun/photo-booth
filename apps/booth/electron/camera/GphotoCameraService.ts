@@ -33,6 +33,18 @@ import {
 
 const DETECT_RE = /^(.{1,48}?)\s+(usb|serial|ptpip):/m;
 const STREAM_ARGS = ['--stdout', '--capture-movie'];
+/** Max wait for the live-view child to actually exit after kill() (ms). */
+const STREAM_KILL_TIMEOUT_MS = 500;
+/** USB settle grace after the stream process is gone (ms). */
+const STREAM_KILL_SETTLE_MS = 50;
+/** Grace after viewfinder=0 before firing the shutter on the unprepared path (ms). */
+const POST_VIEWFINDER_SETTLE_MS = 100;
+/**
+ * Hardware experiment flag (600D untested — keep off until verified): skip the
+ * viewfinder=0 drop before capture and shoot right after the stream stops.
+ * Enable with CAMERA_SKIP_VIEWFINDER_DROP=1.
+ */
+const SKIP_VIEWFINDER_DROP = process.env.CAMERA_SKIP_VIEWFINDER_DROP === '1';
 /** JPEG Start-Of-Image marker (FF D8) as a byte sequence — `indexOf` needs a
  *  Buffer, not the bare number 0xffd8, which is matched as the single byte 0xd8. */
 const SOI_MARKER = Buffer.from([0xff, 0xd8]);
@@ -115,6 +127,9 @@ export class GphotoCameraService {
       try {
         await this.ensureCameraDetected();
         await this.run(['--set-config', 'viewfinder=1'], { timeout: 10000 }).catch(() => undefined);
+        // Engaged stream means there is no pre-armed shutter — any stale
+        // prepareCapture result (e.g. from an aborted countdown) is void now.
+        this.capturePrepared = false;
         this.setStatus('LIVE_VIEW');
         this.startMovieStream();
         return this.state();
@@ -127,7 +142,7 @@ export class GphotoCameraService {
 
   async stopLiveView(): Promise<CameraStatePayload> {
     return this.enqueue(async () => {
-      this.stopMovieStream();
+      await this.stopMovieStream();
       this.capturePrepared = false;
       if (this.status === 'LIVE_VIEW') {
         await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
@@ -149,17 +164,19 @@ export class GphotoCameraService {
       if (this.capturePrepared) {
         return this.state();
       }
+      const startedAt = Date.now();
       try {
         await this.ensureCameraDetected();
         if (this.movieChild !== null) {
-          this.stopMovieStream();
-          await this.sleep(300);
+          await this.stopMovieStream();
+          await this.sleep(STREAM_KILL_SETTLE_MS);
         }
-        if (this.status === 'LIVE_VIEW') {
+        if (!SKIP_VIEWFINDER_DROP && this.status === 'LIVE_VIEW') {
           await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
         }
         this.capturePrepared = true;
         this.setStatus(this.model ? 'READY' : 'DISCONNECTED');
+        console.debug(`[camera] prepare armed in ${Date.now() - startedAt}ms`);
         return this.state();
       } catch (error) {
         this.setStatus('ERROR', this.describe(error));
@@ -177,14 +194,18 @@ export class GphotoCameraService {
         await this.ensureCameraDetected();
         if (!this.capturePrepared) {
           if (this.movieChild !== null) {
-            this.stopMovieStream();
-            await this.sleep(300);
+            await this.stopMovieStream();
+            await this.sleep(STREAM_KILL_SETTLE_MS);
           }
-          await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
-          await this.sleep(250);
+          if (!SKIP_VIEWFINDER_DROP) {
+            await this.run(['--set-config', 'viewfinder=0'], { timeout: 10000 }).catch(() => undefined);
+            await this.sleep(POST_VIEWFINDER_SETTLE_MS);
+          }
         }
         this.capturePrepared = false;
+        const captureStartedAt = Date.now();
         await this.run(['--capture-image-and-download', `--filename=${fileName}`], { timeout: 30000 });
+        console.debug(`[camera] capture+download ${Date.now() - captureStartedAt}ms`);
         const buffer = await fs.readFile(path.join(this.tmpDir, fileName));
         const dataUrl = `data:image/jpeg;base64,${buffer.toString('base64')}`;
         let filePath = path.join(this.tmpDir, fileName);
@@ -197,10 +218,16 @@ export class GphotoCameraService {
           this.error = `Capture kept in temp only: ${this.describe(error)}`;
           this.events.emit('status', this.state());
         }
+        // Restore Live View *after* this job resolves so the renderer gets the
+        // photo (and navigates to review) without waiting on viewfinder=1.
         if (restoreLiveView) {
-          await this.run(['--set-config', 'viewfinder=1'], { timeout: 10000 }).catch(() => undefined);
-          this.setStatus('LIVE_VIEW');
-          this.startMovieStream();
+          void this.enqueue(async () => {
+            const restoreStartedAt = Date.now();
+            await this.run(['--set-config', 'viewfinder=1'], { timeout: 10000 }).catch(() => undefined);
+            this.setStatus('LIVE_VIEW');
+            this.startMovieStream();
+            console.debug(`[camera] live view restored in ${Date.now() - restoreStartedAt}ms`);
+          });
         } else {
           this.setStatus('READY');
         }
@@ -222,7 +249,7 @@ export class GphotoCameraService {
   }
 
   dispose(): void {
-    this.stopMovieStream();
+    void this.stopMovieStream();
     this.events.removeAllListeners();
   }
 
@@ -328,13 +355,28 @@ export class GphotoCameraService {
     });
   }
 
-  private stopMovieStream(): void {
+  /** Kills the live-view child and resolves once it has actually exited (or a
+   *  short timeout elapses) so the very next gphoto2 command doesn't race the
+   *  dying process for the USB/PTP claim. */
+  private stopMovieStream(): Promise<void> {
     const child = this.movieChild;
     this.movieChild = null;
     this.frameBuffer = Buffer.alloc(0);
-    if (child && !child.killed) {
-      child.kill();
+    if (!child || child.exitCode !== null || child.signalCode !== null) {
+      return Promise.resolve();
     }
+    return new Promise((resolve) => {
+      const onExit = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        child.off('exit', onExit);
+        resolve();
+      }, STREAM_KILL_TIMEOUT_MS);
+      child.once('exit', onExit);
+      child.kill();
+    });
   }
 
   /**
