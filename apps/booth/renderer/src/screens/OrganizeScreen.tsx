@@ -60,6 +60,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const loadFrame = useCallback(
     async (manifest: OrganizeManifest): Promise<FrameTemplateConfig | null> => {
+      // The manifest normally embeds the resolved template; the proxy only adds
+      // a fresher copy. If the Supabase lookup is unavailable (404/stale frame
+      // id), fall back to the embedded template so the arrange UI still works.
+      if (manifest.template) return manifest.template;
       if (!manifest.frameId || !endpoint) return null;
       try {
         const response = await fetch(`${endpoint}/api/frames/${encodeURIComponent(manifest.frameId)}`);
@@ -119,7 +123,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       setPhotos(photoFiles);
 
       const manifest = await readJsonFile<OrganizeManifest>(endpoint, token, ORGANIZE_FILE);
-      if (manifest && manifest.frameId) {
+      if (manifest) {
         const resolved = await loadFrame(manifest);
         if (resolved) {
           setOrganize(manifest);

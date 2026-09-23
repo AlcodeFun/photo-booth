@@ -4,7 +4,7 @@
  * - Cache-first for static assets (hashed by Vite in production)
  * Bump CACHE_NAME whenever you ship a new build so caches refresh.
  */
-const CACHE_NAME = 'photobooth-v1';
+const CACHE_NAME = 'photobooth-v2';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
@@ -37,11 +37,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Only treat same-origin requests for real static files as cacheable. A
+  // SPA rewrite can answer *any* request with index.html (text/html), and we
+  // must never put that HTML into the asset cache for e.g. /organize/:token
+  // paths — otherwise future deploys keep serving the poisoned response.
+  const looksStatic = /\.(js|css|webmanifest|png|ico|gif|jpe?g|svg|woff2?)$/i.test(url.pathname);
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
-        if (response.ok) {
+        if (response.ok && looksStatic) {
           const copy = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
         }

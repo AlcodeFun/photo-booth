@@ -6,7 +6,9 @@ import { startPrintListener } from './lib/printListener';
 import './index.css';
 
 // The hosted arrange page (/organize/:token) is a stateless customer screen —
-// no booth session, upload job, or print listener should ever boot there.
+// no booth session, upload job, or print listener should ever boot there, and
+// no service worker either (it re-fetches fresh state every visit; a cached
+// shell would serve stale/poisoned responses after SPA-rewrite mishaps).
 const isOrganizePath =
   window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean)[0] === 'organize';
 
@@ -28,6 +30,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
+    if (isOrganizePath) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((registration) => registration.unregister());
+      });
+      if (caches?.keys) {
+        caches.keys().then((keys) => Promise.all(keys.map((key) => caches.delete(key))));
+      }
+      return;
+    }
     navigator.serviceWorker.register('./sw.js').catch(() => {
       // Service workers are unavailable on file:// (Electron) - safe to ignore.
     });
