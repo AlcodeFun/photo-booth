@@ -266,7 +266,7 @@ async function main() {
       return;
     }
     store.files = data.files.filter(function (f) {
-      return !/^/(meta|organize|print-request|print-result)[.]json$/.test('/' + f.name);
+      return !/^(meta|organize|print-request|print-result)[.]json$/i.test(f.name);
     });
 
     const framed = store.files.filter(function (f) { return /framed[.]png$/i.test(f.name); });
