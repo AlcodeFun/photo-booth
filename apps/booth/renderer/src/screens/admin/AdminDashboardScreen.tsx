@@ -95,8 +95,13 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onNa
         ) : (
           <ul className="divide-y divide-white/5">
             {recent.map((session) => (
-              <li key={session.token} className="flex items-center gap-4 px-5 py-3.5">
-                <span className="w-32 shrink-0 font-mono text-xs text-white/80">{session.token}</span> 
+              <li key={session.token} className="flex items-center gap-3 px-5 py-3.5">
+                <span
+                  className="min-w-0 flex-1 truncate font-mono text-xs text-white/80"
+                  title={session.token}
+                >
+                  {session.token}
+                </span>
                 <p className="hidden shrink-0 text-sm text-white/45 sm:block">
                   {formatTimestamp(session.created_at)}
                 </p>

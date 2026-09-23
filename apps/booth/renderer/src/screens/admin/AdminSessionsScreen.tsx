@@ -640,7 +640,12 @@ export const AdminSessionsScreen: React.FC = () => {
                       />
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2 break-all font-mono text-[0.8rem] leading-snug text-white/85">{session.token}</div>
+                      <div
+                        className="max-w-[16rem] truncate font-mono text-[0.8rem] leading-snug text-white/85"
+                        title={session.token}
+                      >
+                        {session.token}
+                      </div>
                       <div className="mt-0.5 text-xs text-white/40">
                         {formatTimestamp(session.created_at)}
                         {session.download_url && (
