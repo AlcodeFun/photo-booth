@@ -213,14 +213,17 @@ function openViewer(url, name) {
   document.getElementById('viewer').classList.remove('hidden');
 }
 
+// The viewer is static markup — wire its listeners once at startup so the
+// polling re-renders below never stack duplicate listeners.
+document.getElementById('viewer').addEventListener('click', function (e) {
+  if (e.target.id === 'viewer') closeViewer();
+});
+document.getElementById('viewerClose').addEventListener('click', closeViewer);
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') closeViewer();
+});
+
 function wireViewer() {
-  document.getElementById('viewer').addEventListener('click', function (e) {
-    if (e.target.id === 'viewer') closeViewer();
-  });
-  document.getElementById('viewerClose').addEventListener('click', closeViewer);
-  document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape') closeViewer();
-  });
   document.querySelectorAll('.hero-btn, .eye').forEach(function (btn) {
     btn.addEventListener('click', function () {
       openViewer(btn.dataset.url, btn.dataset.name);
@@ -248,62 +251,88 @@ function wireActions() {
   syncActions();
 }
 
+// Live-populating gallery: the timed flow sends the customer straight here
+// after arranging, while the booth may still be uploading outputs — keep
+// polling so new files (framed.png, GIFs, ...) appear without a refresh.
+const POLL_MS = 5000;
+let lastKey = '';
+
+function render(files) {
+  const root = document.getElementById('content');
+  if (files.length === 0) {
+    root.innerHTML =
+      '<div class="status pulse">Your photos are uploading &mdash; check back in a moment&hellip;</div>';
+    return;
+  }
+
+  store.files = files.filter(function (f) {
+    return !/^(meta|organize|print-request|print-result)[.]json$/i.test(f.name);
+  });
+
+  const framed = store.files.filter(function (f) { return /framed[.]png$/i.test(f.name); });
+  const liveGif = store.files.filter(function (f) { return /result-live[.]gif$/i.test(f.name); });
+  const gif = store.files.filter(function (f) {
+    return /[.]gif$/i.test(f.name) && !/result-live[.]gif$/i.test(f.name);
+  });
+  store.photos = store.files.filter(function (f) {
+    return /[.](jpe?g|png)$/i.test(f.name) && !/framed[.]png$/i.test(f.name);
+  });
+
+  let html = '';
+  if (framed.length) {
+    html += heroSection('Framed photo', framed[0].url, 'Framed photo', framed[0].name);
+  }
+  if (liveGif.length) {
+    html += heroSection('Framed live photo', liveGif[0].url, 'Framed live version', liveGif[0].name);
+  }
+  if (gif.length) {
+    html += heroSection('Animated GIF', gif[0].url, 'Animated version', gif[0].name);
+  }
+  if (store.photos.length) {
+    html += section('All photos',
+      '<div class="columns">' + store.photos.map(tileHtml).join('') + '</div>' +
+      '<div class="actions">' +
+        '<button class="btn sm ghost" id="selAll" type="button">Select all</button>' +
+        '<button class="btn sm hidden" id="dlSelected" type="button">Download selected</button>' +
+        '<button class="btn sm" id="dlAll" type="button">Download all</button>' +
+        '<span class="count" id="selCount">0 / ' + store.photos.length + ' selected</span>' +
+      '</div>');
+  }
+  root.innerHTML = html;
+  wireViewer();
+  if (store.photos.length) wireActions();
+}
+
 async function main() {
   const root = document.getElementById('content');
+  let res;
   try {
-    const res = await fetch('/api/sessions/' + TOKEN);
-    const data = await res.json();
-    if (!res.ok || !data.files) throw new Error('empty');
-    // Session exists but nothing uploaded yet — photos may still be uploading.
-    if (data.exists === false) {
-      root.innerHTML = '<div class="err">We could not find this session. It may have expired.</div>';
-      return;
-    }
-    if (data.files.length === 0) {
-      root.innerHTML =
-        '<div class="status pulse">Your photos are uploading &mdash; check back in a moment&hellip;</div>';
-      setTimeout(main, 5000);
-      return;
-    }
-    store.files = data.files.filter(function (f) {
-      return !/^(meta|organize|print-request|print-result)[.]json$/i.test(f.name);
-    });
-
-    const framed = store.files.filter(function (f) { return /framed[.]png$/i.test(f.name); });
-    const liveGif = store.files.filter(function (f) { return /result-live[.]gif$/i.test(f.name); });
-    const gif = store.files.filter(function (f) {
-      return /[.]gif$/i.test(f.name) && !/result-live[.]gif$/i.test(f.name);
-    });
-    store.photos = store.files.filter(function (f) {
-      return /[.](jpe?g|png)$/i.test(f.name) && !/framed[.]png$/i.test(f.name);
-    });
-
-    let html = '';
-    if (framed.length) {
-      html += heroSection('Framed photo', framed[0].url, 'Framed photo', framed[0].name);
-    }
-    if (liveGif.length) {
-      html += heroSection('Framed live photo', liveGif[0].url, 'Framed live version', liveGif[0].name);
-    }
-    if (gif.length) {
-      html += heroSection('Animated GIF', gif[0].url, 'Animated version', gif[0].name);
-    }
-    if (store.photos.length) {
-      html += section('All photos',
-        '<div class="columns">' + store.photos.map(tileHtml).join('') + '</div>' +
-        '<div class="actions">' +
-          '<button class="btn sm ghost" id="selAll" type="button">Select all</button>' +
-          '<button class="btn sm hidden" id="dlSelected" type="button">Download selected</button>' +
-          '<button class="btn sm" id="dlAll" type="button">Download all</button>' +
-          '<span class="count" id="selCount">0 / ' + store.photos.length + ' selected</span>' +
-        '</div>');
-    }
-    root.innerHTML = html;
-    wireViewer();
-    if (store.photos.length) wireActions();
-  } catch (e) {
-    root.innerHTML = '<div class="err">We could not find this session. It may have expired.</div>';
+    res = await fetch('/api/sessions/' + TOKEN);
+  } catch (_e) {
+    // Transient network blip — keep polling instead of giving up.
+    setTimeout(main, POLL_MS);
+    return;
   }
+  let data;
+  try {
+    data = await res.json();
+  } catch (_e) {
+    setTimeout(main, POLL_MS);
+    return;
+  }
+  if (!res.ok || !data.files || data.exists === false) {
+    root.innerHTML = '<div class="err">We could not find this session. It may have expired.</div>';
+    return;
+  }
+  const key = data.files
+    .map(function (f) { return f.name + ':' + f.size; })
+    .sort()
+    .join(',');
+  if (key !== lastKey) {
+    lastKey = key;
+    render(data.files);
+  }
+  setTimeout(main, POLL_MS);
 }
 main();
 </script>
