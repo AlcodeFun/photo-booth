@@ -1,6 +1,7 @@
 import { FrameConfig, PhotoSlotState } from '@photo-booth/types';
 import { useSessionStore } from '../store/sessionStore';
-import { GALLERY_URL } from '../config';
+import { useBoothConfig } from '../store/boothConfigStore';
+import { APP_URL, GALLERY_URL } from '../config';
 import {
   generateSessionToken,
   registerGallerySession,
@@ -10,9 +11,10 @@ import {
   SessionUploadFile,
   SessionUploadFileResult,
 } from '../utils/sessionUpload';
-import { renderComposition, canvasToJpegBlob, createResultGif } from '../utils/resultExport';
+import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
 import { getAllPhotoUrls } from '../utils/photoSlots';
+import { buildOrganizeManifest, uploadOrganizeManifest } from './organize';
 import {
   cacheUploadBlob,
   createSessionRecord,
@@ -209,10 +211,18 @@ const run = async (job: UploadJob) => {
   try {
     // Token (and therefore the QR URL) is generated client-side and published to
     // the store in this same tick, so the QR is never delayed by background work.
+    const flowMode = useBoothConfig.getState().flowMode;
     if (!job.token) {
       const token = generateSessionToken();
       job.token = token;
-      job.downloadUrl = `${endpoint}/p/${token}`;
+      // Timed sessions route the QR to the hosted app's /organize/:token page
+      // (raws load from R2 through the worker, frame template from Supabase) so
+      // the customer can build their frame before anything is printed. Every
+      // other flow lands straight on the /p/:token download gallery.
+      job.downloadUrl =
+        flowMode === 'timed'
+          ? `${APP_URL ?? endpoint}/organize/${token}`
+          : `${endpoint}/p/${token}`;
       // Only publish to the store when this session is still the active one —
       // otherwise a stale job would hijack a newer session's link.
       if (stillCurrentSession(job.sessionId)) {
@@ -229,7 +239,7 @@ const run = async (job: UploadJob) => {
     // idempotently before each attempt, so a transient network failure here
     // never hides the session from the dashboard.
     if (token) {
-      createSessionRecord(token, `${endpoint}/p/${token}`);
+      createSessionRecord(token, job.downloadUrl ?? `${endpoint}/p/${token}`, flowMode);
     }
     try {
       if (token) {
@@ -245,8 +255,16 @@ const run = async (job: UploadJob) => {
     // reload at any point after the first byte is fully recoverable by resume.
     const cacheWrites: Promise<void>[] = [];
 
+    // Which result files to produce is decided by the booth setup "Output"
+    // toggles at job start. The framed sheet is also what the Selphy prints.
+    const outputs = useBoothConfig.getState().outputs;
+
     const framed = (async () => {
-      if (!job.frame || job.photoSlots.length === 0) return null;
+      // Timed sessions compose their framed sheet in the print listener once
+      // the customer's arrangement is saved, so this job only uploads raws.
+      if (flowMode === 'timed' || !outputs.framed || !job.frame || job.photoSlots.length === 0) {
+        return null;
+      }
       try {
         // Compose the real QR (the session download link) into the framed photo.
         const qrCodeUrl = job.downloadUrl
@@ -267,6 +285,9 @@ const run = async (job: UploadJob) => {
     })();
 
     const photos = (() => {
+      if (!outputs.allPhotos) {
+        return Promise.resolve([] as SessionUploadFile[]);
+      }
       const files: SessionUploadFile[] = [];
       getAllPhotoUrls(job.photoSlots).forEach((dataUrl, index) => {
         const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
@@ -277,19 +298,38 @@ const run = async (job: UploadJob) => {
       return Promise.resolve(files);
     })();
 
-    const gif = (async () => {
-      if (job.photoSlots.length <= 1) return null;
+    const framedLive = (async () => {
+      if (flowMode === 'timed' || !outputs.framedLive || !job.frame || job.photoSlots.length === 0) {
+        return null;
+      }
+      try {
+        const blob = await createResultLiveFramed(job.frame, job.photoSlots, job.filterId);
+        cacheWrites.push(cacheUploadBlob(token ?? '', 'result-live.gif', blob));
+        return { blob, name: 'result-live.gif' as const };
+      } catch (error) {
+        console.error('Preparing live-framed GIF failed:', error);
+        return null;
+      }
+    })();
+
+    const gifResult = (async () => {
+      if (flowMode === 'timed' || !outputs.gif || job.photoSlots.length === 0) return null;
       try {
         const blob = await createResultGif(job.photoSlots, job.filterId);
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result.gif', blob));
         return { blob, name: 'result.gif' as const };
       } catch (error) {
-        console.error('Preparing GIF failed:', error);
+        console.error('Preparing animated GIF failed:', error);
         return null;
       }
     })();
 
-    const [framedResult, photoFiles, gifResult] = await Promise.all([framed, photos, gif]);
+    const [framedResult, photoFiles, framedLiveResult, gifResultResolved] = await Promise.all([
+      framed,
+      photos,
+      framedLive,
+      gifResult,
+    ]);
     const baseFiles = [...(framedResult ? [framedResult] : []), ...photoFiles];
 
     // All blobs are now durable in IndexedDB — nothing above has been sent yet.
@@ -299,18 +339,40 @@ const run = async (job: UploadJob) => {
     // committed, so a reload can always rebuild every file.
     upsertPendingUpload(job);
 
-    // Upload the base files first, then fold the slower GIF in when it is
-    // ready — one job owns the whole flow, so no cross-effect coordination.
+    // Upload the base files first, then fold the animated results (framed
+    // "live photo" + plain GIF) in when they are ready — one job owns the whole
+    // flow, no cross-effect coordination.
     let baseOk = false;
     if (baseFiles.length > 0) {
       baseOk = await uploadBatch(job, baseFiles);
     }
-    let gifOk = true;
-    if (gifResult) {
-      gifOk = await uploadBatch(job, [gifResult]);
+    const animatedFiles = [framedLiveResult, gifResultResolved].flatMap((result) =>
+      result ? [result] : [],
+    );
+    let liveOk = true;
+    if (animatedFiles.length > 0) {
+      liveOk = await uploadBatch(job, animatedFiles);
     }
 
-    finishWith(job, baseOk && gifOk ? 'success' : 'error');
+    // Timed sessions: publish the frame arrangement manifest so the gallery
+    // customer can pick which raw photo goes on each slot, then print from the
+    // booth. Best-effort — a failed manifest must not fail the upload itself.
+    if (
+      token &&
+      baseOk &&
+      useBoothConfig.getState().flowMode === 'timed' &&
+      outputs.allPhotos &&
+      job.frame
+    ) {
+      try {
+        const manifest = buildOrganizeManifest(job.frame, job.photoSlots, job.filterId);
+        await uploadOrganizeManifest(endpoint, token, manifest);
+      } catch (error) {
+        console.error('Uploading organizer manifest failed:', error);
+      }
+    }
+
+    finishWith(job, baseOk && liveOk ? 'success' : 'error');
   } catch (error) {
     console.error('Background upload failed:', error);
     finishWith(job, 'error');

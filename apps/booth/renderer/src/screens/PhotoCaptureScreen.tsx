@@ -1,19 +1,29 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
+import { useBoothConfig } from '../store/boothConfigStore';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
 import { resolveFrameTemplate } from '../utils/frameConfig';
 import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
 
 export const PhotoCaptureScreen: React.FC = () => {
-  const { currentPhotoSlot, photoSlots, frame, addPhotoAttempt } = useSessionStore((state) => ({
-    currentPhotoSlot: state.currentPhotoSlot,
-    photoSlots: state.photoSlots,
-    frame: state.frame,
-    addPhotoAttempt: state.addPhotoAttempt,
-  }));
+  const { currentPhotoSlot, photoSlots, frame, addPhotoAttempt, usePhoto, setScreen } = useSessionStore(
+    (state) => ({
+      currentPhotoSlot: state.currentPhotoSlot,
+      photoSlots: state.photoSlots,
+      frame: state.frame,
+      addPhotoAttempt: state.addPhotoAttempt,
+      usePhoto: state.usePhoto,
+      setScreen: state.setScreen,
+    }),
+  );
+  const flowMode = useBoothConfig((state) => state.flowMode);
+  const flowSettings = useBoothConfig((state) => state.flow);
+  const isAutoFlow = flowMode === 'auto';
+  const isTimedFlow = flowMode === 'timed';
   const currentSlot = photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
   const attemptNumber = currentSlot ? currentSlot.attempts.length + 1 : 1;
+  const maxAttempts = Math.max(1, flowSettings.maxAttempts);
   const previewPhotos = getSelectedPhotoUrls(photoSlots);
 
   const resolvedTemplate = frame ? resolveFrameTemplate(frame, photoSlots.length) : null;
@@ -44,6 +54,9 @@ export const PhotoCaptureScreen: React.FC = () => {
   const cameraBoxRef = useRef<HTMLDivElement>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [boundarySize, setBoundarySize] = useState({ width: 0, height: 0 });
+  const [timedPhase, setTimedPhase] = useState<'idle' | 'starting' | 'active' | 'ended'>('idle');
+  const [timedStartCountLeft, setTimedStartCountLeft] = useState(0);
+  const [timedRemaining, setTimedRemaining] = useState(0);
 
   // Auto-start Canon live view when available and it isn't already running.
   useEffect(() => {
@@ -98,11 +111,17 @@ export const PhotoCaptureScreen: React.FC = () => {
   }, [cameraAttempt, canonActive]);
 
   useEffect(() => {
-    setCountdown(5);
-    setIsStarted(false);
+    setCountdown(flowSettings.shotCountdown);
+    // Auto flow starts the very next countdown the moment the previous shot
+    // lands — the countdown IS the gap between captures, no extra pause.
+    setIsStarted(isAutoFlow);
     setIsPreparing(false);
     setIsArmed(false);
-  }, [currentPhotoSlot]);
+    setTimedPhase('idle');
+    setTimedStartCountLeft(0);
+    setTimedRemaining(0);
+    liveFramesRef.current = [];
+  }, [currentPhotoSlot, flowSettings.shotCountdown, isAutoFlow]);
 
   const toggleFullscreen = async () => {
     const electronWindow = typeof window.electronAPI?.window?.toggleFullscreen === 'function';
@@ -149,6 +168,34 @@ export const PhotoCaptureScreen: React.FC = () => {
     };
   }, [measureBoundary]);
 
+  // Flow-aware commit: retake mode shows the review, auto mode instantly
+  // accepts and advances, timed mode stays on capture collecting more photos.
+  // The rolling live-view buffer travels with the shot so the framed "live
+  // photo" result can animate each slot with its own pre-capture clip.
+  const commitCapture = useCallback(
+    (dataUrl: string) => {
+      const flow = useBoothConfig.getState().flowMode;
+      const liveFrames = liveFramesRef.current.slice();
+      if (flow === 'auto') {
+        liveFramesRef.current = [];
+        addPhotoAttempt(dataUrl, false, liveFrames);
+        usePhoto();
+        return;
+      }
+      if (flow !== 'timed') {
+        liveFramesRef.current = [];
+      } else {
+        // Timed flow keeps capturing into the same slot; disarm the shot
+        // countdown so the next tap re-arms a fresh one.
+        setIsStarted(false);
+      }
+      addPhotoAttempt(dataUrl, flow === 'timed', liveFrames);
+    },
+    [addPhotoAttempt, setIsStarted, usePhoto],
+  );
+  const commitCaptureRef = useRef(commitCapture);
+  commitCaptureRef.current = commitCapture;
+
   const capturePhoto = useCallback(async () => {
     if (canonActive) {
       // Hold the capture screen until the shutter actually returned a photo;
@@ -159,10 +206,10 @@ export const PhotoCaptureScreen: React.FC = () => {
       setIsFlash(false);
       const dataUrl = result?.dataUrl;
       if (dataUrl) {
-        addPhotoAttempt(dataUrl);
+        commitCapture(dataUrl);
       } else {
         setCameraError('Photo could not be captured. Please try again.');
-        setIsStarted(false);
+        setIsStarted(useBoothConfig.getState().flowMode === 'auto');
         setIsArmed(false);
       }
       return;
@@ -171,7 +218,7 @@ export const PhotoCaptureScreen: React.FC = () => {
     const video = videoRef.current;
     if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) {
       setCameraError('The camera is not ready yet. Please try again.');
-      setIsStarted(false);
+      setIsStarted(useBoothConfig.getState().flowMode === 'auto');
       setIsArmed(false);
       return;
     }
@@ -188,8 +235,8 @@ export const PhotoCaptureScreen: React.FC = () => {
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
     }
     setIsFlash(false);
-    addPhotoAttempt(canvas.toDataURL('image/jpeg', 0.92));
-  }, [canonActive, canon, isMirrored, addPhotoAttempt]);
+    commitCapture(canvas.toDataURL('image/jpeg', 0.92));
+  }, [canonActive, canon, isMirrored, commitCapture]);
 
   // Keep the latest capture implementation in a ref so the countdown effect
   // can depend only on [countdown, isStarted]. Otherwise the effect would be
@@ -200,6 +247,79 @@ export const PhotoCaptureScreen: React.FC = () => {
 
   const canonRef = useRef(canon);
   canonRef.current = canon;
+
+  // Rolling buffer of downscaled live view frames recorded just before the
+  // shot. Fed to the attempt so the framed "live photo" result can animate
+  // this slot independently.
+  const liveFramesRef = useRef<string[]>([]);
+  const MAX_LIVE_FRAMES = 20;
+
+  const captureLiveFrame = useCallback(async (): Promise<string | null> => {
+    if (canonActive) {
+      const src = canon.liveFrame;
+      if (!src) return null;
+      const image = await new Promise<HTMLImageElement | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = src;
+      });
+      if (!image) return null;
+      const canvas = document.createElement('canvas');
+      const scale = 360 / image.width;
+      canvas.width = 360;
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.72);
+    }
+    const video = videoRef.current;
+    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) {
+      return null;
+    }
+    const canvas = document.createElement('canvas');
+    const scale = 360 / video.videoWidth;
+    canvas.width = 360;
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    if (isMirrored) {
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.72);
+  }, [canonActive, canon, isMirrored]);
+
+  const pushLiveFrame = (frame: string | null) => {
+    if (!frame) return;
+    liveFramesRef.current = [...liveFramesRef.current, frame].slice(-MAX_LIVE_FRAMES);
+  };
+
+  // Countdown flows (retake + auto): sample the live view while the shot
+  // countdown is running, stopping before the last second reaches the shutter.
+  useEffect(() => {
+    if (!isStarted || countdown < 2 || isPreparing || isCapturing) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void captureLiveFrame().then(pushLiveFrame);
+    }, 160);
+    return () => clearInterval(interval);
+  }, [isStarted, countdown, isPreparing, isCapturing, captureLiveFrame]);
+
+  // Timed flow: keep a rolling few seconds of live view so a tap-to-capture
+  // always has a pre-shutter clip to animate from.
+  useEffect(() => {
+    if (!isTimedFlow || timedPhase !== 'active' || isCapturing) {
+      return;
+    }
+    const interval = setInterval(() => {
+      void captureLiveFrame().then(pushLiveFrame);
+    }, 160);
+    return () => clearInterval(interval);
+  }, [isTimedFlow, timedPhase, isCapturing, captureLiveFrame]);
 
   useEffect(() => {
     if (!isStarted) return;
@@ -236,7 +356,7 @@ export const PhotoCaptureScreen: React.FC = () => {
         setIsPreparing(false);
         if (!armed) {
           setCameraError('Camera could not prepare to shoot. Please try again.');
-          setIsStarted(false);
+          setIsStarted(useBoothConfig.getState().flowMode === 'auto');
           return;
         }
         setIsArmed(true);
@@ -250,6 +370,58 @@ export const PhotoCaptureScreen: React.FC = () => {
     return () => clearInterval(interval);
   }, [countdown, isStarted, isArmed]);
 
+  // Timed flow state machine: idle → starting (countdown) → active → ended.
+  const startTimedSession = () => {
+    if (isTimedFlow && timedPhase === 'idle' && feedReady && !shownError) {
+      setTimedPhase('starting');
+      setTimedStartCountLeft(Math.max(1, flowSettings.timedStartCountdown));
+    }
+  };
+
+  const captureNow = () => {
+    if (!feedReady) {
+      setCameraError('The camera is not ready yet. Please try again.');
+      return;
+    }
+    // Every timed-flow capture goes through the same shot countdown (and Canon
+    // pre-shutter prep) as retake/auto: tap → countdown → flash + shutter.
+    // Resetting isArmed/isPreparing lets a prior disarmed countdown re-arm.
+    if (isTimedFlow && isStarted) {
+      return;
+    }
+    setCountdown(Math.max(1, flowSettings.shotCountdown));
+    setIsArmed(false);
+    setIsPreparing(false);
+    setIsStarted(true);
+  };
+
+  useEffect(() => {
+    if (!isTimedFlow) {
+      return;
+    }
+    if (timedPhase === 'starting') {
+      const timer = setTimeout(() => {
+        if (timedStartCountLeft <= 1) {
+          setTimedPhase('active');
+          setTimedRemaining(Math.max(1, flowSettings.timeBudgetSeconds));
+        } else {
+          setTimedStartCountLeft((value) => value - 1);
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+    if (timedPhase === 'active') {
+      if (timedRemaining <= 0) {
+        setTimedPhase('ended');
+        setScreen('FILTER');
+        return;
+      }
+      const timer = setTimeout(() => setTimedRemaining((value) => value - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+    return;
+  }, [isTimedFlow, timedPhase, timedStartCountLeft, timedRemaining, flowSettings.timeBudgetSeconds, setScreen]);
+
   return (
     <div className="relative flex min-h-[calc(100vh-3rem)] select-none flex-col items-center justify-center">
       {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
@@ -258,14 +430,33 @@ export const PhotoCaptureScreen: React.FC = () => {
         <div className="rounded-[14px] bg-[#ff4bb5] p-3 md:p-5">
           <div className="mb-4 flex w-full items-center justify-between gap-4 text-[#4d2d85]">
             <div>
-              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Position Slot</div>
+              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">
+                {isTimedFlow ? 'Session' : 'Position Slot'}
+              </div>
               <div className="text-xl font-black uppercase tracking-[-0.06em] md:text-2xl bg-[#d9f85a]">
-                Photo {currentPhotoSlot} of {photoSlots.length}
+                {isTimedFlow
+                  ? `${currentSlot?.attempts.length ?? 0} photo${(currentSlot?.attempts.length ?? 0) === 1 ? '' : 's'}`
+                  : `Photo ${currentPhotoSlot} of ${photoSlots.length}`}
               </div>
             </div>
             <div className="rounded-[12px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-2 text-right">
-              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Attempt</div>
-              <div className="text-sm font-black">{attemptNumber} of 3</div>
+              {isTimedFlow ? (
+                <>
+                  <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">
+                    {timedPhase === 'active' ? 'Time left' : 'Timer'}
+                  </div>
+                  <div className="text-sm font-black">
+                    {timedPhase === 'active' ? `${timedRemaining}s` : timedPhase === 'starting' ? `${timedStartCountLeft}s` : '—'}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Attempt</div>
+                  <div className="text-sm font-black">
+                    {attemptNumber} of {maxAttempts}
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -284,7 +475,15 @@ export const PhotoCaptureScreen: React.FC = () => {
             <div
               ref={cameraBoxRef}
               onClick={() => {
-                if (!isStarted && feedReady && !cameraError) setIsStarted(true);
+                if (isTimedFlow) {
+                  if (timedPhase === 'idle') {
+                    startTimedSession();
+                  } else if (timedPhase === 'active') {
+                    captureNow();
+                  }
+                  return;
+                }
+                if (!isStarted && feedReady && !shownError) setIsStarted(true);
               }}
               className={`pb-camera-box relative w-full max-w-[700px] mx-auto overflow-hidden rounded-[18px] border-[5px] border-[#a35ef6] bg-[#261640] shadow-[0_14px_0_rgba(77,45,133,0.25)] ${!isStarted ? 'cursor-pointer' : ''}`}
               style={{ aspectRatio: slotAspectRatio }}
@@ -376,22 +575,72 @@ export const PhotoCaptureScreen: React.FC = () => {
                   {isCapturing ? 'Foto diambil...' : 'Cheese!'}
                 </div>
               ) : null}
+
+              {isTimedFlow && timedPhase === 'starting' && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/35">
+                  <div className="text-[110px] font-black leading-none tracking-[-0.08em] text-white drop-shadow-[0_6px_18px_rgba(0,0,0,0.7)]">
+                    {timedStartCountLeft}
+                  </div>
+                  <div className="mt-2 text-sm font-black uppercase tracking-[0.3em] text-white/90">Get ready</div>
+                </div>
+              )}
+              {isTimedFlow && timedPhase === 'active' && (
+                <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-transparent">
+                  <div className="mt-auto mb-4 rounded-full border-[3px] border-white/60 bg-black/55 px-6 py-2 text-sm font-black uppercase tracking-[0.22em] text-[#d9f85a]">
+                    {Math.round(timedRemaining / 60)}:{String(timedRemaining % 60).padStart(2, '0')} left
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-center">
-              <FrameCanvas
-                frame={frame}
-                photos={previewPhotos}
-                photoSlotCount={photoSlots.length}
-                className="w-full max-w-xs rounded-[16px] border-[4px] border-[#a35ef6] bg-[#d9f85a]"
-              />
+              {isTimedFlow ? (
+                <div className="flex w-full max-w-xs flex-col gap-3 rounded-[16px] border-[4px] border-[#a35ef6] bg-[#d9f85a] p-4 text-[#4d2d85]">
+                  <div className="text-[0.7rem] font-black uppercase tracking-[0.24em]">Session preview</div>
+                  {currentSlot?.attempts.length ? (
+                    <img
+                      src={currentSlot.attempts[currentSlot.attempts.length - 1].localPath}
+                      alt="Latest session photo"
+                      className="aspect-square w-full rounded-[12px] border-[3px] border-[#ff4bb5] object-cover"
+                    />
+                  ) : (
+                    <div className="flex aspect-square w-full items-center justify-center rounded-[12px] border-[3px] border-dashed border-[#a35ef6]/50 text-center text-xs font-bold uppercase tracking-[0.14em] text-[#4d2d85]/50">
+                      No photos yet
+                    </div>
+                  )}
+                  <div className="text-center text-sm font-black">
+                    {currentSlot?.attempts.length ?? 0} photo{(currentSlot?.attempts.length ?? 0) === 1 ? '' : 's'} taken
+                  </div>
+                </div>
+              ) : (
+                <FrameCanvas
+                  frame={frame}
+                  photos={previewPhotos}
+                  photoSlotCount={photoSlots.length}
+                  className="w-full max-w-xs rounded-[16px] border-[4px] border-[#a35ef6] bg-[#d9f85a]"
+                />
+              )}
             </div>
           </div>
 
           <div className="mt-4 text-center text-xs font-semibold tracking-wide text-[#4d2d85]/80">
-            {isStarted
-              ? 'Live camera feed active.'
-              : 'Click the preview to shoot — the photo is taken when the countdown ends.'}
+            {isTimedFlow ? (
+              timedPhase === 'idle' ? (
+                'Tap the live view to start the timed session.'
+              ) : timedPhase === 'active' ? (
+                'Tap the live view to snap another photo — the session ends when the timer runs out.'
+              ) : timedPhase === 'starting' ? (
+                'Get ready — the session starts in a moment.'
+              ) : (
+                'Session complete.'
+              )
+            ) : isAutoFlow ? (
+              isStarted ? 'Live camera feed active.' : 'The booth will start automatically…'
+            ) : (
+              isStarted
+                ? 'Live camera feed active.'
+                : 'Click the preview to shoot — the photo is taken when the countdown ends.'
+            )}
           </div>
         </div>
       </div>

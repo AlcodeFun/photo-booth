@@ -322,7 +322,6 @@ export const ContextBumperScreen: React.FC = () => {
     if (pinDigits.length === 6) {
       handlePinSubmit();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pinDigits]);
 
   const { inner, mid, outer } = THEMES.pink;
@@ -358,8 +357,8 @@ export const ContextBumperScreen: React.FC = () => {
             e.stopPropagation();
             setPinOpen(true);
           }}
-          title="Camera Settings"
-          aria-label="Camera Settings"
+          title="Booth Setup"
+          aria-label="Booth Setup"
           className="absolute right-[4%] top-1/2 -translate-y-1/2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-white/10 text-xl text-white backdrop-blur transition-transform hover:scale-110 hover:bg-white/25"
         >
           ⚙️

@@ -12,7 +12,13 @@ import { GALLERY_URL } from '../config';
  */
 
 export type SessionUploadStatus = 'uploading' | 'success' | 'error';
-export type SessionPrintStatus = 'printing' | 'success' | 'error';
+/** 'ready_to_print' is set by the flow-2 organize page when the customer
+ *  approves the selected frame arrangement; the booth then prints and moves
+ *  the row to 'success' / 'error'. */
+export type SessionPrintStatus = 'printing' | 'ready_to_print' | 'success' | 'error';
+
+/** Which capture flow produced the session. */
+export type SessionFlowMode = 'retake' | 'timed' | 'auto';
 
 export interface SessionFileState {
   name: string;
@@ -29,13 +35,17 @@ export interface SessionRecord {
   download_url: string;
   files: SessionFileState[];
   meta: Record<string, unknown>;
+  flow_mode: SessionFlowMode;
 }
 
 const isSessionUploadStatus = (value: unknown): SessionUploadStatus =>
   value === 'success' || value === 'error' ? value : 'uploading';
 
 const isSessionPrintStatus = (value: unknown): SessionPrintStatus =>
-  value === 'success' || value === 'error' ? value : 'printing';
+  value === 'success' || value === 'error' || value === 'ready_to_print' ? value : 'printing';
+
+const isSessionFlowMode = (value: unknown): SessionFlowMode =>
+  value === 'timed' || value === 'auto' ? value : 'retake';
 
 const mapSessionRow = (row: Record<string, unknown>): SessionRecord => ({
   token: String(row.token ?? ''),
@@ -54,13 +64,19 @@ const mapSessionRow = (row: Record<string, unknown>): SessionRecord => ({
       )
     : [],
   meta: (row.meta ?? {}) as Record<string, unknown>,
+  flow_mode: isSessionFlowMode(row.flow_mode),
 });
 
+/** Session print status values produced by the booth (store/PRINT_QR). */
+export type BoothPrintStatus = 'IDLE' | 'PRINTING' | 'SUCCESS' | 'ERROR';
+/** Session upload status values produced by the booth (store/PRINT_QR). */
+export type BoothUploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
+
 /** Existing session → status values used by the booth (store/PRINT_QR). */
-export const normalizeUploadStatus = (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR'): SessionUploadStatus =>
+export const normalizeUploadStatus = (status: BoothUploadStatus): SessionUploadStatus =>
   status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'uploading';
 
-export const normalizePrintStatus = (status: 'IDLE' | 'PRINTING' | 'SUCCESS' | 'ERROR'): SessionPrintStatus =>
+export const normalizePrintStatus = (status: BoothPrintStatus): SessionPrintStatus =>
   status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'printing';
 
 const persistGuard = (promise: Promise<unknown>): void => {
@@ -68,7 +84,11 @@ const persistGuard = (promise: Promise<unknown>): void => {
 };
 
 /** Creates the initial row once a gallery token exists. */
-export const createSessionRecord = (token: string, downloadUrl: string): void => {
+export const createSessionRecord = (
+  token: string,
+  downloadUrl: string,
+  flowMode: SessionFlowMode = 'retake',
+): void => {
   persistGuard(
     (async () => {
       const client = requireSupabase();
@@ -79,7 +99,8 @@ export const createSessionRecord = (token: string, downloadUrl: string): void =>
         print_status: 'printing',
         download_url: downloadUrl,
         files: [],
-        meta: { build: 'persist-v2' },
+        flow_mode: flowMode,
+        meta: { build: 'persist-v3' },
       });
       // 23505 = token already exists (a retried request that already landed).
       // Harmless: the row is there and the later status patches still apply.
@@ -99,6 +120,7 @@ export const updateSessionRecord = (
     files?: SessionFileState[];
     download_url?: string;
     meta?: Record<string, unknown>;
+    flow_mode?: SessionFlowMode;
   },
 ): void => {
   persistGuard(

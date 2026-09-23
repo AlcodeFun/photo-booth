@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
+import { useBoothConfig } from '../store/boothConfigStore';
 import { resolveFrameTemplate } from '../utils/frameConfig';
 
 export const PhotoReviewScreen: React.FC = () => {
@@ -10,6 +11,7 @@ export const PhotoReviewScreen: React.FC = () => {
     usePhoto: state.usePhoto,
     retakePhoto: state.retakePhoto,
   }));
+  const maxAttempts = Math.max(1, useBoothConfig((state) => state.flow.maxAttempts));
 
   const currentSlot = photoSlots.find((s) => s.slotNumber === currentPhotoSlot);
 
@@ -17,7 +19,8 @@ export const PhotoReviewScreen: React.FC = () => {
   const attempts = currentSlot?.attempts || [];
   const latestAttempt = attempts[attempts.length - 1];
   const attemptCount = attempts.length;
-  const maxAttemptsReached = attemptCount >= 3;
+  const maxAttemptsReached = attemptCount >= maxAttempts;
+  const attemptDots = Array.from({ length: Math.min(maxAttempts, 8) }, (_, index) => index + 1);
 
   const resolvedTemplate = frame ? resolveFrameTemplate(frame, photoSlots.length) : null;
   const activeSlot = resolvedTemplate?.photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
@@ -69,7 +72,7 @@ export const PhotoReviewScreen: React.FC = () => {
           <p className="text-[0.65rem] font-black uppercase tracking-[0.24em] text-[#4d2d85]">Attempt</p>
           <p className="text-base font-black text-[#4d2d85]">
             {attemptCount}
-            <span className="text-[#7a4de3]">/3</span>
+            <span className="text-[#7a4de3]">/{maxAttempts}</span>
           </p>
         </div>
       </header>
@@ -99,7 +102,7 @@ export const PhotoReviewScreen: React.FC = () => {
       <div className="relative z-10 flex shrink-0 flex-col items-center gap-1.5 px-4 pb-3">
         <p className="text-sm font-black uppercase tracking-[0.16em] text-[#4d2d85]">Apakah foto ini sudah pas?</p>
         <div className="flex items-center gap-2">
-          {[1, 2, 3].map((n) => (
+          {attemptDots.map((n) => (
             <span
               key={n}
               className={`h-2.5 w-2.5 rounded-full transition-all ${

@@ -32,4 +32,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
       return () => ipcRenderer.removeListener('camera:liveview', listener);
     },
   },
+  printer: {
+    list: () => ipcRenderer.invoke('printer:list'),
+    status: (queueName: string) => ipcRenderer.invoke('printer:status', queueName),
+    print: (payload: unknown) => ipcRenderer.invoke('printer:print', payload),
+  },
 });

@@ -5,6 +5,8 @@ import {
   FrameConfig,
 } from '@photo-booth/types';
 import { SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
+import { useBoothConfig } from './boothConfigStore';
+import { renderComposition } from '../utils/resultExport';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
@@ -51,12 +53,13 @@ export interface SessionStore {
   startCaptureFlow: () => void;
   
   // Capture & Review Actions
-  addPhotoAttempt: (localPath: string) => void;
+  addPhotoAttempt: (localPath: string, stayOnCapture?: boolean, liveFrames?: string[]) => void;
   usePhoto: () => void;
   retakePhoto: () => void;
   
   // Final actions
   startPrinting: () => void;
+  _printFramed: () => Promise<boolean>;
   setUploadStatus: (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR') => void;
   setDownloadUrl: (url: string) => void;
   setSessionToken: (token: string | null) => void;
@@ -109,10 +112,33 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   selectFrame: (frame) => {
+    const config = useBoothConfig.getState();
+    const flowMode = config.flowMode;
+    const maxAttempts = Math.max(1, config.flow.maxAttempts);
+
+    if (flowMode === 'timed') {
+      // Timed flow: one virtual slot holding every capture taken during the
+      // time budget. The frame layout is not locked to a fixed slot count —
+      // the customer picks the photos later from the gallery.
+      const slots: PhotoSlotState[] = [
+        {
+          slotNumber: 1,
+          maxAttempts: 100000,
+          attempts: [],
+        },
+      ];
+      set({
+        frame,
+        photoSlots: slots,
+        currentScreen: 'PHOTO_CAPTURE',
+      });
+      return;
+    }
+
     const slotCount = Math.max(1, Math.floor(frame.photoSlots ?? 3));
     const slots: PhotoSlotState[] = Array.from({ length: slotCount }, (_, i) => ({
       slotNumber: i + 1,
-      maxAttempts: 3,
+      maxAttempts,
       attempts: [],
     }));
 
@@ -135,7 +161,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
   },
 
-  addPhotoAttempt: (localPath) => {
+  addPhotoAttempt: (localPath, stayOnCapture = false, liveFrames) => {
     const { currentPhotoSlot, photoSlots } = get();
     const updatedSlots = photoSlots.map((slot) => {
       if (slot.slotNumber === currentPhotoSlot) {
@@ -144,6 +170,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           attemptNumber,
           localPath,
           status: 'CAPTURED',
+          ...(liveFrames && liveFrames.length > 0 ? { liveFrames } : {}),
         };
         return {
           ...slot,
@@ -155,7 +182,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
     set({
       photoSlots: updatedSlots,
-      currentScreen: 'PHOTO_REVIEW',
+      currentScreen: stayOnCapture ? 'PHOTO_CAPTURE' : 'PHOTO_REVIEW',
     });
   },
 
@@ -195,7 +222,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   retakePhoto: () => {
     const { currentPhotoSlot, photoSlots } = get();
-    
+    const maxAttempts = Math.max(1, useBoothConfig.getState().flow.maxAttempts);
+
     const currentSlot = photoSlots.find(s => s.slotNumber === currentPhotoSlot);
     if (!currentSlot) return;
 
@@ -217,8 +245,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     });
 
     // If max attempts reached, we must force selection (should not happen if UI disables retake)
-    if (attemptsCount >= 3) {
-      // Force use the 3rd attempt
+    if (attemptsCount >= maxAttempts) {
+      // Force use the last attempt
       set({
         photoSlots: updatedSlots,
       });
@@ -238,14 +266,62 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       uploadStatus: 'UPLOADING',
     });
 
-    // Simulate the print job only. Upload state is driven by the real upload
-    // in PRINT_QR (or a simulated success fallback when no gallery is configured).
-    setTimeout(() => {
-      set({ printStatus: 'SUCCESS' });
-      // Patches the row from inside the store action (not a React effect), so
-      // the final status lands even after the PRINT_QR screen has unmounted.
-      get()._syncSessionRow();
-    }, 4000);
+    // Flow 2 (timed) has no booth-side print: the customer arranges the frame
+    // on the /organize/:token page and the booth LISTENER regenerates + uploads
+    // the framed outputs; the admin prints framed.png manually from the
+    // dashboard. The store stays on the QR screen (upload-only) until the
+    // session row is moved to ready_to_print by the arrange page.
+    if (useBoothConfig.getState().flowMode === 'timed') {
+      return;
+    }
+
+    // Send the framed sheet to the CUPS printer (Selphy) when configured and
+    // reachable; otherwise fall back to the simulated delay. Upload state is
+    // driven by the real upload in PRINT_QR.
+    void get()
+      ._printFramed()
+      .finally(() => {
+        set({ printStatus: 'SUCCESS' });
+        // Patches the row from inside the store action (not a React effect), so
+        // the final status lands even after the PRINT_QR screen has unmounted.
+        get()._syncSessionRow();
+      });
+  },
+
+  _printFramed: async () => {
+    const { printer, outputs } = useBoothConfig.getState();
+    const { frame, photoSlots, filterId } = get();
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    if (!printer.enabled || !printer.queueName || !frame || photoSlots.length === 0 || !outputs.framed) {
+      await sleep(4000);
+      return false;
+    }
+
+    const api = window.electronAPI?.printer;
+    if (!api) {
+      await sleep(4000);
+      return false;
+    }
+
+    try {
+      const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
+      const result = await api.print({
+        dataUrl: canvas.toDataURL('image/jpeg', 0.92),
+        fileName: 'photo-booth-print.jpg',
+        queueName: printer.queueName,
+        copies: printer.copies,
+        paperSize: printer.paperSize,
+        mediaType: printer.mediaType,
+        quality: printer.quality,
+        colorMode: printer.colorMode,
+      });
+      await sleep(500);
+      return result.ok;
+    } catch {
+      await sleep(4000);
+      return false;
+    }
   },
 
   setUploadStatus: (status) => {

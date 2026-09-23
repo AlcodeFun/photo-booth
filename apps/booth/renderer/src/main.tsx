@@ -2,11 +2,23 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { startUploadWatcher } from './lib/uploadJob';
+import { startPrintListener } from './lib/printListener';
 import './index.css';
 
-// Owns background gallery uploads independently of any mounted screen, so they
-// keep running after the customer leaves the session (store-level, not React).
-startUploadWatcher();
+// The hosted arrange page (/organize/:token) is a stateless customer screen —
+// no booth session, upload job, or print listener should ever boot there.
+const isOrganizePath =
+  window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean)[0] === 'organize';
+
+if (!isOrganizePath) {
+  // Owns background gallery uploads independently of any mounted screen, so they
+  // keep running after the customer leaves the session (store-level, not React).
+  startUploadWatcher();
+  // Listens for arrangement requests the gallery customer makes after arranging
+  // their timed-flow photos onto the frame slots, then generates + uploads the
+  // framed outputs (the admin prints framed.png from the dashboard).
+  startPrintListener();
+}
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
 import { GphotoCameraService } from './camera/GphotoCameraService';
 import { MjpegLoopbackServer } from './camera/MjpegLoopbackServer';
+import { PrinterService } from './printer/PrinterService';
 
 const rendererPort = Number(process.env.VITE_PORT || 5173);
 
@@ -9,6 +10,7 @@ let mainWindow: BrowserWindow | null = null;
 let cameraService: GphotoCameraService | null = null;
 
 const mjpegServer = new MjpegLoopbackServer();
+const printerService = new PrinterService();
 
 const forwardCameraEvents = () => {
   if (!cameraService) {
@@ -125,6 +127,12 @@ app.whenReady().then(() => {
     mjpegServer.stop();
     return { running: false, port: 0 };
   });
+
+  ipcMain.handle('printer:list', () => printerService.listPrinters());
+  ipcMain.handle('printer:status', (_event, queueName: string) => printerService.printerStatus(queueName ?? ''));
+  ipcMain.handle('printer:print', (_event, payload: import('./printer/PrinterService').PrinterPrintPayload) =>
+    printerService.print(payload),
+  );
 
   ipcMain.handle('save-file', async (_event, payload: { fileName: string; dataUrl: string }) =>
     saveDownloadFile(payload.fileName, payload.dataUrl),

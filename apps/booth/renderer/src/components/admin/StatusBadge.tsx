@@ -5,6 +5,7 @@ import { IconCheck, IconPrinter, IconRefresh, IconUpload } from './AdminIcons';
 const LIME = 'border-[#d9f85a]/30 bg-[#d9f85a]/10 text-[#d9f85a]';
 const ROSE = 'border-[#ff5e87]/30 bg-[#ff5e87]/10 text-[#ff8aa8]';
 const AMBER = 'border-amber-400/30 bg-amber-400/10 text-amber-300';
+const VIOLET = 'border-[#a35ef6]/40 bg-[#a35ef6]/10 text-[#d9b8ff]';
 
 export const UploadBadge: React.FC<{ status: SessionUploadStatus }> = ({ status }) => {
   if (status === 'success') {
@@ -48,6 +49,14 @@ export const PrintBadge: React.FC<{ status: SessionPrintStatus }> = ({ status })
       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${ROSE}`}>
         <IconPrinter className="h-3.5 w-3.5" />
         Print failed
+      </span>
+    );
+  }
+  if (status === 'ready_to_print') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${VIOLET}`}>
+        <IconPrinter className="h-3.5 w-3.5" />
+        Ready to print
       </span>
     );
   }

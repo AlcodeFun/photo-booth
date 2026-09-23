@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
+import { useBoothConfig } from '../store/boothConfigStore';
 import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
 import { getCanvasFilter } from '../utils/filters';
-import { createResultGif, renderComposition } from '../utils/resultExport';
+import { createResultGif, createResultLiveFramed, renderComposition } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
 
 export const PrintQRScreen: React.FC = () => {
@@ -18,7 +19,12 @@ export const PrintQRScreen: React.FC = () => {
       completeSession: state.completeSession,
     }),
   );
+  const outputs = useBoothConfig((state) => state.outputs);
+  const flowMode = useBoothConfig((state) => state.flowMode);
+  const isTimedFlow = flowMode === 'timed';
 
+  const [liveBlob, setLiveBlob] = useState<Blob | null>(null);
+  const [liveUrl, setLiveUrl] = useState<string | null>(null);
   const [gifBlob, setGifBlob] = useState<Blob | null>(null);
   const [gifUrl, setGifUrl] = useState<string | null>(null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
@@ -34,18 +40,59 @@ export const PrintQRScreen: React.FC = () => {
   // (downloadUrl is set), the customer can leave even while files still upload.
   // The upload itself runs in lib/uploadJob (store-level, never tied to this
   // screen's mount), so finishing early never interrupts it.
-  const isDone =
-    printStatus === 'SUCCESS' &&
-    (uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl));
-  const multiPhoto = photoSlots.length > 1;
+  //
+  // Flow 2 (timed) prints LATER from the dashboard: the QR directs the customer
+  // to the hosted app's /organize/:token arrange page, and the admin prints the
+  // generated framed.png manually. The screen is finished as soon as the upload
+  // + QR are ready — no booth-side print status involved.
+  const isDone = isTimedFlow
+    ? uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl)
+    : printStatus === 'SUCCESS' &&
+      (uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl));
   const selectedPhotos = useMemo(() => getSelectedPhotoUrls(photoSlots), [photoSlots]);
   const allPhotos = useMemo(() => getAllPhotoUrls(photoSlots), [photoSlots]);
   const frameFilter = getCanvasFilter(filterId);
 
-  // Local animated GIF preview (upload copies are produced by uploadJob).
+  // Framed "live photo" preview — each slot plays its recorded live view clip
+  // (uploadJob uploads its own copy as result-live.gif; this is the local
+  // screen preview).
   useEffect(() => {
     let cancelled = false;
-    if (multiPhoto) {
+    if (outputs.framedLive && frame && photoSlots.length > 0) {
+      createResultLiveFramed(frame, photoSlots, filterId)
+        .then((blob) => {
+          if (!cancelled) {
+            setLiveBlob(blob);
+          }
+        })
+        .catch((error) => {
+          if (!cancelled) {
+            console.error('Live-framed GIF generation failed:', error);
+            setLiveBlob(null);
+          }
+        });
+    } else {
+      setLiveBlob(null);
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [outputs.framedLive, frame, photoSlots, filterId]);
+
+  useEffect(() => {
+    if (!liveBlob) {
+      setLiveUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(liveBlob);
+    setLiveUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [liveBlob]);
+
+  // Plain animated GIF preview (uploadJob uploads its own copy as result.gif).
+  useEffect(() => {
+    let cancelled = false;
+    if (outputs.gif && photoSlots.length > 0) {
       createResultGif(photoSlots, filterId)
         .then((blob) => {
           if (!cancelled) {
@@ -54,7 +101,7 @@ export const PrintQRScreen: React.FC = () => {
         })
         .catch((error) => {
           if (!cancelled) {
-            console.error('GIF generation failed:', error);
+            console.error('Animated GIF generation failed:', error);
             setGifBlob(null);
           }
         });
@@ -64,9 +111,8 @@ export const PrintQRScreen: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [photoSlots, filterId, multiPhoto]);
+  }, [outputs.gif, photoSlots, filterId]);
 
-  // Preview object URL derived from the shared GIF blob.
   useEffect(() => {
     if (!gifBlob) {
       setGifUrl(null);
@@ -140,7 +186,7 @@ export const PrintQRScreen: React.FC = () => {
     };
   }, [qrOpen, downloadUrl]);
 
-  // Zoom modals — click any result (framed, GIF, or individual photo) to view
+  // Zoom modals — click any result (framed, live, or individual photo) to view
   // it enlarged, mirroring the QR enlarge modal. The framed sheet prints via
   // the hidden print-only FrameCanvas.
 
@@ -154,6 +200,12 @@ export const PrintQRScreen: React.FC = () => {
       setViewer({ url: canvas.toDataURL('image/jpeg', 0.92), label: 'Framed photo', rounded: true });
     } catch {
       // ignore — leave the viewer closed
+    }
+  };
+
+  const handleViewLive = () => {
+    if (liveUrl) {
+      setViewer({ url: liveUrl, label: 'Framed live photo', rounded: true });
     }
   };
 
@@ -275,21 +327,25 @@ export const PrintQRScreen: React.FC = () => {
       </header>
 
       {/* Print-only framed sheet (physical print safety net) */}
-      <div className="print-sheet print-only" style={{ display: 'none' }}>
-        <div className="print-sheet-inner">
-          <FrameCanvas
-            frame={frame}
-            photos={selectedPhotos}
-            photoSlotCount={photoSlots.length}
-            filter={frameFilter}
-            qrCodeUrl={qrDataUrl ?? undefined}
-            className="h-full w-full bg-white"
-            style={{ height: '100%' }}
-          />
+      {!isTimedFlow && (
+        <div className="print-sheet print-only" style={{ display: 'none' }}>
+          <div className="print-sheet-inner">
+            <FrameCanvas
+              frame={frame}
+              photos={selectedPhotos}
+              photoSlotCount={photoSlots.length}
+              filter={frameFilter}
+              qrCodeUrl={qrDataUrl ?? undefined}
+              className="h-full w-full bg-white"
+              style={{ height: '100%' }}
+            />
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Main result — framed (left), photo slideshow + GIF (middle), QR (right) */}
+      {/* Main result — framed (left), photo slideshow + live (middle), QR (right).
+          Flow 2 hides every result and shows the QR alone (points to /p/:token,
+          whose arrange section lets the customer compose the frame for print). */}
       <div className="print-no-show pb-scroll relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 lg:overflow-hidden">
         {/* Floating background cuteness */}
         <div className="pointer-events-none absolute inset-0 z-0">
@@ -320,8 +376,9 @@ export const PrintQRScreen: React.FC = () => {
           ))}
         </div>
 
-        <div className="relative z-10 flex min-h-0 flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch">
+        <div className="relative z-10 flex min-h-0 h-full flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch lg:justify-center">
           {/* Left: framed photo — bare, clickable to zoom */}
+          {!isTimedFlow && (<>
           <button
             type="button"
             onClick={() => void handleViewFramed()}
@@ -330,7 +387,7 @@ export const PrintQRScreen: React.FC = () => {
             className="group relative mx-auto flex h-[34vh] w-full max-w-[260px] min-h-0 shrink-0 cursor-pointer items-center justify-center self-center bg-transparent p-0 sm:max-w-[300px] lg:h-auto lg:max-w-none lg:flex-1 lg:self-auto"
             style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
           >
-            {frame && photoSlots.length > 0 ? (
+            {frame && photoSlots.length > 0 && outputs.framed ? (
               <>
                 <div className="relative flex h-full w-full min-h-0 items-center justify-center">
                   <FrameCanvas
@@ -357,19 +414,19 @@ export const PrintQRScreen: React.FC = () => {
             )}
           </button>
 
-          {/* Middle: photo slideshow (opens gallery) + GIF below, same size */}
+          {/* Middle: photo slideshow (opens gallery) + live result below, same size */}
           <div
             className="flex min-h-0 flex-1 flex-col gap-3"
             style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.08s both' }}
           >
             <button
               type="button"
-              onClick={() => setGalleryOpen(true)}
+              onClick={() => outputs.allPhotos && setGalleryOpen(true)}
               title="View all photos"
               aria-label="View all photos"
               className="group relative flex min-h-0 min-h-[26vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(77,45,133,0.2)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
             >
-              {allPhotos.length > 0 ? (
+              {outputs.allPhotos && allPhotos.length > 0 ? (
                 <>
                   <div className="relative m-auto h-full w-full overflow-hidden rounded-md bg-black/10">
                     <div
@@ -408,40 +465,61 @@ export const PrintQRScreen: React.FC = () => {
                 </>
               ) : (
                 <span className="text-center text-sm font-bold text-[#4d2d85]/60">
-                  No individual photos recorded.
+                  {outputs.allPhotos ? 'No individual photos recorded.' : 'Photo collection is turned off.'}
                 </span>
               )}
             </button>
 
-            {/* GIF result below — same size as the photo slideshow */}
-            {gifUrl && multiPhoto && (
+            {/* Framed live result — each slot plays its own live view clip */}
+            {liveUrl && outputs.framedLive && (
+              <button
+                type="button"
+                onClick={handleViewLive}
+                title="View framed live photo"
+                aria-label="View framed live photo"
+                className="group relative flex min-h-0 min-h-[24vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#4acaf1] bg-white p-1.5 shadow-[0_6px_0_rgba(74,202,241,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+              >
+                <img
+                  src={liveUrl}
+                  alt="Framed live photo preview"
+                  className="h-full w-full rounded-md object-cover"
+                />
+                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#4acaf1]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                  📹 Live
+                </span>
+              </button>
+            )}
+
+            {/* Plain animated GIF result */}
+            {gifUrl && outputs.gif && (
               <button
                 type="button"
                 onClick={handleViewGif}
                 title="View animated GIF"
                 aria-label="View animated GIF"
-                className="group relative flex min-h-0 min-h-[26vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(77,45,133,0.2)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                className="group relative flex min-h-0 min-h-[24vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(163,94,246,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
               >
                 <img
                   src={gifUrl}
-                  alt="Animated result preview"
+                  alt="Animated GIF preview"
                   className="h-full w-full rounded-md object-cover"
                 />
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#ff4bb5]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                  ✨ GIF
+                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#a35ef6]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                  🎞️ GIF
                 </span>
               </button>
             )}
           </div>
+          </>)}
 
           {/* Right: QR + Finish Session */}
           <div
-            className="flex min-h-0 shrink-0 flex-col items-center justify-center gap-5 lg:w-64 lg:gap-[9rem] xl:w-72"
+            className={`flex min-h-0 flex-col items-center justify-center gap-5 ${isTimedFlow ? 'flex-1 lg:gap-10' : 'shrink-0 lg:w-64 lg:gap-[9rem] xl:w-72'}`}
             style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.16s both' }}
           >
             <div className="flex flex-col items-center gap-2">
              <span className="text-center text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#4d2d85]">
-             Scan QR to download your photos
+             {isTimedFlow ? 'Scan QR, arrange your frame & print' : 'Scan QR to download your photos'}
             </span>
             <button
               onClick={() => setQrOpen(true)}
@@ -521,6 +599,45 @@ export const PrintQRScreen: React.FC = () => {
               className="mx-auto w-full max-w-6xl p-5 sm:p-8"
               style={{ animation: 'pb-modal-zoom 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
             >
+              {/* Framed live result sits first — it is the hero of this session. */}
+              {liveUrl && outputs.framedLive && (
+                <button
+                  type="button"
+                  onClick={handleViewLive}
+                  title="View framed live photo"
+                  aria-label="View framed live photo"
+                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#4acaf1] bg-[#2b1a4a] p-1.5 shadow-[0_6px_0_rgba(74,202,241,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                >
+                  <img
+                    src={liveUrl}
+                    alt="Framed live photo"
+                    className="max-h-[46vh] w-auto rounded-md object-contain"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#4acaf1]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                    📹 Framed live photo
+                  </span>
+                </button>
+              )}
+
+              {gifUrl && outputs.gif && (
+                <button
+                  type="button"
+                  onClick={handleViewGif}
+                  title="View animated GIF"
+                  aria-label="View animated GIF"
+                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-[#2b1a4a] p-1.5 shadow-[0_6px_0_rgba(163,94,246,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                >
+                  <img
+                    src={gifUrl}
+                    alt="Animated GIF"
+                    className="max-h-[46vh] w-auto rounded-md object-contain"
+                  />
+                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#a35ef6]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
+                    🎞️ Animated GIF
+                  </span>
+                </button>
+              )}
+
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
                 {allPhotos.map((dataUrl, index) => (
                   <button

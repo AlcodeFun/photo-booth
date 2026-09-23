@@ -28,6 +28,8 @@ function sanitizeName(name: string): string {
 function guessContentType(name: string): string {
   const ext = (name.split('.').pop() ?? '').toLowerCase();
   switch (ext) {
+    case 'json':
+      return 'application/json; charset=utf-8';
     case 'png':
       return 'image/png';
     case 'jpg':
@@ -65,10 +67,14 @@ function putObject(env: Env, token: string, key: string, body: PutBody, contentT
   if (!body) {
     return Promise.resolve(null);
   }
+  // Control JSON (organize.json, print-request/result.json) is overwritten by
+  // the booth and the gallery page, so it must never be cached immutably.
+  const isControl = key.toLowerCase().endsWith('.json');
+  const usesJson = isControl || /^application\/json/i.test(contentType);
   return env.GALLERY_BUCKET.put(`${SESSION_PREFIX}${token}/${key}`, body, {
     httpMetadata: {
-      contentType,
-      cacheControl: 'public, max-age=31536000, immutable',
+      contentType: usesJson ? 'application/json; charset=utf-8' : contentType,
+      cacheControl: isControl ? 'no-store' : 'public, max-age=31536000, immutable',
     },
   });
 }
@@ -233,7 +239,89 @@ async function handleDownload(env: Env, token: string, name: string): Promise<Re
   if (headers.get('cache-control') === null) {
     headers.set('cache-control', 'public, max-age=31536000, immutable');
   }
+  // Downloads are fetched cross-origin by the booth (canvas composition needs
+  // CORS-clean images) and by the gallery page's JSON control reads.
+  const cors = corsHeaders();
+  for (const [key, value] of Object.entries(cors)) {
+    headers.set(key, value);
+  }
   return new Response(object.body, { headers, status: 200 });
+}
+
+/**
+ * Flow-2 arrange hub: the /p/:token gallery page marks the session as
+ * ready to print once every frame slot is filled. This patches the Supabase
+ * row so the admin dashboard surfaces it as "ready to print" (the booth
+ * listener then prints and flips it to 'success'/'error').
+ *
+ * Uses the publishable (anon) key over the REST API — the anon role is allowed
+ * to update sessions by the dedicated RLS policy, and plain fetch keeps the
+ * Worker free of the Supabase JS runtime dependency.
+ */
+async function handleMarkReady(env: Env, token: string): Promise<Response> {
+  const url = `${env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/sessions?token=eq.${encodeURIComponent(token)}`;
+  try {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        apikey: env.SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_PUBLISHABLE_KEY}`,
+        'content-type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ print_status: 'ready_to_print' }),
+    });
+    if (response.status === 404) {
+      return json({ ok: false, error: 'Session not found' }, { status: 404 });
+    }
+    if (!response.ok) {
+      return json(
+        { ok: false, error: `Supabase PATCH failed with HTTP ${response.status}` },
+        { status: 502 },
+      );
+    }
+    return json({ ok: true, print_status: 'ready_to_print' });
+  } catch (error) {
+    return json({ ok: false, error: `Supabase PATCH failed: ${String(error)}` }, { status: 502 });
+  }
+}
+
+/**
+ * Frame-template proxy: serves a single frame_templates row from Supabase by
+ * id so the /organize/:token page can resolve the selected frame's template
+ * without exposing any Supabase credentials to the browser. Reads go through
+ * the anon (publishable) role, which is what the booth renderer already uses
+ * for listing frame templates.
+ */
+async function handleGetFrame(env: Env, id: string): Promise<Response> {
+  if (!id) {
+    return json({ error: 'Missing frame id' }, { status: 400 });
+  }
+  const url = `${env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/frame_templates?id=eq.${encodeURIComponent(id)}&select=id,name,preview_url,photo_slots,template,templates_by_photo_slots,enabled,sort_order`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        apikey: env.SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_PUBLISHABLE_KEY}`,
+      },
+    });
+    if (response.status === 404) {
+      return json({ error: 'Frame not found' }, { status: 404 });
+    }
+    if (!response.ok) {
+      return json(
+        { error: `Supabase fetch failed with HTTP ${response.status}` },
+        { status: 502 },
+      );
+    }
+    const rows = (await response.json()) as Array<Record<string, unknown>>;
+    if (!rows || rows.length === 0) {
+      return json({ error: 'Frame not found' }, { status: 404 });
+    }
+    return json(rows[0]);
+  } catch (error) {
+    return json({ error: `Supabase fetch failed: ${String(error)}` }, { status: 502 });
+  }
 }
 
 export default {
@@ -280,6 +368,25 @@ export default {
       return new Response(renderGallery(token), {
         headers: { 'content-type': 'text/html; charset=utf-8' },
       });
+    }
+
+    // Frame-template lookup for the arrange page (Supabase proxy). The arrange
+    // UI itself lives on the hosted web app (/organize/:token) and calls this
+    // endpoint cross-origin so no Supabase credentials reach the browser.
+    if (request.method === 'GET' && pathname.startsWith('/api/frames/')) {
+      const id = pathname.slice('/api/frames/'.length).split('/')[0];
+      return handleGetFrame(env, id);
+    }
+
+    // Flow-2: mark a session as ready to print from the arrange UI. The /p/
+    // gallery page calls this when the customer sends a complete frame to the
+    // booth printer.
+    if (request.method === 'POST' && pathname.startsWith('/api/sessions/') && pathname.endsWith('/ready')) {
+      const token = pathname.slice('/api/sessions/'.length, -'/ready'.length);
+      if (!token) {
+        return json({ error: 'Missing token' }, { status: 400 });
+      }
+      return handleMarkReady(env, token);
     }
 
     // Delete a session and all of its objects (files + meta marker).

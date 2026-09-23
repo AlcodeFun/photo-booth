@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
 import { AdminApp } from './screens/admin/AdminApp';
+import { OrganizeScreen } from './screens/OrganizeScreen';
 import {
   ContextBumperScreen,
   TutorialScreen,
   FrameSelectionScreen,
-  CameraSettingsScreen,
+  BoothSetUpScreen,
   PhotoCaptureScreen,
   PhotoReviewScreen,
   FilterSelectionScreen,
@@ -18,9 +19,14 @@ const isFrameFitterPath = (path: string, hash: string) => {
   return hash.startsWith('#/admin/frame-fit') || normalizedPath.endsWith('/admin/frame-fit');
 };
 
-const isCameraSettingsPath = (path: string, hash: string) => {
+const isBoothSetupPath = (path: string, hash: string) => {
   const normalizedPath = path.replace(/\/+$/, '');
-  return hash === '#/admin/camera' || normalizedPath.endsWith('/admin/camera');
+  return (
+    hash === '#/admin/camera' ||
+    hash === '#/admin/setup' ||
+    normalizedPath.endsWith('/admin/camera') ||
+    normalizedPath.endsWith('/admin/setup')
+  );
 };
 
 const isAdminPath = (path: string, hash: string) => {
@@ -29,6 +35,12 @@ const isAdminPath = (path: string, hash: string) => {
   }
   const normalizedPath = path.replace(/\/+$/, '');
   return normalizedPath === '/admin' || normalizedPath.startsWith('/admin/');
+};
+
+/** Flow-2 arrange page: /organize/:token (path-based; the hosted web app serves it). */
+const getOrganizeToken = (path: string): string | null => {
+  const segments = path.replace(/\/+$/, '').split('/').filter(Boolean);
+  return segments.length >= 2 && segments[0] === 'organize' ? decodeURIComponent(segments[1]) : null;
 };
 
 function App() {
@@ -42,8 +54,9 @@ function App() {
     startNewSession: state.startNewSession,
   }));
   const isFrameFitterRoute = isFrameFitterPath(route.path, route.hash);
-  const isCameraSettingsRoute = isCameraSettingsPath(route.path, route.hash);
+  const isBoothSetupRoute = isBoothSetupPath(route.path, route.hash);
   const isAdminRoute = isAdminPath(route.path, route.hash);
+  const organizeToken = getOrganizeToken(route.path);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -62,12 +75,19 @@ function App() {
     };
   }, []);
 
-  // Initialize new session on launch
+  // Initialize new session on launch (only for the booth flow, never on the
+  // hosted arrange/admin pages — those carry their own context).
   useEffect(() => {
-    if (!isFrameFitterRoute && !isCameraSettingsRoute && !isAdminRoute && !sessionId) {
+    if (
+      !isFrameFitterRoute &&
+      !isBoothSetupRoute &&
+      !isAdminRoute &&
+      !organizeToken &&
+      !sessionId
+    ) {
       startNewSession();
     }
-  }, [isFrameFitterRoute, isCameraSettingsRoute, isAdminRoute, sessionId, startNewSession]);
+  }, [isFrameFitterRoute, isBoothSetupRoute, isAdminRoute, organizeToken, sessionId, startNewSession]);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -92,8 +112,13 @@ function App() {
     }
   };
 
-  if (isCameraSettingsRoute) {
-    return <CameraSettingsScreen />;
+  // The hosted arrange page renders standalone, before any booth session logic.
+  if (organizeToken) {
+    return <OrganizeScreen key={organizeToken} token={organizeToken} />;
+  }
+
+  if (isBoothSetupRoute) {
+    return <BoothSetUpScreen />;
   }
 
   if (isAdminRoute) {

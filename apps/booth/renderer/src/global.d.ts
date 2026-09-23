@@ -30,12 +30,50 @@ export interface IElectronAPIWindow {
   isFullscreen: () => Promise<boolean>;
 }
 
+export interface IElectronAPIPrinterListResult {
+  available: boolean;
+  printers: string[];
+  activeJobs: number;
+  error?: string;
+}
+
+export interface IElectronAPIPrinterStatusResult {
+  available: boolean;
+  state: 'idle' | 'printing' | 'stopped' | 'unknown' | 'unavailable';
+  message?: string;
+  error?: string;
+}
+
+export interface IElectronAPIPrinterPrintPayload {
+  dataUrl: string;
+  fileName: string;
+  queueName: string;
+  copies?: number;
+  paperSize?: string;
+  mediaType?: string;
+  quality?: number;
+  colorMode?: 'color' | 'grayscale';
+}
+
+export interface IElectronAPIPrinterPrintResult {
+  ok: boolean;
+  error?: string;
+  output?: string;
+}
+
+export interface IElectronAPIPrinter {
+  list: () => Promise<IElectronAPIPrinterListResult>;
+  status: (queueName: string) => Promise<IElectronAPIPrinterStatusResult>;
+  print: (payload: IElectronAPIPrinterPrintPayload) => Promise<IElectronAPIPrinterPrintResult>;
+}
+
 export interface IElectronAPI {
   ping: () => Promise<string>;
   printToPDF: () => Promise<string | null>;
   saveFile: (fileName: string, dataUrl: string) => Promise<string | null>;
   window: IElectronAPIWindow;
   camera: IElectronAPICamera;
+  printer: IElectronAPIPrinter;
 }
 
 declare global {

@@ -2,6 +2,12 @@ export interface PhotoAttempt {
   attemptNumber: number;
   localPath?: string;
   status: 'CAPTURED' | 'SELECTED' | 'RETAKEN';
+  /**
+   * A few seconds of live view frames captured just before this shot was taken
+   * (downscaled JPEG data URLs). When present, the framed "live photo" result
+   * animates each slot with its own recorded clip instead of a static image.
+   */
+  liveFrames?: string[];
 }
 
 export interface PhotoSlotState {

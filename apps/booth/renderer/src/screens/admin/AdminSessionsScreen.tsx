@@ -13,6 +13,7 @@ import {
 import { registerGallerySession, SessionUploadFile, uploadSessionFiles, deleteGallerySession } from '../../utils/sessionUpload';
 import { generateQrDataUrl } from '../../utils/qr';
 import { GALLERY_URL } from '../../config';
+import { useBoothConfig } from '../../store/boothConfigStore';
 import { dropPendingUploads } from '../../lib/uploadJob';
 import { ConfirmModal } from '../../components/admin/Modal';
 import { SkeletonTable } from '../../components/admin/Skeleton';
@@ -271,6 +272,75 @@ export const AdminSessionsScreen: React.FC = () => {
     }
   };
 
+  /**
+   * Manual print for flow-2 (timed) sessions: the customer approved an
+   * arrangement on the /organize/:token page and the booth listener already
+   * generated framed.png (plus the GIF/live outputs), leaving the row at
+   * 'ready_to_print'. This is the ONLY thing that moves that row to
+   * 'success'/'error' — the booth never auto-prints. Prints the framed sheet
+   * through the configured CUPS queue when available, else falls back to the
+   * browser print dialog.
+   */
+  const handlePrint = async (session: SessionRecord) => {
+    const { printer } = useBoothConfig.getState();
+    const busyKey = `print:${session.token}`;
+    setBusy(busyKey);
+    try {
+      let src: string | null = null;
+      const cached = await getUploadedBlob(session.token, 'framed.png');
+      if (cached) {
+        src = URL.createObjectURL(cached);
+      } else {
+        src = sessionFileUrl(session.token, 'framed.png');
+      }
+      if (!src) {
+        setError('The framed photo has not been generated yet for this session.');
+        return;
+      }
+
+      let printed = false;
+      const api = window.electronAPI?.printer;
+      if (printer.enabled && printer.queueName && api) {
+        try {
+          const response = await fetch(src);
+          const blob = await response.blob();
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result));
+            reader.onerror = () => reject(new Error('Reading the framed photo failed.'));
+            reader.readAsDataURL(blob);
+          });
+          const result = await api.print({
+            dataUrl,
+            fileName: 'photo-booth-print.jpg',
+            queueName: printer.queueName,
+            copies: printer.copies,
+            paperSize: printer.paperSize,
+            mediaType: printer.mediaType,
+            quality: printer.quality,
+            colorMode: printer.colorMode,
+          });
+          printed = result.ok;
+          if (!result.ok) {
+            setError('The printer rejected the job.');
+          }
+        } catch (error) {
+          setError(error instanceof Error ? error.message : 'Printing failed.');
+        }
+      } else {
+        printSheet(src);
+        printed = true;
+      }
+
+      updateSessionRecord(session.token, { print_status: printed ? 'success' : 'error' });
+      await refresh(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Print failed');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const handleDelete = async () => {
     setDeleteBusy(true);
     const tokens = Array.from(selected);
@@ -376,6 +446,7 @@ export const AdminSessionsScreen: React.FC = () => {
     [resultsSession],
   );
   const framedFile = resultsSession?.files.find((file) => file.name === 'framed.png');
+  const liveFile = resultsSession?.files.find((file) => file.name === 'result-live.gif');
   const gifFile = resultsSession?.files.find((file) => file.name === 'result.gif');
 
   const resultUrl = (file: SessionFileState | undefined): string | null =>
@@ -510,6 +581,7 @@ export const AdminSessionsScreen: React.FC = () => {
             >
               <option value="all">All</option>
               <option value="printing">Printing</option>
+              <option value="ready_to_print">Ready to print</option>
               <option value="success">Success</option>
               <option value="error">Error</option>
             </select>
@@ -606,6 +678,21 @@ export const AdminSessionsScreen: React.FC = () => {
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
                         <PrintBadge status={session.print_status} />
+                        {session.print_status === 'ready_to_print' && (
+                          <button
+                            onClick={() => handlePrint(session)}
+                            disabled={printBusy}
+                            title="Print the framed photo on the booth printer"
+                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-[#d9f85a]/10 text-[#d9f85a] px-3 py-1 text-xs font-medium transition hover:bg-[#d9f85a]/20 disabled:opacity-60"
+                          >
+                            {printBusy ? (
+                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                            ) : (
+                              <IconPrinter className="h-3.5 w-3.5" />
+                            )}
+                            Print
+                          </button>
+                        )}
                         {session.print_status === 'error' && (
                           <button
                             onClick={() => handleReprint(session)}
@@ -733,6 +820,19 @@ export const AdminSessionsScreen: React.FC = () => {
                   <div>
                     <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
                       <IconGif className="h-4 w-4 text-[#a35ef6]" />
+                      Framed live photo
+                    </h4>
+                    <ResultLink
+                      src={liveFile && liveFile.uploaded ? resultUrl(liveFile) : null}
+                      label="Live"
+                      icon={<IconGif className="h-3.5 w-3.5" />}
+                      fit="contain"
+                    />
+                  </div>
+
+                  <div>
+                    <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
+                      <IconGif className="h-4 w-4 text-[#ff4bb5]" />
                       Animated GIF
                     </h4>
                     <ResultLink

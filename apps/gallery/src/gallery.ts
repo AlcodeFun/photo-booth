@@ -68,7 +68,7 @@ export const renderGallery = (token: string): string => `<!doctype html>
 <body>
 <div class="wrap">
   <h1>Your Photo Booth Memories</h1>
-  <p class="sub">Your shots are ready &mdash; tap a photo to select it, then download. Tap the eye to view it larger.</p>
+  <p class="sub">Your shots are ready &mdash; tap a photo to select it, then download.</p>
   <div id="content"><div class="status pulse">Loading your memories&hellip;</div></div>
   <footer>Photo Booth</footer>
 </div>
@@ -265,10 +265,15 @@ async function main() {
       setTimeout(main, 5000);
       return;
     }
-    store.files = data.files;
+    store.files = data.files.filter(function (f) {
+      return !/^/(meta|organize|print-request|print-result)[.]json$/.test('/' + f.name);
+    });
 
     const framed = store.files.filter(function (f) { return /framed[.]png$/i.test(f.name); });
-    const gif = store.files.filter(function (f) { return /[.]gif$/i.test(f.name); });
+    const liveGif = store.files.filter(function (f) { return /result-live[.]gif$/i.test(f.name); });
+    const gif = store.files.filter(function (f) {
+      return /[.]gif$/i.test(f.name) && !/result-live[.]gif$/i.test(f.name);
+    });
     store.photos = store.files.filter(function (f) {
       return /[.](jpe?g|png)$/i.test(f.name) && !/framed[.]png$/i.test(f.name);
     });
@@ -276,6 +281,9 @@ async function main() {
     let html = '';
     if (framed.length) {
       html += heroSection('Framed photo', framed[0].url, 'Framed photo', framed[0].name);
+    }
+    if (liveGif.length) {
+      html += heroSection('Framed live photo', liveGif[0].url, 'Framed live version', liveGif[0].name);
     }
     if (gif.length) {
       html += heroSection('Animated GIF', gif[0].url, 'Animated version', gif[0].name);

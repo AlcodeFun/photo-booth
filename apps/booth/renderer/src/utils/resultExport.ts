@@ -1,6 +1,6 @@
-import { FrameConfig, FramePhotoPlacement, FrameQRPlacement, PhotoSlotState } from '@photo-booth/types';
+import { FrameConfig, FramePhotoPlacement, FrameQRPlacement, FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
 import { resolveFrameTemplate } from './frameConfig';
-import { getSelectedPhotoUrls } from './photoSlots';
+import { getSelectedPhotoUrls, getSelectedLiveFrames } from './photoSlots';
 import { getCanvasFilter } from './filters';
 import { downloadBlob, downloadStamp } from './download';
 
@@ -146,6 +146,13 @@ export interface RenderOptions {
   includeFrame?: boolean;
   /** Real QR code (PNG/JPEG data URL) to compose into the frame's QR placeholders. */
   qrCodeUrl?: string;
+  /**
+   * Template override. When given, the composition uses this resolved template
+   * instead of re-resolving from `frame` — lets a background print listener
+   * rebuild a session's framed sheet from a persisted arrangement whose slot
+   * count may differ from the live in-memory session.
+   */
+  template?: FrameTemplateConfig;
 }
 
 /**
@@ -158,9 +165,9 @@ export async function renderComposition(
   filterId: string | null | undefined,
   options: RenderOptions = {},
 ): Promise<HTMLCanvasElement> {
-  const { scale = 1, includeFrame = true, qrCodeUrl } = options;
+  const { scale = 1, includeFrame = true, qrCodeUrl, template: templateOverride } = options;
   const photos = getSelectedPhotoUrls(photoSlots);
-  const template = resolveFrameTemplate(frame, photoSlots.length);
+  const template = templateOverride ?? resolveFrameTemplate(frame, photoSlots.length);
   const width = Math.round(template.width * scale);
   const height = Math.round(template.height * scale);
 
@@ -390,6 +397,90 @@ export async function createResultGif(
     } catch {
       // Skip photos that fail to load so a valid GIF is still produced.
     }
+  }
+
+  gif.finish();
+  const bytes = gif.bytes();
+  return new Blob([bytes as unknown as BlobPart], { type: 'image/gif' });
+}
+
+/**
+ * Creates the framed "live photo" result: a looping GIF of the full framed
+ * sheet where each photo slot plays its own recorded live view clip (a few
+ * seconds of live view captured right before the shot). The frame art stays
+ * static and reads as one composed sheet — only the photos move, each inside
+ * its own slot, exactly like the on-screen preview.
+ *
+ * Slots without a recorded clip fall back to their still photo (kept for the
+ * whole loop), so this stays correct for older sessions without live frames.
+ */
+export async function createResultLiveFramed(
+  frame: FrameConfig,
+  photoSlots: PhotoSlotState[],
+  filterId: string | null | undefined,
+  opts: { width?: number; frameDelay?: number; frames?: number } = {},
+): Promise<Blob> {
+  const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
+  const { width = 400, frameDelay = 160, frames = 24 } = opts;
+  if (photoSlots.length === 0) {
+    throw new Error('No photos to encode.');
+  }
+
+  const photos = getSelectedPhotoUrls(photoSlots);
+  const liveClips = getSelectedLiveFrames(photoSlots);
+  const template = resolveFrameTemplate(frame, photoSlots.length);
+  const canvasFilter = getCanvasFilter(filterId);
+  const unitsToPixels = width / template.width;
+  const height = Math.max(1, Math.round(template.height * unitsToPixels));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('2D canvas context unavailable');
+  }
+
+  // Load the frame art once so it can be overlaid on every GIF frame.
+  let frameAsset: HTMLImageElement | null = null;
+  if (template.assetUrl) {
+    frameAsset = await loadImage(template.assetUrl).catch(() => null);
+  }
+
+  const longestClip = Math.max(1, ...liveClips.map((clip) => clip.length));
+  const total = Math.min(Math.max(2, longestClip), Math.max(2, frames));
+  const gif = GIFEncoder();
+
+  for (let t = 0; t < total; t += 1) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = template.backgroundColor ?? '#111111';
+    ctx.fillRect(0, 0, width, height);
+
+    // Photos in template units → scaled into the GIF canvas.
+    ctx.save();
+    ctx.scale(unitsToPixels, unitsToPixels);
+    for (let i = 0; i < template.photoSlots.length; i += 1) {
+      const slot = template.photoSlots[i];
+      const clip = liveClips[i] ?? [];
+      const photoIndex = (slot.sourcePhotoSlot ?? slot.slotNumber) - 1;
+      const url = clip.length
+        ? clip[t % clip.length]
+        : (photos[photoIndex] ?? photos[i]);
+      if (url) {
+        await drawSlotImage(ctx, slot, url, canvasFilter);
+      }
+    }
+    ctx.restore();
+
+    // Static frame art + QR placeholders stay locked above the moving photos.
+    if (frameAsset) {
+      ctx.drawImage(frameAsset, 0, 0, width, height);
+    }
+
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const palette = quantize(imageData.data, 256);
+    const index = applyPalette(imageData.data, palette);
+    gif.writeFrame(index, width, height, { palette, delay: frameDelay, repeat: 0 });
   }
 
   gif.finish();
