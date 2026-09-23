@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FrameTemplateConfig } from '@photo-booth/types';
 import { GALLERY_URL } from '../config';
+import FrameCanvas from '../components/FrameCanvas';
 import {
   ORGANIZE_FILE,
   PRINT_REQUEST_FILE,
   readJsonFile,
+  sessionUrl,
   writeJsonFile,
   OrganizeManifest,
 } from '../lib/organize';
@@ -16,8 +18,13 @@ import {
  * from R2 (through the gallery worker), pulls the session's selected frame
  * template from Supabase (via the worker's /api/frames/:id proxy), lets the
  * customer assign photos to frame slots, then — on finish — only marks the
- * session as ready to print.
+ * session as ready to print and abandons itself.
  *
+ * The frame is presented with the same FrameCanvas used by the admin
+ * FrameCanvasEditor, so the customer sees the exact composed sheet.
+ *
+ * This page is disposable: after "Ready to print" succeeds it auto-redirects
+ * to the gallery page on the worker (/p/:token) which shows all the outputs.
  * There is no LAN server: the page is served by the hosted web app, raws come
  * from R2 and the frame config comes from Supabase, so the phone only needs
  * internet (the same precondition as the QR already points to).
@@ -253,7 +260,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       await fetch(`${endpoint}/api/sessions/${encodeURIComponent(token)}/ready`, {
         method: 'POST',
       }).catch(() => {});
-      setStatus({ text: 'Ready to print ✦ An attendant will print your framed photo.', kind: 'ok' });
+      // This page is disposable: after the arrange is submitted, hand the
+      // customer off to the worker gallery page which shows all the outputs.
+      setStatus({ text: 'Ready to print ✦ Opening your photos…', kind: 'ok' });
+      window.setTimeout(() => window.location.assign(sessionUrl(endpoint, token)), 1200);
     } catch {
       setSent(false);
       setStatus({ text: 'Could not send. Try again.', kind: 'err' });
@@ -280,112 +290,102 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
+  // FrameCanvas maps each photo by sourcePhotoSlot, but the arrange manifest
+  // assigns one photo per frame slot. Force every area to read its own slot
+  // position so the canvas shows exactly what each slot holds.
+  const displayTemplate = useMemo(
+    () => ({
+      ...template,
+      photoSlots: template.photoSlots.map((slot, i) => ({ ...slot, sourcePhotoSlot: i + 1 })),
+    }),
+    [template],
+  );
+
+  const previewPhotos = useMemo(
+    () => template.photoSlots.map((_, i) => (slots[i] ? fileUrl(slots[i]) : undefined)),
+    [template, slots, fileUrl],
+  );
+
   const filled = slots.filter(Boolean).length;
   const allAssigned = filled === slotCount && slotCount > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#2b1055] via-[#7a2b8c] to-[#ff4bb5] pb-20 text-white">
+    <div className="min-h-screen bg-[#fbf3ff] pb-32 text-[#4d2d85]">
       <div className="mx-auto max-w-5xl px-4 py-7">
-        <h1 className="text-center text-3xl font-black tracking-tight">Arrange Your Photos &amp; Print</h1>
-        <p className="mx-auto mt-2 max-w-xl text-center opacity-80">
-          Pick a frame slot, then tap a photo to place it. When the frame looks right, tap
+        <h1 className="text-center text-3xl font-black tracking-tight text-[#4d2d85]">
+          Arrange Your Photos &amp; Print
+        </h1>
+        <p className="mx-auto mt-2 max-w-xl text-center text-sm font-bold text-[#7a4de3]">
+          Tap a frame slot, then tap a photo to place it. When the frame looks good, tap
           &ldquo;Ready to print&rdquo; — we&rsquo;ll handle the rest.
         </p>
 
-        {/* Frame slots — rendered over the actual selected frame art, exactly
-            like the FrameCanvas used across the admin screens. */}
-        <section className="mt-5 rounded-2xl border-2 border-white/20 bg-white/10 p-4">
-          <h2 className="mb-3 text-xs font-extrabold uppercase tracking-[0.22em] opacity-80">Your frame</h2>
-          <p className="mb-3 text-sm opacity-80">Tap a slot, then tap a photo to place it.</p>
+        {/* Frame canvas — same presentation as the admin FrameCanvasEditor */}
+        <section className="mt-6 overflow-hidden rounded-[18px] border-[3px] border-[#e5c9ff] bg-white shadow-[0_16px_48px_rgba(77,45,133,0.18)]">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
+            <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#4d2d85]">Your frame</h2>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={autoPlace}
+                className="rounded-full border-[3px] border-[#a35ef6] bg-[#d9f85a] px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition hover:bg-[#e9ff9e]"
+              >
+                Auto-place
+              </button>
+              <button
+                type="button"
+                onClick={clearFrame}
+                className="rounded-full border-[3px] border-[#c9b8ff] bg-white px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+              >
+                Clear frame
+              </button>
+            </div>
+          </header>
+
           <div
-            className="relative mx-auto w-full max-w-[420px] overflow-hidden rounded-xl border-2 border-white/25"
-            style={{
-              aspectRatio: `${template.width} / ${template.height}`,
-              backgroundColor: template.backgroundColor ?? '#111111',
-            }}
+            className="flex items-center justify-center p-4 sm:p-6"
+            style={{ background: 'linear-gradient(180deg, #fbf3ff, #f3ecff)' }}
           >
-            {template.assetUrl && (
-              <img
-                src={template.assetUrl}
-                alt="Selected frame"
-                loading="lazy"
-                className="absolute inset-0 h-full w-full object-fill"
-                style={{ zIndex: template.frameLayerZIndex ?? 30 }}
+            <div className="w-full max-w-[440px]">
+              <FrameCanvas
+                template={displayTemplate}
+                photos={previewPhotos}
+                onSlotSelect={(slotNumber) => {
+                  const i = displayTemplate.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber);
+                  if (i >= 0) onPickSlot(i);
+                }}
+                activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
+                showGuides
+                className="w-full !border-0 rounded-[14px] shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
               />
-            )}
-            {template.photoSlots.map((placement, i) => {
-              const name = slots[i] ?? null;
-              const selected = pickSlot === i;
-              const cls = [
-                'absolute cursor-pointer overflow-hidden transition-all',
-                name
-                  ? 'border-[3px] border-[#d9f85a] border-solid'
-                  : selected
-                    ? 'border-[3px] border-[#ff4bb5] border-solid shadow-[0_0_0_4px_rgba(255,75,181,0.35)]'
-                    : 'border-[3px] border-dashed border-white/70 bg-black/25',
-              ].join(' ');
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  role="button"
-                  aria-label={`Frame slot ${i + 1}`}
-                  onClick={() => onPickSlot(i)}
-                  className={cls}
-                  style={{
-                    left: `${(placement.x / template.width) * 100}%`,
-                    top: `${(placement.y / template.height) * 100}%`,
-                    width: `${(placement.width / template.width) * 100}%`,
-                    height: `${(placement.height / template.height) * 100}%`,
-                    borderRadius: placement.borderRadius ? `${placement.borderRadius}px` : undefined,
-                    zIndex: (placement.zIndex ?? 10) + 1,
-                  }}
-                >
-                  <span className="absolute left-1.5 top-1.5 z-10 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-[0.65rem] font-black text-white">
-                    {i + 1}
-                  </span>
-                  {name ? (
-                    <img
-                      src={fileUrl(name)}
-                      alt={`Slot ${i + 1}`}
-                      loading="lazy"
-                      className="absolute inset-0 h-full w-full object-cover"
-                      style={{ objectPosition: placement.objectPosition ?? 'center' }}
-                    />
-                  ) : (
-                    <span className="absolute inset-0 grid place-items-center p-1 text-center text-[0.55rem] font-extrabold uppercase tracking-wider text-white/80 opacity-90">
-                      Slot {i + 1}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            </div>
           </div>
-          <p className="mt-3 min-h-[1.2rem] text-sm opacity-80">
-            {pickSlot != null ? `Tap a photo for slot ${pickSlot + 1} …` : ''}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <button onClick={autoPlace} className="rounded-full bg-[#ff4bb5] px-4 py-2 text-sm font-black">
-              Auto-place
-            </button>
-            <button onClick={clearFrame} className="rounded-full bg-white/15 px-4 py-2 text-sm font-black">
-              Clear frame
-            </button>
-            {status.text && (
-              <span className={`ml-auto text-sm font-extrabold ${status.kind === 'ok' ? 'text-[#d9f85a]' : status.kind === 'err' ? 'text-[#ffd0e8]' : 'opacity-90'}`}>
-                {status.text}
-              </span>
-            )}
-          </div>
+
+          <footer className="border-t-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
+            <p className="text-sm font-bold text-[#7a4de3]">
+              {pickSlot != null
+                ? `Slot ${pickSlot + 1} selected — tap a photo below to place it.`
+                : 'Tap a slot in the frame above, then tap a photo to place it.'}
+            </p>
+          </footer>
         </section>
 
         {/* Raw photos */}
-        <section className="mt-5 rounded-2xl border-2 border-white/20 bg-white/10 p-4">
-          <h2 className="mb-1 text-xs font-extrabold uppercase tracking-[0.22em] opacity-80">All photos</h2>
-          <p className="mb-3 text-sm opacity-80">
-            You can also select photos, then Auto-place will use them first.
+        <section className="mt-6 rounded-[18px] border-[3px] border-[#e5c9ff] bg-white p-4 shadow-[0_16px_48px_rgba(77,45,133,0.18)]">
+          <header className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#4d2d85]">All photos</h2>
+            <button
+              type="button"
+              onClick={selectAllToggle}
+              className="rounded-full border-[3px] border-[#c9b8ff] bg-white px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+            >
+              {selected.size > 0 ? 'Clear selection' : 'Select all'}
+            </button>
+          </header>
+          <p className="mt-2 mb-3 text-sm font-bold text-[#7a4de3]">
+            Selected photos are used first by Auto-place.
           </p>
-          <div className="columns-3 gap-3 [column-fill:balance] sm:columns-4">
+          <div className="columns-2 gap-3 [column-fill:balance] sm:columns-3">
             {photos.map((item, i) => (
               <button
                 key={item.name}
@@ -400,12 +400,12 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                   }
                   toggleSel(i);
                 }}
-                className={`relative mb-3 block w-full overflow-hidden border-4 transition-colors ${
+                className={`relative mb-3 block w-full overflow-hidden rounded-[10px] border-4 transition-colors ${
                   selected.has(i) ? 'border-[#ff4bb5] opacity-90' : 'border-transparent'
                 }`}
               >
                 {selected.has(i) && (
-                  <span className="absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#ff4bb5] text-xs font-black">
+                  <span className="absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#ff4bb5] text-xs font-black text-white">
                     ✓
                   </span>
                 )}
@@ -413,32 +413,44 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
               </button>
             ))}
           </div>
-          <div className="mt-2">
-            <button onClick={selectAllToggle} className="rounded-full bg-white/15 px-4 py-2 text-sm font-black">
-              {selected.size > 0 ? 'Clear selection' : 'Select all'}
-            </button>
-          </div>
         </section>
+      </div>
 
-        <div className="mt-4 flex justify-center">
+      {/* Sticky send bar */}
+      <div className="fixed inset-x-0 bottom-0 z-[120] border-t-[3px] border-[#a35ef6] bg-[#fbf3ff]/95 shadow-[0_-12px_30px_rgba(77,45,133,0.2)] backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-[#4d2d85]">
+              Fill every frame slot to enable sending ({filled}/{slotCount}).
+            </p>
+            {status.text && (
+              <p
+                className={`text-sm font-extrabold ${
+                  status.kind === 'ok'
+                    ? 'text-[#15803d]'
+                    : status.kind === 'err'
+                      ? 'text-[#b3206e]'
+                      : 'text-[#7a4de3]'
+                }`}
+              >
+                {status.text}
+              </p>
+            )}
+          </div>
           <button
+            type="button"
             id="organize-send"
             disabled={!allAssigned || sent}
             onClick={() => void sendToPrint()}
-            className={`rounded-full px-8 py-4 text-xl font-black uppercase tracking-wide transition-all ${
+            className={`rounded-full border-[3px] px-8 py-4 text-xl font-black uppercase tracking-wide transition-all ${
               allAssigned && !sent
-                ? 'bg-[#ff4bb5] shadow-[0_6px_18px_rgba(0,0,0,0.35)] hover:scale-[1.02]'
-                : 'cursor-not-allowed bg-white/20 opacity-50'
+                ? 'border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_6px_18px_rgba(77,45,133,0.4)] hover:scale-[1.02] active:scale-[0.98]'
+                : 'cursor-not-allowed border-[#c9b8ff] bg-white opacity-50'
             }`}
           >
-            {sent ? 'Sent ✓' : 'Ready to print'}
+            {sent ? 'Sending…' : 'Ready to print'}
           </button>
         </div>
-        {!allAssigned && !sent && (
-          <p className="mt-3 text-center text-sm opacity-75">
-            Fill every frame slot to enable sending ({filled}/{slotCount}).
-          </p>
-        )}
       </div>
     </div>
   );
