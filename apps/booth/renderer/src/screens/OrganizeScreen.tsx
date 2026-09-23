@@ -5,11 +5,15 @@ import FrameCanvas from '../components/FrameCanvas';
 import {
   ORGANIZE_FILE,
   PRINT_REQUEST_FILE,
+  PRINT_RESULT_FILE,
   readJsonFile,
   sessionUrl,
   writeJsonFile,
-  OrganizeManifest,
+  type OrganizeManifest,
+  type PrintRequestFile,
 } from '../lib/organize';
+
+const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 /**
  * Flow-2 arrange page, hosted by the Vercel app at /organize/:token.
@@ -25,8 +29,21 @@ import {
  * mobile bottom dock + bottom sheet. The customer taps a slot on the canvas,
  * then a photo to place it.
  *
- * This page is disposable: after "Ready to print" succeeds it auto-redirects
- * to the gallery page on the worker (/p/:token) which shows all the outputs.
+ * The page keeps the customer in place: every "Ready to print" persists the
+ * arrangement (organize.json) and queues a new print request, and the customer
+ * may change the frame and send again as many times as they like. A "View
+ * photos" button opens the worker gallery (/p/:token) in a new tab so the
+ * arrange page is never disposed.
+ *
+ * This page is disposable: after "Ready to print" succeeds it waits for the
+ * booth to generate AND upload every output for the arrangement (the booth
+ * writes print-result.json and marks the request 'handled' only after all the
+ * framed/GIF files are on the gallery), then auto-redirects to the worker
+ * gallery (/p/:token) so the album is already complete on arrival. Arranging
+ * is one-shot: if the page is loaded again once a request exists (done or
+ * still in flight) it hands off to the gallery instead of showing the arrange
+ * UI again.
+ *
  * There is no LAN server: the page is served by the hosted web app, raws come
  * from R2 and the frame config comes from Supabase, so the phone only needs
  * internet (the same precondition as the QR already points to).
@@ -62,6 +79,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null);
   const arrangeRetries = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
+  const [waiting, setWaiting] = useState<'busy' | 'done' | 'error' | null>(null);
+  const waitStartedRef = useRef(false);
 
   const slotCount = useMemo(() => {
     if (template) return template.photoSlots.length;
@@ -79,6 +98,45 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     },
     [files, endpoint, token],
   );
+
+  const goToGallery = useCallback(() => {
+    if (endpoint) window.location.assign(sessionUrl(endpoint, token));
+  }, [endpoint, token]);
+
+  // Completion signal: the booth generates and uploads every output for an
+  // arrangement, then writes print-result.json and flips the request to
+  // 'handled' (see printListener.handleRequest). With it, this page can hand
+  // the customer to a gallery that is already complete instead of an empty
+  // one. Falls back to handing off after ~3 min if the booth is offline.
+  const waitForCompletion = useCallback(async () => {
+    if (!endpoint || waitStartedRef.current) return;
+    waitStartedRef.current = true;
+    for (let attempt = 0; attempt < 90; attempt += 1) {
+      await sleep(2000);
+      try {
+        const request = await readJsonFile<PrintRequestFile>(endpoint, token, PRINT_REQUEST_FILE);
+        if (!request || request.status !== 'handled') continue;
+        const result = await readJsonFile<{ status?: string }>(endpoint, token, PRINT_RESULT_FILE);
+        if (result && result.status === 'error') {
+          setWaiting('error');
+          setStatus({
+            text: 'The booth could not prepare your prints. Please try sending again.',
+            kind: 'err',
+          });
+          return;
+        }
+        setWaiting('done');
+        setStatus({ text: 'Your photos are ready ✦', kind: 'ok' });
+        window.setTimeout(goToGallery, 900);
+        return;
+      } catch {
+        // transient fetch blip — keep polling
+      }
+    }
+    setWaiting('done');
+    setStatus({ text: 'Your photos are ready ✦', kind: 'ok' });
+    window.setTimeout(goToGallery, 600);
+  }, [endpoint, token, goToGallery]);
 
   const loadFrame = useCallback(
     async (manifest: OrganizeManifest): Promise<FrameTemplateConfig | null> => {
@@ -127,6 +185,21 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       if (data.exists === false) {
         setPhase('missing');
         return;
+      }
+      // Arranging is one-shot: once a print request exists — done ('handled')
+      // or still in flight ('requested') — the arrange UI must not come back.
+      // Hand off to the gallery; if the booth is still generating, wait for it.
+      const request = await readJsonFile<PrintRequestFile>(endpoint, token, PRINT_REQUEST_FILE);
+      if (request) {
+        if (request.status === 'handled') {
+          goToGallery();
+          return;
+        }
+        if (request.status === 'requested') {
+          setWaiting('busy');
+          void waitForCompletion();
+          return;
+        }
       }
       const photoFiles = (data.files ?? []).filter((file) => {
         const name = file.name;
@@ -178,7 +251,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       setError('We could not find this session. It may have expired.');
       setPhase('missing');
     }
-  }, [endpoint, token, loadFrame]);
+  }, [endpoint, token, loadFrame, goToGallery, waitForCompletion]);
 
   useEffect(() => {
     void load();
@@ -323,15 +396,65 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       await fetch(`${endpoint}/api/sessions/${encodeURIComponent(token)}/ready`, {
         method: 'POST',
       }).catch(() => {});
-      // This page is disposable: after the arrange is submitted, hand the
-      // customer off to the worker gallery page which shows all the outputs.
-      setStatus({ text: 'Ready to print ✦ Opening your photos…', kind: 'ok' });
-      window.setTimeout(() => window.location.assign(sessionUrl(endpoint, token)), 1200);
+      // From here the booth generates the framed outputs; keep the customer on
+      // a "Preparing your prints…" screen until every output is generated AND
+      // uploaded (request flips to 'handled'), then hand them to the gallery.
+      setStatus({ text: 'Preparing your prints…', kind: 'ok' });
+      waitStartedRef.current = false;
+      setWaiting('busy');
+      void waitForCompletion();
     } catch {
       setSent(false);
       setStatus({ text: 'Could not send. Try again.', kind: 'err' });
     }
   };
+
+  if (waiting) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#2b1055] p-6 text-center text-white">
+        {waiting === 'error' ? (
+          <div className="max-w-sm">
+            <p className="text-lg font-black uppercase tracking-widest">
+              We could not prepare your prints.
+            </p>
+            <p className="mt-2 text-sm text-white/70">
+              The booth hit a snag generating your framed photo. Please try sending it again.
+            </p>
+            <div className="mt-6 flex flex-col gap-3">
+              <button
+                className="rounded-full border-[3px] border-[#a35ef6] bg-[#d9f85a] px-6 py-3 text-sm font-black uppercase tracking-wide text-[#4d2d85]"
+                onClick={() => {
+                  waitStartedRef.current = false;
+                  setWaiting(null);
+                  setSent(false);
+                }}
+              >
+                Try again
+              </button>
+              <button
+                className="rounded-full border-[3px] border-white px-6 py-3 text-sm font-black uppercase tracking-wide text-white"
+                onClick={goToGallery}
+              >
+                Open gallery
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-[#d9f85a]" />
+            <p className="text-lg font-black uppercase tracking-widest">
+              {waiting === 'done' ? 'Your photos are ready!' : 'Preparing your prints…'}
+            </p>
+            <p className="mt-2 text-sm text-white/70">
+              {waiting === 'done'
+                ? 'Opening your gallery…'
+                : 'The booth is generating your framed photo — a moment please.'}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   if (phase === 'missing') {
     return (
@@ -452,6 +575,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           >
             {filled}/{slotCount}
           </span>
+          <a
+            href={endpoint ? sessionUrl(endpoint, token) : '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border-2 border-[#a35ef6] bg-[#d9f85a] px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition hover:bg-[#e9ff9e]"
+          >
+            View photos
+          </a>
           {status.text && (
             <span
               className={`hidden text-xs font-extrabold sm:inline ${

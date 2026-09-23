@@ -6,6 +6,7 @@
     "lib": ["ES2022", "WebWorker"],
     "types": ["@cloudflare/workers-types"],
     "strict": true,
+    "esModuleInterop": true,
     "noEmit": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true

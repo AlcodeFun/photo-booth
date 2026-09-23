@@ -23,6 +23,7 @@ import { uploadSessionFile } from '../utils/sessionUpload';
 export const ORGANIZE_FILE = 'organize.json';
 export const PRINT_REQUEST_FILE = 'print-request.json';
 export const PRINT_RESULT_FILE = 'print-result.json';
+export const LIVE_CLIPS_FILE = 'live-clips.json';
 
 export interface OrganizeManifest {
   version: 1;
@@ -54,6 +55,33 @@ export interface PrintResultFile {
 
 export const photoFileName = (index: number): string =>
   `photo-${String(index + 1).padStart(2, '0')}.jpg`;
+
+/**
+ * Live-view clips for the timed flow, aligned to the flattened upload order
+ * (photo-01.jpg, photo-02.jpg … = attempt 1, 2, … of the single timed slot).
+ * The booth uploads this next to the raws so the print listener can rebuild
+ * an animated framed "live photo" from the customer's final arrangement.
+ */
+export const buildLiveClips = (
+  photoSlots: PhotoSlotState[],
+  opts: { maxFrames?: number } = {},
+): string[][] | null => {
+  const { maxFrames = 12 } = opts;
+  const clips: string[][] = [];
+  for (const slot of photoSlots) {
+    for (const attempt of slot.attempts) {
+      if (!attempt.localPath) continue;
+      const frames = (attempt.liveFrames ?? []).slice(0, maxFrames);
+      clips.push(frames);
+    }
+  }
+  return clips.some((clip) => clip.length > 0) ? clips : null;
+};
+
+export const photoIndexFromName = (name: string): number => {
+  const match = /^photo-(\d+)(?:[.]jpe?g|png)?$/i.exec(name);
+  return match ? Number.parseInt(match[1], 10) - 1 : -1;
+};
 
 export const sessionUrl = (endpoint: string, token: string): string => `${endpoint}/p/${token}`;
 

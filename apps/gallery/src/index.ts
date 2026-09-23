@@ -1,4 +1,5 @@
 import { renderGallery } from './gallery';
+import { qrSvgDataUrl } from './qr';
 
 export interface Env {
   GALLERY_BUCKET: R2Bucket;
@@ -365,9 +366,24 @@ export default {
       if (!token) {
         return json({ error: 'Missing token' }, { status: 400 });
       }
-      return new Response(renderGallery(token), {
-        headers: { 'content-type': 'text/html; charset=utf-8' },
-      });
+      // Session timestamp for the gallery header (meta.json carries createdAt).
+      let createdAt: number | null = null;
+      try {
+        const meta = await env.GALLERY_BUCKET.get(`${SESSION_PREFIX}${token}/meta.json`);
+        if (meta) {
+          const parsed = (await meta.json()) as { createdAt?: unknown };
+          if (typeof parsed.createdAt === 'number') {
+            createdAt = parsed.createdAt;
+          }
+        }
+      } catch {
+        // meta unreadable — the header simply omits the timestamp.
+      }
+      const qr = qrSvgDataUrl(`${origin}/p/${token}`);
+      return new Response(
+        renderGallery({ token, qr, createdAt }),
+        { headers: { 'content-type': 'text/html; charset=utf-8' } },
+      );
     }
 
     // Frame-template lookup for the arrange page (Supabase proxy). The arrange

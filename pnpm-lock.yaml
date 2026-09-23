@@ -102,6 +102,9 @@ importers:
       '@supabase/server':
         specifier: ^1.6.1
         version: 1.6.1(@supabase/supabase-js@2.116.0)(typescript@5.9.3)
+      qrcode-generator:
+        specifier: ^1.4.4
+        version: 1.5.2
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20251210.0
@@ -2661,6 +2664,9 @@ packages:
   punycode@2.3.1:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
+
+  qrcode-generator@1.5.2:
+    resolution: {integrity: sha512-pItrW0Z9HnDBnFmgiNrY1uxRdri32Uh9EjNYLPVC2zZ3ZRIIEqBoDgm4DkvDwNNDHTK7FNkmr8zAa77BYc9xNw==}
 
   qrcode@1.5.4:
     resolution: {integrity: sha512-1ca71Zgiu6ORjHqFBDpnSMTR2ReToX4l1Au1VFLyVeBTFavzQnv5JxMFr3ukHVKpSrSA2MCk0lNJSykjUfz7Zg==}
@@ -5598,6 +5604,8 @@ snapshots:
       once: 1.4.0
 
   punycode@2.3.1: {}
+
+  qrcode-generator@1.5.2: {}
 
   qrcode@1.5.4:
     dependencies:

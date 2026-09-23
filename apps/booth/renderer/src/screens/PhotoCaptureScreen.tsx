@@ -266,21 +266,21 @@ export const PhotoCaptureScreen: React.FC = () => {
       });
       if (!image) return null;
       const canvas = document.createElement('canvas');
-      const scale = 360 / image.width;
-      canvas.width = 360;
+      const scale = 480 / image.width;
+      canvas.width = 480;
       canvas.height = Math.max(1, Math.round(image.height * scale));
       const ctx = canvas.getContext('2d');
       if (!ctx) return null;
       ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', 0.72);
+      return canvas.toDataURL('image/jpeg', 0.8);
     }
     const video = videoRef.current;
     if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || !video.videoWidth) {
       return null;
     }
     const canvas = document.createElement('canvas');
-    const scale = 360 / video.videoWidth;
-    canvas.width = 360;
+    const scale = 480 / video.videoWidth;
+    canvas.width = 480;
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
@@ -289,7 +289,7 @@ export const PhotoCaptureScreen: React.FC = () => {
       ctx.scale(-1, 1);
     }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL('image/jpeg', 0.72);
+    return canvas.toDataURL('image/jpeg', 0.8);
   }, [canonActive, canon, isMirrored]);
 
   const pushLiveFrame = (frame: string | null) => {

@@ -283,6 +283,42 @@ async function renderTemplated(
 export const canvasToJpegBlob = (canvas: HTMLCanvasElement, quality = 0.92): Promise<Blob | null> =>
   new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', quality));
 
+const BAYER_4x4 = [
+  0, 8, 2, 10,
+  12, 4, 14, 6,
+  3, 11, 1, 9,
+  15, 7, 13, 5,
+];
+
+const clampByte = (value: number): number => (value < 0 ? 0 : value > 255 ? 255 : value);
+
+/**
+ * Ordered (Bayer 4x4) dithering applied in place to an RGBA buffer before
+ * palette mapping. gifenc's applyPalette snaps every pixel to its nearest
+ * palette entry through a per-bin cache, which makes smooth photo gradients
+ * band heavily. Pushing each pixel by a small position-dependent amount lets
+ * the snap alternate between adjacent palette colors, breaking the banding up
+ * at O(n) cost — no per-pixel palette search, so it stays cheap even for the
+ * multi-frame live GIF.
+ */
+const applyOrderedDither = (
+  rgba: Uint8ClampedArray,
+  width: number,
+  height: number,
+  strength = 1.6,
+): void => {
+  for (let y = 0; y < height; y += 1) {
+    const rowBase = (y & 3) * 4;
+    for (let x = 0; x < width; x += 1) {
+      const offset = (BAYER_4x4[rowBase + (x & 3)] - 7.5) * strength;
+      const i = (y * width + x) * 4;
+      rgba[i] = clampByte(rgba[i] + offset);
+      rgba[i + 1] = clampByte(rgba[i + 1] + offset);
+      rgba[i + 2] = clampByte(rgba[i + 2] + offset);
+    }
+  }
+};
+
 /**
  * Renders a single captured photo with the selected filter applied at its
  * original resolution (no crop) and encodes it as a compact JPEG. Used when
@@ -364,7 +400,7 @@ export async function createResultGif(
     throw new Error('No photos to encode.');
   }
 
-  const { width = 480, delay = 700 } = opts;
+  const { width = 720, delay = 700 } = opts;
 
   // The camera keeps a fixed aspect ratio across shots, so the canvas is sized
   // from the first photo and every photo is drawn to fit without cropping.
@@ -391,7 +427,10 @@ export async function createResultGif(
       drawContain(ctx, image, width, height, canvasFilter);
 
       const imageData = ctx.getImageData(0, 0, width, height);
+      // Palette comes from the clean frame; dithering is applied afterwards so
+      // the snap to palette colors breaks up banding instead of shifting it.
       const palette = quantize(imageData.data, 256);
+      applyOrderedDither(imageData.data, width, height);
       const index = applyPalette(imageData.data, palette);
       gif.writeFrame(index, width, height, { palette, delay, repeat: 0 });
     } catch {
@@ -421,7 +460,7 @@ export async function createResultLiveFramed(
   opts: { width?: number; frameDelay?: number; frames?: number } = {},
 ): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
-  const { width = 400, frameDelay = 160, frames = 24 } = opts;
+  const { width = 600, frameDelay = 160, frames = 24 } = opts;
   if (photoSlots.length === 0) {
     throw new Error('No photos to encode.');
   }
@@ -479,6 +518,7 @@ export async function createResultLiveFramed(
 
     const imageData = ctx.getImageData(0, 0, width, height);
     const palette = quantize(imageData.data, 256);
+    applyOrderedDither(imageData.data, width, height);
     const index = applyPalette(imageData.data, palette);
     gif.writeFrame(index, width, height, { palette, delay: frameDelay, repeat: 0 });
   }

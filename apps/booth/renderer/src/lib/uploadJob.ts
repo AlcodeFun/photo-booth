@@ -14,7 +14,7 @@ import {
 import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
 import { getAllPhotoUrls } from '../utils/photoSlots';
-import { buildOrganizeManifest, uploadOrganizeManifest } from './organize';
+import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE } from './organize';
 import {
   cacheUploadBlob,
   createSessionRecord,
@@ -298,6 +298,21 @@ const run = async (job: UploadJob) => {
       return Promise.resolve(files);
     })();
 
+    // Timed sessions: persist each raw's pre-shutter live-view clip next to the
+    // raws. The print listener later rebuilds the animated framed "live photo"
+    // from the customer's arrangement using these clips (the booth's memory is
+    // gone by then), so without this the result-live.gif would be a still.
+    const liveClips = (async () => {
+      if (flowMode !== 'timed' || !outputs.allPhotos || !outputs.framedLive) {
+        return null;
+      }
+      const clips = buildLiveClips(job.photoSlots);
+      if (!clips) return null;
+      const blob = new Blob([JSON.stringify(clips)], { type: 'application/json' });
+      cacheWrites.push(cacheUploadBlob(token ?? '', LIVE_CLIPS_FILE, blob));
+      return { blob, name: LIVE_CLIPS_FILE };
+    })();
+
     const framedLive = (async () => {
       if (flowMode === 'timed' || !outputs.framedLive || !job.frame || job.photoSlots.length === 0) {
         return null;
@@ -324,13 +339,18 @@ const run = async (job: UploadJob) => {
       }
     })();
 
-    const [framedResult, photoFiles, framedLiveResult, gifResultResolved] = await Promise.all([
+    const [framedResult, photoFiles, framedLiveResult, gifResultResolved, clipsResult] = await Promise.all([
       framed,
       photos,
       framedLive,
       gifResult,
+      liveClips,
     ]);
-    const baseFiles = [...(framedResult ? [framedResult] : []), ...photoFiles];
+    const baseFiles = [
+      ...(framedResult ? [framedResult] : []),
+      ...photoFiles,
+      ...(clipsResult ? [clipsResult] : []),
+    ];
 
     // All blobs are now durable in IndexedDB — nothing above has been sent yet.
     await Promise.all(cacheWrites);

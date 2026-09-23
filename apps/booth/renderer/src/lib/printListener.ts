@@ -27,9 +27,11 @@ import { canvasToJpegBlob, createResultGif, createResultLiveFramed, renderCompos
 import { SessionUploadFile, uploadSessionFiles } from '../utils/sessionUpload';
 import {
   fileUrl,
+  LIVE_CLIPS_FILE,
   ORGANIZE_FILE,
   PRINT_REQUEST_FILE,
   PRINT_RESULT_FILE,
+  photoIndexFromName,
   readJsonFile,
   sessionUrl,
   writeJsonFile,
@@ -115,16 +117,34 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
   }
 
   try {
+    const { outputs } = useBoothConfig.getState();
+
+    // Rebuild each arranged photo with its captured pre-shutter live-view clip
+    // so the framed "live photo" GIF animates every slot (the booth persisted
+    // these next to the raws in live-clips.json). Without them the output would
+    // fall back to the still photo and look frozen.
+    const liveClips: string[][] | null = outputs.framedLive
+      ? await readJsonFile<string[][]>(endpoint, token, LIVE_CLIPS_FILE)
+      : null;
+
     // Build one virtual photo slot per arranged photo, URL-addressable from the
     // gallery. template + filterId come from the persisted arrangement so the
     // composed sheet matches what the customer arranged and approved.
     const photoSlots: PhotoSlotState[] = slots.map((name, index) => {
       const placement = manifest.template.photoSlots[index];
+      const clip = liveClips && name ? (liveClips[photoIndexFromName(name)] ?? []) : [];
       return {
         slotNumber: placement.slotNumber,
         maxAttempts: 1,
         attempts: name
-          ? [{ attemptNumber: 1, status: 'CAPTURED' as const, localPath: fileUrl(endpoint, token, name) }]
+          ? [
+              {
+                attemptNumber: 1,
+                status: 'CAPTURED' as const,
+                localPath: fileUrl(endpoint, token, name),
+                ...(clip.length > 0 ? { liveFrames: clip } : {}),
+              },
+            ]
           : [],
         selectedAttempt: name ? 1 : undefined,
       };
@@ -140,8 +160,6 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     const qrCodeUrl = manifest.template.qrSlots?.length
       ? (await generateQrDataUrl(sessionUrl(endpoint, token), 256).catch(() => null)) ?? undefined
       : undefined;
-
-    const { outputs } = useBoothConfig.getState();
 
     // Collect the booth's output toggles into concrete files. framed.png is the
     // sheet the admin prints from, so it is always produced for a valid request

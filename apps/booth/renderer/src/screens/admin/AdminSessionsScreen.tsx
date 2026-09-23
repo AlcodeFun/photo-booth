@@ -62,6 +62,14 @@ const printSheet = (src: string) => {
   }, 60000);
 };
 
+/**
+ * Worker gallery URL for a token. This is what every admin QR/link points at —
+ * timed sessions store the /organize/:token page as download_url so the QR on
+ * the booth routes the customer to arranging, but by the time the admin opens a
+ * session the finished outputs live on the gallery page.
+ */
+const galleryUrl = (token: string): string => (GALLERY_URL ? `${GALLERY_URL}/p/${token}` : '');
+
 interface ResultLinkProps {
   src: string | null;
   label: string;
@@ -70,57 +78,110 @@ interface ResultLinkProps {
 }
 
 /**
+ * The outputs the booth produces AFTER the customer arranges (see
+ * printListener.handleRequest): framed.png is always generated, the two GIFs
+ * only when their toggles are on. These belong to the session record so the
+ * results modal can show them, but the booth's patch can be missed (offline
+ * snapshot, killed renderer, race) even though the gallery holds the files.
+ */
+const GENERATED_OUTPUTS = ['framed.png', 'result.gif', 'result-live.gif'];
+
+/** Whether a session's record is missing one of the generated outputs. */
+const needsGallerySync = (row: SessionRecord): boolean =>
+  GENERATED_OUTPUTS.some((name) => !row.files.some((file) => file.name === name && file.uploaded));
+
+/** Merge the gallery's file list into a session record's files by name. */
+const mergeGalleryFiles = (
+  row: SessionRecord,
+  galleryFiles: Array<{ name?: unknown; size?: unknown; url?: unknown }>,
+): SessionFileState[] => {
+  const next: SessionFileState[] = row.files.slice();
+  for (const file of galleryFiles) {
+    const name = String(file.name ?? '');
+    if (!name || /[.]json$/i.test(name)) continue;
+    const url = String(file.url ?? '') || sessionFileUrl(row.token, name) || '';
+    const index = next.findIndex((entry) => entry.name === name);
+    if (index >= 0) {
+      const existing = next[index];
+      if (!existing.uploaded) {
+        next[index] = {
+          ...existing,
+          uploaded: true,
+          size: existing.size ?? (typeof file.size === 'number' ? file.size : undefined),
+          url: url || existing.url,
+        };
+      } else if (!existing.url && url) {
+        next[index] = { ...existing, url };
+      }
+    } else {
+      next.push({ name, uploaded: true, size: typeof file.size === 'number' ? file.size : undefined, url });
+    }
+  }
+  return next;
+};
+
+/**
  * Safety net: the gallery is the source of truth for whether files actually
  * uploaded. Sessions left stuck on "uploading" (e.g. the booth was killed or
  * its renderer lost the final patch) get healed here from the gallery's own
- * record, so the dashboard always shows reality.
+ * record, and any session whose generated outputs (framed.png + GIFs) were
+ * never recorded gets them merged back in — so the dashboard always shows
+ * reality, raw photos and produced outputs alike.
  */
-const reconcileStuckFromGallery = async (rows: SessionRecord[]): Promise<SessionRecord[]> => {
+const reconcileFromGallery = async (rows: SessionRecord[]): Promise<SessionRecord[]> => {
   if (!GALLERY_URL) {
     return rows;
   }
   const now = Date.now();
-  const staleUploading = rows.filter(
-    (row) =>
+  const candidates = rows.filter((row) => {
+    if (needsGallerySync(row)) return true;
+    return (
       row.upload_status === 'uploading' &&
       row.created_at &&
-      now - new Date(row.created_at).getTime() > 60_000,
-  );
-  if (staleUploading.length === 0) {
+      now - new Date(row.created_at).getTime() > 60_000
+    );
+  });
+  if (candidates.length === 0) {
     return rows;
   }
 
-  const healed = new Map<string, SessionRecord>();
+  const synced = new Map<string, SessionRecord>();
   await Promise.all(
-    staleUploading.map(async (row) => {
+    candidates.map(async (row) => {
       try {
         const response = await fetch(`${GALLERY_URL}/api/sessions/${encodeURIComponent(row.token)}`);
         if (!response.ok) {
           return;
         }
         const body = (await response.json()) as { files?: Array<{ name?: unknown; size?: unknown; url?: unknown }> };
-        const files: SessionFileState[] = (body.files ?? [])
-          .filter((file) => file.name && file.url)
-          .map((file) => ({
-            name: String(file.name),
-            uploaded: true,
-            size: typeof file.size === 'number' ? file.size : undefined,
-            url: String(file.url),
-          }));
-        if (files.length === 0) {
+        const merged = mergeGalleryFiles(row, body.files ?? []);
+        const changed = merged.length !== row.files.length;
+        const staleUploading =
+          row.upload_status === 'uploading' && row.created_at && now - new Date(row.created_at).getTime() > 60_000;
+        if (!changed && !staleUploading) {
           return;
         }
-        updateSessionRecord(row.token, { upload_status: 'success', print_status: 'success', files });
-        healed.set(row.token, { ...row, upload_status: 'success', print_status: 'success', files });
+        const patch: Parameters<typeof updateSessionRecord>[1] = { files: merged };
+        if (staleUploading) {
+          patch.upload_status = 'success';
+          patch.print_status = 'success';
+        }
+        updateSessionRecord(row.token, patch);
+        synced.set(row.token, {
+          ...row,
+          files: merged,
+          upload_status: patch.upload_status ?? row.upload_status,
+          print_status: patch.print_status ?? row.print_status,
+        });
       } catch {
         // Gallery unreachable — leave the row untouched; next refresh retries.
       }
     }),
   );
-  if (healed.size === 0) {
+  if (synced.size === 0) {
     return rows;
   }
-  return rows.map((row) => healed.get(row.token) ?? row);
+  return rows.map((row) => synced.get(row.token) ?? row);
 };
 
 export const AdminSessionsScreen: React.FC = () => {
@@ -146,7 +207,7 @@ export const AdminSessionsScreen: React.FC = () => {
     if (!silent) setLoading(true);
     try {
       const rows = await listSessions();
-      setSessions(await reconcileStuckFromGallery(rows));
+      setSessions(await reconcileFromGallery(rows));
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load sessions');
@@ -392,14 +453,15 @@ export const AdminSessionsScreen: React.FC = () => {
   }, [resultsToken, resultsQrFull]);
 
   useEffect(() => {
-    if (!resultsSession?.download_url) {
+    const url = resultsSession ? galleryUrl(resultsSession.token) : '';
+    if (!url) {
       setResultsQr(null);
       return;
     }
     let cancelled = false;
-    generateQrDataUrl(resultsSession.download_url, 220)
-      .then((url) => {
-        if (!cancelled) setResultsQr(url);
+    generateQrDataUrl(url, 220)
+      .then((qr) => {
+        if (!cancelled) setResultsQr(qr);
       })
       .catch(() => {
         if (!cancelled) setResultsQr(null);
@@ -412,14 +474,15 @@ export const AdminSessionsScreen: React.FC = () => {
   // Larger QR for the enlarged view / download.
   const [fullQr, setFullQr] = useState<string | null>(null);
   useEffect(() => {
-    if (!resultsQrFull || !resultsSession?.download_url) {
+    const url = resultsSession && resultsQrFull ? galleryUrl(resultsSession.token) : '';
+    if (!resultsQrFull || !url) {
       setFullQr(null);
       return;
     }
     let cancelled = false;
-    generateQrDataUrl(resultsSession.download_url, 512)
-      .then((url) => {
-        if (!cancelled) setFullQr(url);
+    generateQrDataUrl(url, 512)
+      .then((qr) => {
+        if (!cancelled) setFullQr(qr);
       })
       .catch(() => {
         if (!cancelled) setFullQr(null);
@@ -428,6 +491,31 @@ export const AdminSessionsScreen: React.FC = () => {
       cancelled = true;
     };
   }, [resultsQrFull, resultsSession]);
+
+  // When the results modal opens, reconcile the row against the gallery
+  // immediately so framed/live/gif outputs the booth recorded late are visible
+  // without waiting for the next background sync (30s).
+  useEffect(() => {
+    if (!resultsSession || !GALLERY_URL) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch(`${GALLERY_URL}/api/sessions/${encodeURIComponent(resultsSession.token)}`);
+        if (!response.ok) return;
+        const body = (await response.json()) as { files?: Array<{ name?: unknown; size?: unknown; url?: unknown }> };
+        if (cancelled) return;
+        const merged = mergeGalleryFiles(resultsSession, body.files ?? []);
+        if (merged.length === resultsSession.files.length) return;
+        updateSessionRecord(resultsSession.token, { files: merged });
+        setSessions((prev) => prev.map((row) => (row.token === resultsSession.token ? { ...row, files: merged } : row)));
+      } catch {
+        // Gallery unreachable — the background sync will retry later.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resultsSession]);
 
   // Download a data URL (QR image) as a file.
   const downloadDataUrl = (dataUrl: string, filename: string) => {
@@ -648,9 +736,9 @@ export const AdminSessionsScreen: React.FC = () => {
                       </div>
                       <div className="mt-0.5 text-xs text-white/40">
                         {formatTimestamp(session.created_at)}
-                        {session.download_url && (
+                        {galleryUrl(session.token) && (
                           <a
-                            href={session.download_url}
+                            href={galleryUrl(session.token)}
                             target="_blank"
                             rel="noreferrer"
                             className="ml-2 text-[#a35ef6] hover:text-[#b87dff]"
@@ -780,9 +868,9 @@ export const AdminSessionsScreen: React.FC = () => {
               </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-3">
-              {resultsSession.download_url && (
+              {galleryUrl(resultsSession.token) && (
                 <a
-                  href={resultsSession.download_url}
+                  href={galleryUrl(resultsSession.token)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-[#d9f85a] transition hover:bg-white/10"
@@ -904,9 +992,9 @@ export const AdminSessionsScreen: React.FC = () => {
                 <span className="animate-spin text-xl">⏳</span>
               </div>
             )}
-            {resultsSession?.download_url && (
+            {resultsSession && galleryUrl(resultsSession.token) && (
               <p className="max-w-full break-all text-center text-[0.6rem] font-bold text-[#4d2d85]">
-                {resultsSession.download_url}
+                {galleryUrl(resultsSession.token)}
               </p>
             )}
             <div className="flex w-full flex-wrap items-center justify-center gap-2">
