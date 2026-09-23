@@ -20,8 +20,10 @@ import {
  * customer assign photos to frame slots, then — on finish — only marks the
  * session as ready to print and abandons itself.
  *
- * The frame is presented with the same FrameCanvas used by the admin
- * FrameCanvasEditor, so the customer sees the exact composed sheet.
+ * The layout mirrors the admin FrameCanvasEditor: a full-height canvas area
+ * with the FrameCanvas scaled to fit, a desktop floating photo panel, and a
+ * mobile bottom dock + bottom sheet. The customer taps a slot on the canvas,
+ * then a photo to place it.
  *
  * This page is disposable: after "Ready to print" succeeds it auto-redirects
  * to the gallery page on the worker (/p/:token) which shows all the outputs.
@@ -32,6 +34,15 @@ import {
  * Printing is done manually by the admin from the booth dashboard; this page
  * never talks to a printer.
  */
+
+const actionButtonClass = (extra: string) =>
+  `h-9 rounded-[10px] border-[3px] px-3.5 text-xs font-black uppercase tracking-[0.12em] transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 ${extra}`;
+
+const dockButtonClass = (active: boolean) =>
+  `flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] transition-colors ${
+    active ? 'bg-[#e9d7ff] text-[#4d2d85]' : 'text-[#7a4de3] hover:bg-[#f3ecff]'
+  }`;
+
 export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const endpoint = GALLERY_URL;
 
@@ -46,7 +57,11 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [sent, setSent] = useState(false);
   const [status, setStatus] = useState<{ text: string; kind?: 'ok' | 'err' }>({ text: '' });
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null);
   const arrangeRetries = useRef(0);
+  const areaRef = useRef<HTMLDivElement>(null);
 
   const slotCount = useMemo(() => {
     if (template) return template.photoSlots.length;
@@ -169,9 +184,57 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     void load();
   }, []);
 
+  // Scale the canvas to fit its container while keeping the frame's aspect
+  // ratio — same fit logic as the admin FrameCanvasEditor.
+  useEffect(() => {
+    const area = areaRef.current;
+    if (!area || !template) {
+      return;
+    }
+    const computeFit = () => {
+      const rect = area.getBoundingClientRect();
+      const style = window.getComputedStyle(area);
+      const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+      const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      const availableWidth = Math.max(0, rect.width - padX);
+      const availableHeight = Math.max(0, rect.height - padY);
+      const widthScale = template.width > 0 ? availableWidth / template.width : 0;
+      const heightScale = template.height > 0 ? availableHeight / template.height : 0;
+      const scale = Math.max(0, Math.min(widthScale, heightScale));
+      setCanvasSize({
+        width: availableWidth > 0 && availableHeight > 0 ? Math.floor(template.width * scale) : 0,
+        height: availableWidth > 0 && availableHeight > 0 ? Math.floor(template.height * scale) : 0,
+      });
+    };
+    computeFit();
+    const observer = new ResizeObserver(computeFit);
+    observer.observe(area);
+    return () => observer.disconnect();
+  }, [template]);
+
   const repaintSlots = useCallback((nextSlots: (string | null)[]) => {
     setSlots(nextSlots);
   }, []);
+
+  // FrameCanvas maps each photo by sourcePhotoSlot, but the arrange manifest
+  // assigns one photo per frame slot. Force every area to read its own slot
+  // position so the canvas shows exactly what each slot holds.
+  const displayTemplate = useMemo(
+    () =>
+      template
+        ? {
+            ...template,
+            photoSlots: template.photoSlots.map((slot, i) => ({ ...slot, sourcePhotoSlot: i + 1 })),
+          }
+        : null,
+    [template],
+  );
+
+  const previewPhotos = useMemo(
+    () =>
+      template ? template.photoSlots.map((_, i) => (slots[i] ? fileUrl(slots[i]) : undefined)) : [],
+    [template, slots, fileUrl],
+  );
 
   const onPickSlot = (i: number) => {
     if (slots[i] != null) {
@@ -280,7 +343,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  if (phase === 'loading' || !template) {
+  if (phase === 'loading' || !template || !displayTemplate) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#2b1055] text-white">
         <p className="animate-pulse text-lg font-black uppercase tracking-widest opacity-80">
@@ -290,142 +353,201 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  // FrameCanvas maps each photo by sourcePhotoSlot, but the arrange manifest
-  // assigns one photo per frame slot. Force every area to read its own slot
-  // position so the canvas shows exactly what each slot holds.
-  const displayTemplate = useMemo(
-    () => ({
-      ...template,
-      photoSlots: template.photoSlots.map((slot, i) => ({ ...slot, sourcePhotoSlot: i + 1 })),
-    }),
-    [template],
-  );
-
-  const previewPhotos = useMemo(
-    () => template.photoSlots.map((_, i) => (slots[i] ? fileUrl(slots[i]) : undefined)),
-    [template, slots, fileUrl],
-  );
-
   const filled = slots.filter(Boolean).length;
   const allAssigned = filled === slotCount && slotCount > 0;
+  const sendReady = allAssigned && !sent;
+
+  const sendButtonClass =
+    'rounded-full border-[3px] px-6 py-3 text-sm font-black uppercase tracking-wide transition-all ' +
+    (sendReady
+      ? 'border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_6px_18px_rgba(77,45,133,0.4)] hover:scale-[1.02] active:scale-[0.98]'
+      : 'cursor-not-allowed border-[#c9b8ff] bg-white opacity-50');
+
+  const photosPanel = (
+    <div className="grid gap-3">
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={autoPlace}
+          className={actionButtonClass('border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] hover:bg-[#e9ff9e]')}
+        >
+          Auto-place
+        </button>
+        <button
+          type="button"
+          onClick={clearFrame}
+          className={actionButtonClass('border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]')}
+        >
+          Clear frame
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-extrabold text-[#5b3aa8]">
+          {selected.size} of {photos.length} selected
+        </span>
+        <button
+          type="button"
+          onClick={selectAllToggle}
+          className={actionButtonClass('border-[#8f6fee] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]')}
+        >
+          {selected.size > 0 ? 'Clear all' : 'Select all'}
+        </button>
+      </div>
+      {photos.length > 0 ? (
+        <div className="columns-2 gap-3 [column-fill:balance]">
+          {photos.map((item, i) => (
+            <button
+              key={item.name}
+              type="button"
+              onClick={() => {
+                if (pickSlot != null) {
+                  const next = [...slots];
+                  next[pickSlot] = item.name;
+                  repaintSlots(next);
+                  setPickSlot(null);
+                  return;
+                }
+                toggleSel(i);
+              }}
+              className={`relative mb-3 block w-full overflow-hidden rounded-[10px] border-4 transition-colors ${
+                selected.has(i) ? 'border-[#ff4bb5] opacity-90' : 'border-transparent'
+              }`}
+            >
+              {selected.has(i) && (
+                <span className="absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#ff4bb5] text-xs font-black text-white">
+                  ✓
+                </span>
+              )}
+              <img src={item.url} alt={`Photo ${i + 1}`} loading="lazy" className="block w-full" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm font-bold text-[#5b3aa8]">No photos yet.</p>
+      )}
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-[#fbf3ff] pb-32 text-[#4d2d85]">
-      <div className="mx-auto max-w-5xl px-4 py-7">
-        <h1 className="text-center text-3xl font-black tracking-tight text-[#4d2d85]">
-          Arrange Your Photos &amp; Print
-        </h1>
-        <p className="mx-auto mt-2 max-w-xl text-center text-sm font-bold text-[#7a4de3]">
-          Tap a frame slot, then tap a photo to place it. When the frame looks good, tap
-          &ldquo;Ready to print&rdquo; — we&rsquo;ll handle the rest.
-        </p>
+    <section className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#fbf3ff] text-[#4d2d85]">
+      {/* Top bar */}
+      <header className="z-[60] flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+            Arrange &amp; print
+          </h1>
+          <p className="truncate text-xs font-bold text-[#7a4de3]">
+            {pickSlot != null
+              ? `Slot ${pickSlot + 1} selected — tap a photo to place it.`
+              : 'Tap a slot on the frame, then tap a photo.'}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            className={`rounded-full border-2 px-3 py-1 text-xs font-black ${
+              allAssigned
+                ? 'border-[#16a34a] bg-[#e7ffe7] text-[#15803d]'
+                : 'border-[#c9b8ff] bg-white text-[#5b3aa8]'
+            }`}
+          >
+            {filled}/{slotCount}
+          </span>
+          {status.text && (
+            <span
+              className={`hidden text-xs font-extrabold sm:inline ${
+                status.kind === 'ok'
+                  ? 'text-[#15803d]'
+                  : status.kind === 'err'
+                    ? 'text-[#b3206e]'
+                    : 'text-[#7a4de3]'
+              }`}
+            >
+              {status.text}
+            </span>
+          )}
+        </div>
+      </header>
 
-        {/* Frame canvas — same presentation as the admin FrameCanvasEditor */}
-        <section className="mt-6 overflow-hidden rounded-[18px] border-[3px] border-[#e5c9ff] bg-white shadow-[0_16px_48px_rgba(77,45,133,0.18)]">
-          <header className="flex flex-wrap items-center justify-between gap-2 border-b-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
-            <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#4d2d85]">Your frame</h2>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={autoPlace}
-                className="rounded-full border-[3px] border-[#a35ef6] bg-[#d9f85a] px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition hover:bg-[#e9ff9e]"
-              >
-                Auto-place
-              </button>
-              <button
-                type="button"
-                onClick={clearFrame}
-                className="rounded-full border-[3px] border-[#c9b8ff] bg-white px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition hover:bg-[#efe8ff]"
-              >
-                Clear frame
-              </button>
-            </div>
-          </header>
+      {/* Canvas area — fills the full width, same as FrameCanvasEditor */}
+      <div
+        className={`flex min-h-0 flex-1 transition-opacity ${panelOpen ? 'opacity-60' : ''}`}
+      >
+        <div
+          ref={areaRef}
+          className="relative flex min-h-0 flex-1 items-center justify-center overflow-visible p-4 pb-20 lg:p-6 lg:pb-6"
+        >
+          <div className="absolute left-4 top-4 z-[80]">
+            <span className="grid h-10 max-w-[72vw] place-items-center rounded-full border-2 border-[#c9b8ff] bg-white/95 px-4 text-xs font-black text-[#5b3aa8] shadow-md">
+              {pickSlot != null ? `Slot ${pickSlot + 1} selected` : 'Tap a slot to select it'}
+            </span>
+          </div>
 
           <div
-            className="flex items-center justify-center p-4 sm:p-6"
-            style={{ background: 'linear-gradient(180deg, #fbf3ff, #f3ecff)' }}
+            className="relative touch-none bg-white shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
+            style={{
+              width: canvasSize ? `${canvasSize.width}px` : undefined,
+              height: canvasSize ? `${canvasSize.height}px` : undefined,
+              aspectRatio: canvasSize ? undefined : `${template.width} / ${template.height}`,
+            }}
           >
-            <div className="w-full max-w-[440px]">
-              <FrameCanvas
-                template={displayTemplate}
-                photos={previewPhotos}
-                onSlotSelect={(slotNumber) => {
-                  const i = displayTemplate.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber);
-                  if (i >= 0) onPickSlot(i);
-                }}
-                activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
-                showGuides
-                className="w-full !border-0 rounded-[14px] shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
-              />
-            </div>
+            <FrameCanvas
+              template={displayTemplate}
+              photos={previewPhotos}
+              onSlotSelect={(slotNumber) => {
+                const i = displayTemplate.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber);
+                if (i >= 0) onPickSlot(i);
+              }}
+              activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
+              showGuides
+              className="h-full w-full !border-0 !text-[#4d2d85]"
+            />
           </div>
 
-          <footer className="border-t-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
-            <p className="text-sm font-bold text-[#7a4de3]">
-              {pickSlot != null
-                ? `Slot ${pickSlot + 1} selected — tap a photo below to place it.`
-                : 'Tap a slot in the frame above, then tap a photo to place it.'}
-            </p>
-          </footer>
-        </section>
-
-        {/* Raw photos */}
-        <section className="mt-6 rounded-[18px] border-[3px] border-[#e5c9ff] bg-white p-4 shadow-[0_16px_48px_rgba(77,45,133,0.18)]">
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-xs font-black uppercase tracking-[0.22em] text-[#4d2d85]">All photos</h2>
+          {/* Re-open collapsed floating panel */}
+          {!sidebarOpen && (
             <button
               type="button"
-              onClick={selectAllToggle}
-              className="rounded-full border-[3px] border-[#c9b8ff] bg-white px-3.5 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+              onClick={() => setSidebarOpen(true)}
+              title="Show photos"
+              className="absolute right-3 top-1/2 z-[85] hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border-2 border-[#8f6fee] bg-white/95 text-[#4d2d85] shadow-lg transition hover:bg-white lg:grid"
             >
-              {selected.size > 0 ? 'Clear selection' : 'Select all'}
+              ✛
+            </button>
+          )}
+        </div>
+
+        {/* Desktop floating panel — photo picker + actions */}
+        <aside
+          className={`pointer-events-auto absolute right-3 top-1/2 z-[90] hidden max-h-[calc(100%-24px)] w-[380px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_16px_48px_rgba(77,45,133,0.35)] transition-all duration-200 lg:flex ${
+            sidebarOpen
+              ? 'translate-x-0 opacity-100'
+              : 'pointer-events-none translate-x-[110%] opacity-0'
+          }`}
+        >
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">All photos</h2>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              title="Collapse photos"
+              className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-[#c9b8ff] bg-white text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+            >
+              ›
             </button>
           </header>
-          <p className="mt-2 mb-3 text-sm font-bold text-[#7a4de3]">
-            Selected photos are used first by Auto-place.
-          </p>
-          <div className="columns-2 gap-3 [column-fill:balance] sm:columns-3">
-            {photos.map((item, i) => (
-              <button
-                key={item.name}
-                type="button"
-                onClick={() => {
-                  if (pickSlot != null) {
-                    const next = [...slots];
-                    next[pickSlot] = item.name;
-                    repaintSlots(next);
-                    setPickSlot(null);
-                    return;
-                  }
-                  toggleSel(i);
-                }}
-                className={`relative mb-3 block w-full overflow-hidden rounded-[10px] border-4 transition-colors ${
-                  selected.has(i) ? 'border-[#ff4bb5] opacity-90' : 'border-transparent'
-                }`}
-              >
-                {selected.has(i) && (
-                  <span className="absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#ff4bb5] text-xs font-black text-white">
-                    ✓
-                  </span>
-                )}
-                <img src={item.url} alt={`Photo ${i + 1}`} loading="lazy" className="block w-full" />
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      {/* Sticky send bar */}
-      <div className="fixed inset-x-0 bottom-0 z-[120] border-t-[3px] border-[#a35ef6] bg-[#fbf3ff]/95 shadow-[0_-12px_30px_rgba(77,45,133,0.2)] backdrop-blur">
-        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-[#4d2d85]">
-              Fill every frame slot to enable sending ({filled}/{slotCount}).
-            </p>
+          <div className="pb-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4">{photosPanel}</div>
+          <footer className="border-t-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => void sendToPrint()}
+              disabled={!allAssigned || sent}
+              className={`w-full ${sendButtonClass}`}
+            >
+              {sent ? 'Sending…' : 'Ready to print'}
+            </button>
             {status.text && (
               <p
-                className={`text-sm font-extrabold ${
+                className={`mt-2 text-center text-xs font-extrabold ${
                   status.kind === 'ok'
                     ? 'text-[#15803d]'
                     : status.kind === 'err'
@@ -436,23 +558,83 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 {status.text}
               </p>
             )}
-          </div>
+          </footer>
+        </aside>
+      </div>
+
+      {/* Mobile bottom dock */}
+      <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-[#c9b8ff] bg-white/95 backdrop-blur lg:hidden">
+        <div className="flex h-14 items-stretch gap-1 px-2 py-1">
+          <button
+            type="button"
+            onClick={() => setPanelOpen((current) => !current)}
+            title="Photos"
+            className={dockButtonClass(panelOpen)}
+          >
+            <span className="text-[0.85rem] leading-none">▦</span>
+            Photos
+          </button>
+          <button type="button" onClick={autoPlace} title="Auto-place photos into slots" className={dockButtonClass(false)}>
+            <span className="text-[0.85rem] leading-none">⟳</span>
+            Auto
+          </button>
+          <button type="button" onClick={clearFrame} title="Clear the frame" className={dockButtonClass(false)}>
+            <span className="text-[0.85rem] leading-none">✕</span>
+            Clear
+          </button>
           <button
             type="button"
             id="organize-send"
             disabled={!allAssigned || sent}
             onClick={() => void sendToPrint()}
-            className={`rounded-full border-[3px] px-8 py-4 text-xl font-black uppercase tracking-wide transition-all ${
-              allAssigned && !sent
-                ? 'border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_6px_18px_rgba(77,45,133,0.4)] hover:scale-[1.02] active:scale-[0.98]'
-                : 'cursor-not-allowed border-[#c9b8ff] bg-white opacity-50'
+            className={`flex h-full min-w-0 flex-[1.8] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] transition-colors ${
+              sendReady
+                ? 'border-[3px] border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_0_0_3px_rgba(163,94,246,0.15)]'
+                : 'cursor-not-allowed border-[3px] border-[#c9b8ff] bg-white text-[#a29ac0] opacity-70'
             }`}
           >
+            <span className="text-[0.85rem] leading-none">»</span>
             {sent ? 'Sending…' : 'Ready to print'}
           </button>
         </div>
       </div>
-    </div>
+
+      {/* Mobile bottom sheet — photo picker */}
+      <div
+        className={`absolute inset-x-0 bottom-14 z-[110] flex max-h-[60vh] flex-col overflow-hidden rounded-t-[18px] border-t-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_-12px_40px_rgba(77,45,133,0.25)] transition-transform duration-300 ease-out lg:hidden ${
+          panelOpen ? 'translate-y-0' : 'pointer-events-none translate-y-[calc(100%+3.5rem)]'
+        }`}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">All photos</h2>
+            {status.text && (
+              <span
+                className={`text-xs font-extrabold ${
+                  status.kind === 'ok'
+                    ? 'text-[#15803d]'
+                    : status.kind === 'err'
+                      ? 'text-[#b3206e]'
+                      : 'text-[#7a4de3]'
+                }`}
+              >
+                {status.text}
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setPanelOpen(false)}
+            className="rounded-full border-2 border-[#c9b8ff] bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8]"
+          >
+            Close
+          </button>
+        </header>
+        <div className="pb-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+          {photosPanel}
+        </div>
+      </div>
+    </section>
   );
 };
 
