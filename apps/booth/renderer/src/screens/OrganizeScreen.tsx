@@ -292,17 +292,37 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           &ldquo;Ready to print&rdquo; — we&rsquo;ll handle the rest.
         </p>
 
-        {/* Frame slots */}
+        {/* Frame slots — rendered over the actual selected frame art, exactly
+            like the FrameCanvas used across the admin screens. */}
         <section className="mt-5 rounded-2xl border-2 border-white/20 bg-white/10 p-4">
           <h2 className="mb-3 text-xs font-extrabold uppercase tracking-[0.22em] opacity-80">Your frame</h2>
           <p className="mb-3 text-sm opacity-80">Tap a slot, then tap a photo to place it.</p>
-          <div className="flex flex-wrap gap-3">
+          <div
+            className="relative mx-auto w-full max-w-[420px] overflow-hidden rounded-xl border-2 border-white/25"
+            style={{
+              aspectRatio: `${template.width} / ${template.height}`,
+              backgroundColor: template.backgroundColor ?? '#111111',
+            }}
+          >
+            {template.assetUrl && (
+              <img
+                src={template.assetUrl}
+                alt="Selected frame"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-fill"
+                style={{ zIndex: template.frameLayerZIndex ?? 30 }}
+              />
+            )}
             {template.photoSlots.map((placement, i) => {
               const name = slots[i] ?? null;
+              const selected = pickSlot === i;
               const cls = [
-                'relative flex-1 cursor-pointer overflow-hidden rounded-xl border-4 transition-all',
-                name ? 'border-[#d9f85a] border-solid bg-white/5' : 'border-dashed border-white/40 bg-white/5',
-                pickSlot === i ? 'scale-[1.03] border-[#ff4bb5] shadow-[0_0_0_4px_rgba(255,75,181,0.35)]' : '',
+                'absolute cursor-pointer overflow-hidden transition-all',
+                name
+                  ? 'border-[3px] border-[#d9f85a] border-solid'
+                  : selected
+                    ? 'border-[3px] border-[#ff4bb5] border-solid shadow-[0_0_0_4px_rgba(255,75,181,0.35)]'
+                    : 'border-[3px] border-dashed border-white/70 bg-black/25',
               ].join(' ');
               return (
                 <button
@@ -312,15 +332,28 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                   aria-label={`Frame slot ${i + 1}`}
                   onClick={() => onPickSlot(i)}
                   className={cls}
-                  style={{ aspectRatio: `${placement.width} / ${placement.height}` }}
+                  style={{
+                    left: `${(placement.x / template.width) * 100}%`,
+                    top: `${(placement.y / template.height) * 100}%`,
+                    width: `${(placement.width / template.width) * 100}%`,
+                    height: `${(placement.height / template.height) * 100}%`,
+                    borderRadius: placement.borderRadius ? `${placement.borderRadius}px` : undefined,
+                    zIndex: (placement.zIndex ?? 10) + 1,
+                  }}
                 >
-                  <span className="absolute left-1.5 top-1.5 z-10 grid h-6 w-6 place-items-center rounded-full bg-black/60 text-xs font-black text-white">
+                  <span className="absolute left-1.5 top-1.5 z-10 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-[0.65rem] font-black text-white">
                     {i + 1}
                   </span>
                   {name ? (
-                    <img src={fileUrl(name)} alt={`Slot ${i + 1}`} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                    <img
+                      src={fileUrl(name)}
+                      alt={`Slot ${i + 1}`}
+                      loading="lazy"
+                      className="absolute inset-0 h-full w-full object-cover"
+                      style={{ objectPosition: placement.objectPosition ?? 'center' }}
+                    />
                   ) : (
-                    <span className="absolute inset-0 grid place-items-center p-2 text-center text-[0.7rem] font-extrabold uppercase tracking-wider opacity-70">
+                    <span className="absolute inset-0 grid place-items-center p-1 text-center text-[0.55rem] font-extrabold uppercase tracking-wider text-white/80 opacity-90">
                       Slot {i + 1}
                     </span>
                   )}
