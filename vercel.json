@@ -1,6 +1,14 @@
 {
   "outputDirectory": "apps/booth/dist/renderer",
   "rewrites": [
+    { "source": "/organize/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/organize/icons/:path*", "destination": "/icons/:path*" },
+    { "source": "/organize/manifest.webmanifest", "destination": "/manifest.webmanifest" },
+    { "source": "/organize/sw.js", "destination": "/sw.js" },
+    { "source": "/admin/assets/:path*", "destination": "/assets/:path*" },
+    { "source": "/admin/icons/:path*", "destination": "/icons/:path*" },
+    { "source": "/admin/manifest.webmanifest", "destination": "/manifest.webmanifest" },
+    { "source": "/admin/sw.js", "destination": "/sw.js" },
     { "source": "/admin/:path*", "destination": "/index.html" },
     { "source": "/admin", "destination": "/index.html" },
     { "source": "/organize/:path*", "destination": "/index.html" },
