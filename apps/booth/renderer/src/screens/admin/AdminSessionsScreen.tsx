@@ -13,7 +13,6 @@ import {
 import { registerGallerySession, SessionUploadFile, uploadSessionFiles, deleteGallerySession } from '../../utils/sessionUpload';
 import { generateQrDataUrl } from '../../utils/qr';
 import { GALLERY_URL } from '../../config';
-import { useBoothConfig } from '../../store/boothConfigStore';
 import { dropPendingUploads } from '../../lib/uploadJob';
 import { ConfirmModal } from '../../components/admin/Modal';
 import { SkeletonTable } from '../../components/admin/Skeleton';
@@ -27,7 +26,6 @@ import {
   IconEye,
   IconGif,
   IconImage,
-  IconPrinter,
   IconQr,
   IconSearch,
   IconTrash,
@@ -36,31 +34,6 @@ import {
 
 type DatePreset = 'all' | 'today' | '7d' | '30d' | 'custom';
 type StatusFilter = 'all' | SessionUploadStatus | SessionPrintStatus;
-
-const printSheet = (src: string) => {
-  const frame = document.createElement('iframe');
-  frame.style.cssText =
-    'position:fixed;right:0;bottom:0;width:210px;height:297px;border:0;opacity:0.01;z-index:-1;pointer-events:none;';
-  document.body.appendChild(frame);
-  frame.onload = () => {
-    const doc = frame.contentDocument;
-    if (!doc) return;
-    doc.open();
-    doc.write(`<!doctype html><html><head><style>
-      @page { size: 101.6mm 152.4mm; margin: 0; }
-      html, body { margin: 0; }
-      .print-sheet { width: 4in; height: 6in; overflow: hidden; }
-      .print-sheet img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    </style></head><body>
-      <div class="print-sheet"><img src="${src}" onload="setTimeout(function(){ window.focus(); window.print(); }, 250)" /></div>
-    </body></html>`);
-    doc.close();
-  };
-  setTimeout(() => {
-    document.body.removeChild(frame);
-    if (src.startsWith('blob:')) URL.revokeObjectURL(src);
-  }, 60000);
-};
 
 /**
  * Worker gallery URL for a token. This is what every admin QR/link points at —
@@ -309,99 +282,6 @@ export const AdminSessionsScreen: React.FC = () => {
     }
   };
 
-  const handleReprint = async (session: SessionRecord) => {
-    setBusy(`print:${session.token}`);
-    try {
-      let src: string | null = null;
-      const cached = await getUploadedBlob(session.token, 'framed.png');
-      if (cached) {
-        src = URL.createObjectURL(cached);
-      } else {
-        src = sessionFileUrl(session.token, 'framed.png');
-      }
-      if (!src) {
-        setError('No framed photo to print was found.');
-        return;
-      }
-      printSheet(src);
-      updateSessionRecord(session.token, { print_status: 'success' });
-      await refresh(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Reprint failed');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  /**
-   * Manual print for flow-2 (timed) sessions: the customer approved an
-   * arrangement on the /organize/:token page and the booth listener already
-   * generated framed.png (plus the GIF/live outputs), leaving the row at
-   * 'ready_to_print'. This is the ONLY thing that moves that row to
-   * 'success'/'error' — the booth never auto-prints. Prints the framed sheet
-   * through the configured CUPS queue when available, else falls back to the
-   * browser print dialog.
-   */
-  const handlePrint = async (session: SessionRecord) => {
-    const { printer } = useBoothConfig.getState();
-    const busyKey = `print:${session.token}`;
-    setBusy(busyKey);
-    try {
-      let src: string | null = null;
-      const cached = await getUploadedBlob(session.token, 'framed.png');
-      if (cached) {
-        src = URL.createObjectURL(cached);
-      } else {
-        src = sessionFileUrl(session.token, 'framed.png');
-      }
-      if (!src) {
-        setError('The framed photo has not been generated yet for this session.');
-        return;
-      }
-
-      let printed = false;
-      const api = window.electronAPI?.printer;
-      if (printer.enabled && printer.queueName && api) {
-        try {
-          const response = await fetch(src);
-          const blob = await response.blob();
-          const dataUrl = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result));
-            reader.onerror = () => reject(new Error('Reading the framed photo failed.'));
-            reader.readAsDataURL(blob);
-          });
-          const result = await api.print({
-            dataUrl,
-            fileName: 'photo-booth-print.jpg',
-            queueName: printer.queueName,
-            copies: printer.copies,
-            paperSize: printer.paperSize,
-            mediaType: printer.mediaType,
-            quality: printer.quality,
-            colorMode: printer.colorMode,
-          });
-          printed = result.ok;
-          if (!result.ok) {
-            setError('The printer rejected the job.');
-          }
-        } catch (error) {
-          setError(error instanceof Error ? error.message : 'Printing failed.');
-        }
-      } else {
-        printSheet(src);
-        printed = true;
-      }
-
-      updateSessionRecord(session.token, { print_status: printed ? 'success' : 'error' });
-      await refresh(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Print failed');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   const handleDelete = async () => {
     setDeleteBusy(true);
     const tokens = Array.from(selected);
@@ -566,7 +446,7 @@ export const AdminSessionsScreen: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white">Sessions</h1>
           <p className="mt-0.5 text-sm text-white/50">
-            {filteredSessions.length} of {sessions.length} record{sessions.length === 1 ? '' : 's'} — re-upload or reprint failed work, inspect results
+            {filteredSessions.length} of {sessions.length} record{sessions.length === 1 ? '' : 's'} — re-upload failed work, inspect results, queue prints in Print Queue
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -715,7 +595,6 @@ export const AdminSessionsScreen: React.FC = () => {
                 filteredSessions.map((session) => {
                 const isSelected = selected.has(session.token);
                 const uploadBusy = busy === `upload:${session.token}`;
-                const printBusy = busy === `print:${session.token}`;
                 return (
                   <tr key={session.token} className={`transition ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}>
                     <td className="px-4 py-4">
@@ -769,39 +648,7 @@ export const AdminSessionsScreen: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <PrintBadge status={session.print_status} />
-                        {session.print_status === 'ready_to_print' && (
-                          <button
-                            onClick={() => handlePrint(session)}
-                            disabled={printBusy}
-                            title="Print the framed photo on the booth printer"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-[#d9f85a]/10 text-[#d9f85a] px-3 py-1 text-xs font-medium transition hover:bg-[#d9f85a]/20 disabled:opacity-60"
-                          >
-                            {printBusy ? (
-                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                            ) : (
-                              <IconPrinter className="h-3.5 w-3.5" />
-                            )}
-                            Print
-                          </button>
-                        )}
-                        {session.print_status === 'error' && (
-                          <button
-                            onClick={() => handleReprint(session)}
-                            disabled={printBusy}
-                            title="Reprint the framed photo"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-60"
-                          >
-                            {printBusy ? (
-                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                            ) : (
-                              <IconPrinter className="h-3.5 w-3.5" />
-                            )}
-                            Reprint
-                          </button>
-                        )}
-                      </div>
+                      <PrintBadge status={session.print_status} />
                     </td>
                     <td className="px-4 py-4 text-right">
                       <button

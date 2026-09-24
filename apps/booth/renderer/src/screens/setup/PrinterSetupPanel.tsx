@@ -196,6 +196,44 @@ export const PrinterSetupPanel: React.FC = () => {
           no printer is available, the booth falls back to the simulated print so the flow never
           blocks.
         </p>
+
+        {printer.enabled && (
+          <div className="mt-4 border-t-2 border-[#c9b8ff]/60 pt-4">
+            <div className="text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+              Print release mode
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => updatePrinter({ printMode: 'manual' })}
+                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
+                  printer.printMode === 'manual'
+                    ? 'border-[#a35ef6] bg-[#f3e9ff]'
+                    : 'border-[#c9b8ff] bg-white hover:border-[#a35ef6]'
+                }`}
+              >
+                <div className="text-sm font-black text-[#4d2d85]">Manual (batch)</div>
+                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-[#4d2d85]/70">
+                  Sessions queue up; release them from Admin → Print Queue. Minimizes wasted sheets.
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => updatePrinter({ printMode: 'auto' })}
+                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
+                  printer.printMode === 'auto'
+                    ? 'border-[#4acaf1] bg-[#e3f6ff]'
+                    : 'border-[#c9b8ff] bg-white hover:border-[#4acaf1]'
+                }`}
+              >
+                <div className="text-sm font-black text-[#4d2d85]">Automatic</div>
+                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-[#4d2d85]/70">
+                  Prints as soon as the framed photo is ready. The customer waits for the print.
+                </div>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">

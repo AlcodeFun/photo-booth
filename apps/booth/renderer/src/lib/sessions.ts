@@ -12,10 +12,11 @@ import { GALLERY_URL } from '../config';
  */
 
 export type SessionUploadStatus = 'uploading' | 'success' | 'error';
-/** 'ready_to_print' is set by the flow-2 organize page when the customer
- *  approves the selected frame arrangement; the booth then prints and moves
- *  the row to 'success' / 'error'. */
-export type SessionPrintStatus = 'printing' | 'ready_to_print' | 'success' | 'error';
+/** `queued` means the session has a print job waiting in the booth's print
+ *  queue; `ready_to_print` is set by the flow-2 organize page when the customer
+ *  approves the arrangement and the admin has not queued it yet. The queue owns
+ *  `queued`/`printing`/`success`/`error` from then on. */
+export type SessionPrintStatus = 'printing' | 'ready_to_print' | 'queued' | 'success' | 'error';
 
 /** Which capture flow produced the session. */
 export type SessionFlowMode = 'retake' | 'timed' | 'auto';
@@ -42,7 +43,9 @@ const isSessionUploadStatus = (value: unknown): SessionUploadStatus =>
   value === 'success' || value === 'error' ? value : 'uploading';
 
 const isSessionPrintStatus = (value: unknown): SessionPrintStatus =>
-  value === 'success' || value === 'error' || value === 'ready_to_print' ? value : 'printing';
+  value === 'success' || value === 'error' || value === 'ready_to_print' || value === 'queued'
+    ? value
+    : 'printing';
 
 const isSessionFlowMode = (value: unknown): SessionFlowMode =>
   value === 'timed' || value === 'auto' ? value : 'retake';
@@ -68,7 +71,7 @@ const mapSessionRow = (row: Record<string, unknown>): SessionRecord => ({
 });
 
 /** Session print status values produced by the booth (store/PRINT_QR). */
-export type BoothPrintStatus = 'IDLE' | 'PRINTING' | 'SUCCESS' | 'ERROR';
+export type BoothPrintStatus = 'IDLE' | 'PRINTING' | 'QUEUED' | 'SUCCESS' | 'ERROR';
 /** Session upload status values produced by the booth (store/PRINT_QR). */
 export type BoothUploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
 
@@ -77,7 +80,13 @@ export const normalizeUploadStatus = (status: BoothUploadStatus): SessionUploadS
   status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'uploading';
 
 export const normalizePrintStatus = (status: BoothPrintStatus): SessionPrintStatus =>
-  status === 'SUCCESS' ? 'success' : status === 'ERROR' ? 'error' : 'printing';
+  status === 'SUCCESS'
+    ? 'success'
+    : status === 'ERROR'
+      ? 'error'
+      : status === 'QUEUED'
+        ? 'queued'
+        : 'printing';
 
 const persistGuard = (promise: Promise<unknown>): void => {
   promise.catch((error) => console.warn('[sessions] persist skipped:', error));

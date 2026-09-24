@@ -42,10 +42,18 @@ export const DEFAULT_OUTPUTS: BoothOutputSettings = {
   framedLive: true,
 };
 
+export type PrintMode = 'manual' | 'auto';
+
 export interface BoothPrinterSettings {
   enabled: boolean;
   /** CUPS queue / printer name (e.g. SELPHY_CP1000). */
   queueName: string;
+  /**
+   * `manual` (default) stages each session as a queued print job the operator
+   * releases from Admin → Print Queue (minimises wasted ribbon/paper). `auto`
+   * submits each session to the printer immediately.
+   */
+  printMode: PrintMode;
   copies: number;
   /** CUPS page size (e.g. `100x148mm` for 4x6). */
   paperSize: string;
@@ -59,6 +67,7 @@ export interface BoothPrinterSettings {
 export const DEFAULT_PRINTER: BoothPrinterSettings = {
   enabled: false,
   queueName: '',
+  printMode: 'manual',
   copies: 1,
   paperSize: '100x148mm',
   mediaType: 'photo',
@@ -120,9 +129,13 @@ export const useBoothConfig = create<BoothConfigState>()(
     }),
     {
       name: 'photo-booth.setup',
-      version: 4,
+      version: 5,
       migrate: (persistedState, version) => {
-        const state = persistedState as { flow?: Record<string, unknown>; outputs?: Record<string, unknown> };
+        const state = persistedState as {
+          flow?: Record<string, unknown>;
+          outputs?: Record<string, unknown>;
+          printer?: Record<string, unknown>;
+        };
         if (version < 2 && state.flow) {
           // Auto flow had a separate "gap between shots" — the countdown now
           // doubles as the gap, so drop the deprecated field.
@@ -135,6 +148,10 @@ export const useBoothConfig = create<BoothConfigState>()(
         if (version < 4 && state.outputs && state.outputs.gif === undefined) {
           // v4 brings the animated GIF back as an independent output toggle.
           state.outputs.gif = true;
+        }
+        if (version < 5 && state.printer && state.printer.printMode === undefined) {
+          // v5 adds the manual/auto print mode; default to manual (least waste).
+          state.printer.printMode = 'manual';
         }
         return state as unknown as BoothConfigState;
       },

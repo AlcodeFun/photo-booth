@@ -1,4 +1,4 @@
-export type AdminArea = 'login' | 'dashboard' | 'sesi' | 'templates' | 'frame-fit' | 'camera';
+export type AdminArea = 'login' | 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'frame-fit' | 'camera';
 
 const isFileProtocol = () => window.location.protocol === 'file:';
 

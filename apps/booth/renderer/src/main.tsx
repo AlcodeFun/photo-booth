@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { startUploadWatcher } from './lib/uploadJob';
 import { startPrintListener } from './lib/printListener';
+import { startPrintQueueSync } from './lib/printQueueSync';
 import './index.css';
 
 // The hosted arrange page (/organize/:token) is a stateless customer screen —
@@ -12,14 +13,24 @@ import './index.css';
 const isOrganizePath =
   window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean)[0] === 'organize';
 
-if (!isOrganizePath) {
+// The dev admin window opens directly on /#/admin. It is a control surface
+// only — the booth window owns uploads, gallery polling and print resolution,
+// so skip the background watchers here to avoid doing everything twice.
+const isAdminWindow =
+  window.location.hash.startsWith('#/admin') ||
+  window.location.pathname.replace(/\/+$/, '').startsWith('/admin');
+
+if (!isOrganizePath && !isAdminWindow) {
   // Owns background gallery uploads independently of any mounted screen, so they
   // keep running after the customer leaves the session (store-level, not React).
   startUploadWatcher();
   // Listens for arrangement requests the gallery customer makes after arranging
   // their timed-flow photos onto the frame slots, then generates + uploads the
-  // framed outputs (the admin prints framed.png from the dashboard).
+  // framed outputs (the admin queues framed.png from the Print Queue).
   startPrintListener();
+  // Owns the main-process print queue bridge: resolves framed images for jobs
+  // just-in-time and mirrors job state onto each session's print_status.
+  startPrintQueueSync();
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

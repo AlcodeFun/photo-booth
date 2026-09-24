@@ -9,6 +9,7 @@ import { AdminLoginScreen } from './AdminLoginScreen';
 import { AdminDashboardScreen } from './AdminDashboardScreen';
 import { AdminSessionsScreen } from './AdminSessionsScreen';
 import { AdminFramesScreen } from './AdminFramesScreen';
+import { PrintQueueScreen } from './PrintQueueScreen';
 import { FrameAdminScreen } from '../FrameAdminScreen';
 
 type AdminArea = AdminNavArea | 'frame-fit' | 'login';
@@ -23,7 +24,15 @@ const parseArea = (): AdminArea => {
   ).replace(/\/+$/, '');
   const segment = tail.split('/').filter(Boolean)[0] ?? '';
   if (segment === 'login') return 'login';
-  if (segment === 'dashboard' || segment === 'sesi' || segment === 'templates' || segment === 'frame-fit') return segment;
+  if (
+    segment === 'dashboard' ||
+    segment === 'sesi' ||
+    segment === 'templates' ||
+    segment === 'print-queue' ||
+    segment === 'frame-fit'
+  ) {
+    return segment;
+  }
   return 'dashboard';
 };
 
@@ -150,6 +159,7 @@ export const AdminApp: React.FC = () => {
       >
         {area === 'dashboard' && <AdminDashboardScreen onNavigate={setHash} />}
         {area === 'sesi' && <AdminSessionsScreen />}
+        {area === 'print-queue' && <PrintQueueScreen />}
         {area === 'templates' && <AdminFramesScreen />}
       </AdminLayout>
       {snackbar && (

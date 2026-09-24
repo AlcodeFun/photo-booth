@@ -6,7 +6,7 @@ import {
 } from '@photo-booth/types';
 import { SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
 import { useBoothConfig } from './boothConfigStore';
-import { renderComposition } from '../utils/resultExport';
+import { GALLERY_URL } from '../config';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
@@ -33,9 +33,15 @@ export interface SessionStore {
   paymentConfirmed: boolean;
 
   // Print & Sync Simulation States
-  printStatus: 'IDLE' | 'PRINTING' | 'SUCCESS' | 'ERROR';
+  printStatus: 'IDLE' | 'PRINTING' | 'QUEUED' | 'SUCCESS' | 'ERROR';
   uploadStatus: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
   downloadUrl: string | null;
+
+  // When true the booth's print queue owns this session's `print_status`; the
+  // store stops writing it so queue transitions (queued → printing →
+  // success/error) are never clobbered by upload-status patches.
+  printManagedByQueue: boolean;
+  printJobId: string | null;
 
   // Persisted session mirror (kept in the store so status patches survive the
   // PRINT_QR component unmounting when the round advances to COMPLETE).
@@ -59,7 +65,7 @@ export interface SessionStore {
   
   // Final actions
   startPrinting: () => void;
-  _printFramed: () => Promise<boolean>;
+  _enqueuePrint: (token: string) => Promise<void>;
   setUploadStatus: (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR') => void;
   setDownloadUrl: (url: string) => void;
   setSessionToken: (token: string | null) => void;
@@ -83,6 +89,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
   downloadUrl: null,
+  printManagedByQueue: false,
+  printJobId: null,
   sessionToken: null,
   sessionFilesByToken: {},
 
@@ -98,6 +106,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,
+      printManagedByQueue: false,
+      printJobId: null,
       sessionToken: null,
       sessionFilesByToken: {},
       currentScreen: 'CONTEXT_BUMPER',
@@ -264,51 +274,56 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       currentScreen: 'PRINT_QR',
       printStatus: 'PRINTING',
       uploadStatus: 'UPLOADING',
+      printManagedByQueue: false,
+      printJobId: null,
     });
 
     // Flow 2 (timed) has no booth-side print: the customer arranges the frame
     // on the /organize/:token page and the booth LISTENER regenerates + uploads
-    // the framed outputs; the admin prints framed.png manually from the
-    // dashboard. The store stays on the QR screen (upload-only) until the
-    // session row is moved to ready_to_print by the arrange page.
+    // the framed outputs; the admin queues framed.png from the Print Queue.
     if (useBoothConfig.getState().flowMode === 'timed') {
       return;
     }
 
-    // Send the framed sheet to the CUPS printer (Selphy) when configured and
-    // reachable; otherwise fall back to the simulated delay. Upload state is
-    // driven by the real upload in PRINT_QR.
-    void get()
-      ._printFramed()
-      .finally(() => {
-        set({ printStatus: 'SUCCESS' });
-        // Patches the row from inside the store action (not a React effect), so
-        // the final status lands even after the PRINT_QR screen has unmounted.
-        get()._syncSessionRow();
+    const { printer, outputs } = useBoothConfig.getState();
+    const api = window.electronAPI?.printer;
+    const queueReady =
+      printer.enabled &&
+      Boolean(printer.queueName) &&
+      Boolean(GALLERY_URL) &&
+      outputs.framed &&
+      typeof api?.enqueue === 'function';
+
+    if (queueReady) {
+      // The session token is generated later (during upload), so the real
+      // enqueue happens in setSessionToken once the token exists. Mark the
+      // queue as owner now so the store never clobbers the queue's status.
+      set({
+        printManagedByQueue: true,
+        printStatus: printer.printMode === 'manual' ? 'QUEUED' : 'PRINTING',
       });
+      get()._syncSessionRow();
+      return;
+    }
+
+    // No usable printer/queue: keep the flow unblocked with the simulated print.
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    void sleep(4000).then(() => {
+      set({ printStatus: 'SUCCESS' });
+      get()._syncSessionRow();
+    });
   },
 
-  _printFramed: async () => {
-    const { printer, outputs } = useBoothConfig.getState();
-    const { frame, photoSlots, filterId } = get();
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-    if (!printer.enabled || !printer.queueName || !frame || photoSlots.length === 0 || !outputs.framed) {
-      await sleep(4000);
-      return false;
-    }
-
+  _enqueuePrint: async (token) => {
+    const { printer } = useBoothConfig.getState();
     const api = window.electronAPI?.printer;
-    if (!api) {
-      await sleep(4000);
-      return false;
+    if (!api?.enqueue) {
+      return;
     }
-
     try {
-      const canvas = await renderComposition(frame, photoSlots, filterId, { includeFrame: true });
-      const result = await api.print({
-        dataUrl: canvas.toDataURL('image/jpeg', 0.92),
-        fileName: 'photo-booth-print.jpg',
+      const job = await api.enqueue({
+        token,
+        fileName: 'framed.png',
         queueName: printer.queueName,
         copies: printer.copies,
         paperSize: printer.paperSize,
@@ -316,11 +331,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         quality: printer.quality,
         colorMode: printer.colorMode,
       });
-      await sleep(500);
-      return result.ok;
-    } catch {
-      await sleep(4000);
-      return false;
+      set({ printJobId: job.id });
+      if (printer.printMode === 'auto') {
+        await api.startBatch([job.id]);
+      }
+    } catch (error) {
+      console.warn('[sessionStore] enqueue print failed:', error);
+      set({ printManagedByQueue: false, printStatus: 'ERROR' });
+      get()._syncSessionRow();
     }
   },
 
@@ -337,6 +355,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   setSessionToken: (token) => {
     set({ sessionToken: token });
     get()._syncSessionRow();
+    // The framed image is cached/uploaded after the token exists, so the print
+    // job is enqueued here (the queue resolves the image just-in-time).
+    if (token && get().printManagedByQueue && !get().printJobId) {
+      void get()._enqueuePrint(token);
+    }
   },
 
   setSessionFilesForToken: (token, files) => {
@@ -356,7 +379,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       return;
     }
     updateSessionRecord(state.sessionToken, {
-      print_status: normalizePrintStatus(state.printStatus),
+      ...(state.printManagedByQueue ? {} : { print_status: normalizePrintStatus(state.printStatus) }),
       upload_status: normalizeUploadStatus(state.uploadStatus),
       download_url: state.downloadUrl ?? undefined,
       files: state.sessionFilesByToken[state.sessionToken] ?? [],

@@ -5,17 +5,19 @@ import {
   IconLogout,
   IconMenu,
   IconPhotoBooth,
+  IconPrinter,
   IconSearch,
   IconSessions,
   IconTemplates,
 } from './AdminIcons';
 import { ConfirmModal } from './Modal';
 
-export type AdminNavArea = 'dashboard' | 'sesi' | 'templates';
+export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue';
 
 const NAV_ITEMS: Array<{ area: AdminNavArea; label: string; keywords: string }> = [
   { area: 'dashboard', label: 'Dashboard', keywords: 'dashboard home summary overview' },
-  { area: 'sesi', label: 'Sessions', keywords: 'sessions sesi upload print results photos' },
+  { area: 'sesi', label: 'Sessions', keywords: 'sessions sesi upload results photos' },
+  { area: 'print-queue', label: 'Print Queue', keywords: 'print printer queue selphy cups reprint batch' },
   { area: 'templates', label: 'Templates', keywords: 'templates frame gallery frames' },
 ];
 
@@ -111,6 +113,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 <span className="shrink-0">
                   {item.area === 'dashboard' && <IconDashboard />}
                   {item.area === 'sesi' && <IconSessions />}
+                  {item.area === 'print-queue' && <IconPrinter />}
                   {item.area === 'templates' && <IconTemplates />}
                 </span>
                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -177,6 +180,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                       <span className="text-[#d9f85a]">
                         {item.area === 'dashboard' && <IconDashboard className="h-4 w-4" />}
                         {item.area === 'sesi' && <IconSessions className="h-4 w-4" />}
+                        {item.area === 'print-queue' && <IconPrinter className="h-4 w-4" />}
                         {item.area === 'templates' && <IconTemplates className="h-4 w-4" />}
                       </span>
                       {item.label}
@@ -242,6 +246,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
               <span className="shrink-0">
                 {item.area === 'dashboard' && <IconDashboard />}
                 {item.area === 'sesi' && <IconSessions />}
+                {item.area === 'print-queue' && <IconPrinter />}
                 {item.area === 'templates' && <IconTemplates />}
               </span>
             </button>

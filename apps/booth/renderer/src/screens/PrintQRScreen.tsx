@@ -21,7 +21,12 @@ export const PrintQRScreen: React.FC = () => {
   );
   const outputs = useBoothConfig((state) => state.outputs);
   const flowMode = useBoothConfig((state) => state.flowMode);
+  const printMode = useBoothConfig((state) => state.printer.printMode);
+  const printerEnabled = useBoothConfig((state) => state.printer.enabled);
   const isTimedFlow = flowMode === 'timed';
+  // Manual mode queues the print for the operator; the customer never waits on
+  // a physical print, so the screen finishes as soon as the upload/QR is ready.
+  const manualPrint = printerEnabled && printMode === 'manual';
 
   const [liveBlob, setLiveBlob] = useState<Blob | null>(null);
   const [liveUrl, setLiveUrl] = useState<string | null>(null);
@@ -45,7 +50,7 @@ export const PrintQRScreen: React.FC = () => {
   // to the hosted app's /organize/:token arrange page, and the admin prints the
   // generated framed.png manually. The screen is finished as soon as the upload
   // + QR are ready — no booth-side print status involved.
-  const isDone = isTimedFlow
+  const isDone = isTimedFlow || manualPrint
     ? uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl)
     : printStatus === 'SUCCESS' &&
       (uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl));

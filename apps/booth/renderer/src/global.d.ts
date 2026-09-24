@@ -42,6 +42,7 @@ export interface IElectronAPIPrinterStatusResult {
   state: 'idle' | 'printing' | 'stopped' | 'unknown' | 'unavailable';
   message?: string;
   error?: string;
+  reasons?: string[];
 }
 
 export interface IElectronAPIPrinterPrintPayload {
@@ -53,18 +54,77 @@ export interface IElectronAPIPrinterPrintPayload {
   mediaType?: string;
   quality?: number;
   colorMode?: 'color' | 'grayscale';
+  cupsOptions?: Record<string, string>;
 }
 
 export interface IElectronAPIPrinterPrintResult {
   ok: boolean;
   error?: string;
   output?: string;
+  jobId?: string;
+}
+
+export type IElectronAPIPrintJobState =
+  | 'pending'
+  | 'submitted'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'canceled';
+
+export interface IElectronAPIPrintJob {
+  id: string;
+  token?: string;
+  fileName: string;
+  queueName: string;
+  copies?: number;
+  paperSize?: string;
+  mediaType?: string;
+  quality?: number;
+  colorMode?: 'color' | 'grayscale';
+  cupsOptions?: Record<string, string>;
+  state: IElectronAPIPrintJobState;
+  cupsJobId?: string;
+  attempts: number;
+  error?: string;
+  priority?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface IElectronAPIPrintQueueSnapshot {
+  jobs: IElectronAPIPrintJob[];
+  running: boolean;
+  activeJobId: string | null;
+}
+
+export interface IElectronAPIPrintEnqueueInput {
+  token?: string;
+  fileName?: string;
+  queueName: string;
+  copies?: number;
+  paperSize?: string;
+  mediaType?: string;
+  quality?: number;
+  colorMode?: 'color' | 'grayscale';
+  cupsOptions?: Record<string, string>;
 }
 
 export interface IElectronAPIPrinter {
   list: () => Promise<IElectronAPIPrinterListResult>;
   status: (queueName: string) => Promise<IElectronAPIPrinterStatusResult>;
   print: (payload: IElectronAPIPrinterPrintPayload) => Promise<IElectronAPIPrinterPrintResult>;
+  queue: () => Promise<IElectronAPIPrintQueueSnapshot>;
+  enqueue: (payload: IElectronAPIPrintEnqueueInput) => Promise<IElectronAPIPrintJob>;
+  startBatch: (ids: string[]) => Promise<void>;
+  retry: (id: string) => Promise<IElectronAPIPrintJob | null>;
+  cancel: (id: string) => Promise<void>;
+  remove: (id: string) => Promise<void>;
+  provideImage: (payload: { jobId: string; dataUrl?: string; error?: string }) => Promise<boolean>;
+  onJobUpdate: (callback: (snapshot: IElectronAPIPrintQueueSnapshot) => void) => () => void;
+  onResolveImage: (
+    callback: (request: { jobId: string; token?: string; fileName: string }) => void,
+  ) => () => void;
 }
 
 export interface IElectronAPI {

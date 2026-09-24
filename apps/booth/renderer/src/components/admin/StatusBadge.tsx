@@ -60,6 +60,14 @@ export const PrintBadge: React.FC<{ status: SessionPrintStatus }> = ({ status })
       </span>
     );
   }
+  if (status === 'queued') {
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${VIOLET}`}>
+        <IconPrinter className="h-3.5 w-3.5" />
+        Queued
+      </span>
+    );
+  }
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${AMBER}`}>
       <IconPrinter className="h-3.5 w-3.5 animate-pulse" />

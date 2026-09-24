@@ -36,5 +36,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
     list: () => ipcRenderer.invoke('printer:list'),
     status: (queueName: string) => ipcRenderer.invoke('printer:status', queueName),
     print: (payload: unknown) => ipcRenderer.invoke('printer:print', payload),
+    queue: () => ipcRenderer.invoke('printer:queue'),
+    enqueue: (payload: unknown) => ipcRenderer.invoke('printer:enqueue', payload),
+    startBatch: (ids: string[]) => ipcRenderer.invoke('printer:start-batch', ids),
+    retry: (id: string) => ipcRenderer.invoke('printer:retry', id),
+    cancel: (id: string) => ipcRenderer.invoke('printer:cancel', id),
+    remove: (id: string) => ipcRenderer.invoke('printer:remove', id),
+    provideImage: (payload: { jobId: string; dataUrl?: string; error?: string }) =>
+      ipcRenderer.invoke('printer:image-ready', payload),
+    onJobUpdate: (callback: (snapshot: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, snapshot: unknown) => callback(snapshot);
+      ipcRenderer.on('printer:job-update', listener);
+      return () => ipcRenderer.removeListener('printer:job-update', listener);
+    },
+    onResolveImage: (callback: (request: unknown) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, request: unknown) => callback(request);
+      ipcRenderer.on('printer:resolve-image', listener);
+      return () => ipcRenderer.removeListener('printer:resolve-image', listener);
+    },
   },
 });
