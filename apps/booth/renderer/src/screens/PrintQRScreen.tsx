@@ -50,10 +50,15 @@ export const PrintQRScreen: React.FC = () => {
   // to the hosted app's /organize/:token arrange page, and the admin prints the
   // generated framed.png manually. The screen is finished as soon as the upload
   // + QR are ready — no booth-side print status involved.
-  const isDone = isTimedFlow || manualPrint
-    ? uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl)
-    : printStatus === 'SUCCESS' &&
-      (uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl));
+  const uploadReady = uploadStatus === 'SUCCESS' || uploadStatus === 'ERROR' || Boolean(downloadUrl);
+  const printReady =
+    !printerEnabled ||
+    manualPrint ||
+    printStatus === 'SUCCESS' ||
+    printStatus === 'ERROR' ||
+    printStatus === 'READY_TO_PRINT';
+  const isDone = uploadReady && (isTimedFlow || printReady);
+  const canFinishSession = !isTimedFlow || isDone;
   const selectedPhotos = useMemo(() => getSelectedPhotoUrls(photoSlots), [photoSlots]);
   const allPhotos = useMemo(() => getAllPhotoUrls(photoSlots), [photoSlots]);
   const frameFilter = getCanvasFilter(filterId);
@@ -298,38 +303,7 @@ export const PrintQRScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Header */}
-      <header
-        className="print-no-show relative flex shrink-0 items-center justify-center gap-3 border-b-[3px] border-[#ff4bb5] bg-[#ff4bb5] px-5 py-3 md:py-4"
-        style={{ animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
-      >
-        <span
-          className="pointer-events-none absolute left-[7%] top-1/2 -translate-y-1/2 text-2xl md:text-3xl"
-          style={{ animation: 'pb-float 3.2s ease-in-out infinite' }}
-        >
-          ✨
-        </span>
-        <span
-          className="pointer-events-none absolute right-[7%] top-1/2 -translate-y-1/2 text-2xl md:text-3xl"
-          style={{ animation: 'pb-float 3.8s ease-in-out 0.5s infinite' }}
-        >
-          💖
-        </span>
-        <div className="flex flex-col items-center gap-0.5">
-          <h1
-            className="mt-0.5 text-[1.4rem] font-black uppercase tracking-[-0.08em] text-white md:text-[1.8rem]"
-            style={{ animation: 'pb-glow 2.6s ease-in-out infinite' }}
-          >
-            Hasil
-          </h1>
-          <p
-            className="pb-tap text-[0.55rem] font-black uppercase tracking-[0.3em] text-white/90 md:text-[0.7rem]"
-            style={{ animation: 'pb-tap 2.4s ease-in-out infinite' }}
-          >
-            Your memories are ready 🎉
-          </p>
-        </div>
-      </header>
+    
 
       {/* Print-only framed sheet (physical print safety net) */}
       {!isTimedFlow && (
@@ -554,17 +528,17 @@ export const PrintQRScreen: React.FC = () => {
               )}
             </button>
             </div>
-            
+              
              <button
           onClick={completeSession}
-          disabled={!isDone}
+              disabled={!canFinishSession}
           title="Finish Session"
-          className={`shrink-0 rounded-[12px] px-6 py-3 text-[1.2rem] font-black uppercase tracking-[0.16em] transition-all md:px-8 ${
-            isDone
+              className={`shrink-0 rounded-[12px] px-6 py-3 text-[1.2rem] font-black uppercase tracking-[0.16em] transition-all md:px-8 ${
+                canFinishSession
               ? 'bg-[#ff4bb5] text-[#ffffff] shadow-[0_4px_0_rgba(0,0,0,0.18)] hover:-translate-y-0.5 hover:shadow-[0_7px_0_rgba(0,0,0,0.18)] active:translate-y-0'
               : 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
           }`}
-          style={isDone ? { animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' } : undefined}
+              style={canFinishSession ? { animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' } : undefined}
         >
           {isDone ? '✓ Selesai 🎉' : 'Finish Session'}
         </button>

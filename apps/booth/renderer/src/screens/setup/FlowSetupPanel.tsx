@@ -180,7 +180,7 @@ export const FlowSetupPanel: React.FC = () => {
               draftFlow.maxAttempts === 1 ? 'attempt' : 'attempts'
             } before "Use photo" is forced; a ${draftFlow.shotCountdown}s countdown runs before every shot.`}
           {draftMode === 'timed' &&
-            `The session runs for ${draftFlow.timeBudgetSeconds}s after a ${draftFlow.timedStartCountdown}s start countdown. Tapping the live view captures another photo until the budget ends — every raw photo uploads for the gallery picker.`}
+            `The session runs for ${draftFlow.timeBudgetSeconds}s. A ${draftFlow.timedStartCountdown}s countdown runs before the first photo and every later photo; tap the live view to capture until the budget ends.`}
           {draftMode === 'auto' &&
             `The booth fires a ${draftFlow.shotCountdown}s countdown that doubles as the gap, so the next slot starts immediately after each capture.`}
         </p>

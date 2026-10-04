@@ -48,13 +48,14 @@ P3  AI effects · Payment automation · Mobile application
   Open: **TASK-032** loading states, **TASK-033** error states, **TASK-034** timeout/reset flow.
 - **Camera integration is live on Windows via gphoto2** (no Canon SDK). Live-view mirror
   streams over IPC, full-res shutter persists originals to `Pictures\Photo Booth`.
-  Remaining hardware blockers: the **camera is flaky (needs healthy PTP, i.e. charged
-  battery / AC + Auto Power Off = Disable)**, the **HDMI→USB capture card has never
-  appeared on the booth PC's USB bus**, and **firmware update to 600D v1.0.3 is pending**.
+  Capture now stops and joins the Live View process before issuing one settled
+  `--capture-image-and-download` command, then attempts to restore Live View. This is
+  intended to prevent intermittent `0x2019: PTP DEVICE BUSY` failures caused by PTP
+  session overlap; EOS 600D hardware soak testing is still pending.
 - **Digital gallery worker (`apps/gallery`)** is built (R2 + QR download page); the booth
   uses it when `VITE_GALLERY_URL` is set, otherwise it runs simulated/offline.
-- **Typecheck:** Electron passes clean; renderer has known pre-existing errors in
-  `App.tsx`, `mockData.ts`, `FrameTemplateAdminScreen.tsx` (see §10).
+- **Typecheck:** Electron and renderer pass clean. Lint has no errors; existing
+  `no-console` warnings remain.
 
 Details on all of the above follow in §3–§9.
 
@@ -116,8 +117,8 @@ Retake attempts stay local only; rejected attempts are **not** uploaded to the c
 
 | Job | Implementation |
 |---|---|
-| **Full-res shutter** | `gphoto2` over USB PTP via `GphotoCameraService.takePicture()` → IPC `camera:takePicture` |
-| **In-app live view** | `startLiveView()` → `gphoto2 --stdout --capture-movie` → MJPEG frames → IPC `camera:liveview` (memory only; never recorded) |
+| **Full-res shutter** | `GphotoCameraService.takePicture()` → stop/join Live View → one `gphoto2 --set-config viewfinder=0 --wait-event=500ms --capture-image-and-download` command → IPC `camera:takePicture` |
+| **In-app live view** | `startLiveView()` → `gphoto2 --set-config viewfinder=1 --stdout --capture-movie` → wait for first frame → MJPEG frames → IPC `camera:liveview` (memory only; never recorded) |
 | **Mirror feed (target)** | Camera HDMI-out → HDMI-to-USB capture card (UVC webcam) or OBS Virtual Camera → renderer `getUserMedia` |
 | **Webcam fallback** | `navigator.mediaDevices.getUserMedia` in PhotoCaptureScreen when the Canon bridge is unavailable |
 | **No Canon SDK** | EDSDK was uninstalled; only a 32-bit remnant remained. `koffi` FFI and `@brick-a-brack/napi-canon-cameras` were evaluated and **rejected** |
@@ -145,6 +146,10 @@ the temp JPEG in `%TEMP%\photo-booth-camera-*` is then removed. Camera Settings 
 ### 600D operational facts
 
 - **Auto Power Off must be Disable** — sleep kills Live View + PTP.
+- **One Shot AF** is required; `capture-image` focuses before exposure, so no separate
+  autofocus command is issued.
+- Do not run another gphoto2 process while the booth owns the camera. The service queue
+  stops and joins Live View before the 500 ms settled capture command.
 - HDMI out works **only during Live View**; port is **mini-HDMI (Type-C)**.
 - Wireless/remote capture uses wired USB PTP only in this product.
 
@@ -215,11 +220,8 @@ corepack pnpm --filter booth build    # vite build + electron tsc
 corepack pnpm --filter booth typecheck# tsc electron + renderer (--noEmit)
 ```
 
-**Known pre-existing renderer typecheck debt** (Electron is clean):
-- `renderer/src/App.tsx` — unused `resetSession`, `activeStepIdx` (TS6133).
-- `renderer/src/data/mockData.ts` — unused `CLASSIC_BLACK_TEMPLATES` (TS6133).
-- `renderer/src/screens/FrameTemplateAdminScreen.tsx` — `sourcePhotoSlot` optional/required
-  mismatch; `PointerEvent` type mismatches on two handlers.
+**Validation status:** Electron and renderer typecheck pass. Booth build and lint complete
+without errors; hardware-only PTP behavior must still be validated on the EOS 600D.
 
 ---
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   CameraLiveFrame,
   CameraStatePayload,
@@ -11,6 +11,10 @@ import {
  * When running in a plain browser (no preload / no main-process camera bridge),
  * `available` is false and callers should fall back to the WebRTC capture path.
  */
+function cameraIsAvailable(payload: CameraStatePayload): boolean {
+  return Boolean(payload.info?.model) && payload.status !== 'ERROR' && payload.status !== 'DISCONNECTED';
+}
+
 export function usePhotoBoothCamera() {
   const api = window.electronAPI?.camera;
 
@@ -19,28 +23,7 @@ export function usePhotoBoothCamera() {
   const [liveFrame, setLiveFrame] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!api) {
-      return;
-    }
-    let cancelled = false;
-    api
-      .available()
-      .then((ok) => {
-        if (!cancelled) {
-          setAvailable(ok);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setAvailable(false);
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [api]);
+  const liveFrameUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!api) {
@@ -50,32 +33,42 @@ export function usePhotoBoothCamera() {
       setStatus(payload.status);
       setError(payload.error ?? null);
       setModel(payload.info?.model ?? null);
+      setAvailable(cameraIsAvailable(payload));
+      if (payload.status === 'DISCONNECTED' || payload.status === 'ERROR') {
+        if (liveFrameUrlRef.current !== null) {
+          URL.revokeObjectURL(liveFrameUrlRef.current);
+          liveFrameUrlRef.current = null;
+        }
+        setLiveFrame(null);
+      }
     });
-    let liveFrameUrl: string | null = null;
     const unsubLive = api.onLiveView((frame: CameraLiveFrame) => {
-      if (liveFrameUrl !== null) {
-        URL.revokeObjectURL(liveFrameUrl);
+      if (liveFrameUrlRef.current !== null) {
+        URL.revokeObjectURL(liveFrameUrlRef.current);
       }
       const frameBytes = new Uint8Array(frame.frame.length);
       frameBytes.set(frame.frame);
-      liveFrameUrl = URL.createObjectURL(new Blob([frameBytes], { type: 'image/jpeg' }));
-      setLiveFrame(liveFrameUrl);
+      liveFrameUrlRef.current = URL.createObjectURL(new Blob([frameBytes], { type: 'image/jpeg' }));
+      setLiveFrame(liveFrameUrlRef.current);
     });
 
     api
       .getStatus()
       .then((payload) => {
+        const nextModel = payload.info?.model ?? null;
         setStatus(payload.status);
         setError(payload.error ?? null);
-        setModel(payload.info?.model ?? null);
+        setModel(nextModel);
+        setAvailable(cameraIsAvailable(payload));
       })
       .catch((err) => setError(String(err)));
 
     return () => {
       unsubStatus();
       unsubLive();
-      if (liveFrameUrl !== null) {
-        URL.revokeObjectURL(liveFrameUrl);
+      if (liveFrameUrlRef.current !== null) {
+        URL.revokeObjectURL(liveFrameUrlRef.current);
+        liveFrameUrlRef.current = null;
       }
     };
   }, [api]);
@@ -90,6 +83,7 @@ export function usePhotoBoothCamera() {
       setStatus(payload.status);
       setError(payload.error ?? null);
       setModel(payload.info?.model ?? null);
+      setAvailable(cameraIsAvailable(payload));
     } catch (err) {
       setError(String(err));
     }
@@ -103,6 +97,13 @@ export function usePhotoBoothCamera() {
       const payload = await api.stopLiveView();
       setStatus(payload.status);
       setError(payload.error ?? null);
+      setModel(payload.info?.model ?? null);
+      setAvailable(cameraIsAvailable(payload));
+      if (liveFrameUrlRef.current !== null) {
+        URL.revokeObjectURL(liveFrameUrlRef.current);
+        liveFrameUrlRef.current = null;
+        setLiveFrame(null);
+      }
     } catch (err) {
       setError(String(err));
     }
@@ -129,6 +130,7 @@ export function usePhotoBoothCamera() {
       setStatus(payload.status);
       setError(payload.error ?? null);
       setModel(payload.info?.model ?? null);
+      setAvailable(cameraIsAvailable(payload));
       return payload;
     } catch (err) {
       setError(String(err));

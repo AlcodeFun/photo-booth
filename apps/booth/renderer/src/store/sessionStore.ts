@@ -4,7 +4,7 @@ import {
   PhotoAttempt,
   FrameConfig,
 } from '@photo-booth/types';
-import { SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
+import { BoothPrintStatus, SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
 import { useBoothConfig } from './boothConfigStore';
 import { GALLERY_URL } from '../config';
 
@@ -33,7 +33,7 @@ export interface SessionStore {
   paymentConfirmed: boolean;
 
   // Print & Sync Simulation States
-  printStatus: 'IDLE' | 'PRINTING' | 'QUEUED' | 'SUCCESS' | 'ERROR';
+  printStatus: BoothPrintStatus;
   uploadStatus: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
   downloadUrl: string | null;
 
@@ -65,6 +65,7 @@ export interface SessionStore {
   
   // Final actions
   startPrinting: () => void;
+  setPrintStatus: (status: BoothPrintStatus) => void;
   _enqueuePrint: (token: string) => Promise<void>;
   setUploadStatus: (status: 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR') => void;
   setDownloadUrl: (url: string) => void;
@@ -312,6 +313,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       set({ printStatus: 'SUCCESS' });
       get()._syncSessionRow();
     });
+  },
+
+  setPrintStatus: (status) => {
+    set({ printStatus: status });
+    get()._syncSessionRow();
   },
 
   _enqueuePrint: async (token) => {

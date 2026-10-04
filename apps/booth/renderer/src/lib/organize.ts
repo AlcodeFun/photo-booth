@@ -36,12 +36,23 @@ export interface OrganizeManifest {
   photoFiles: string[];
   /** Per-slot assignment: index i ↔ slot i+1, value = photo file name or null. */
   slots: (string | null)[];
+  /** Optional customer image adjustments, kept optional for older manifests. */
+  adjustments?: OrganizePhotoAdjustment[];
+}
+
+export interface OrganizePhotoAdjustment {
+  x: number;
+  y: number;
+  scale: number;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export interface PrintRequestFile {
   requestId: string;
   requestedAt: number;
   slots: (string | null)[];
+  adjustments?: OrganizePhotoAdjustment[];
   by: string;
   status: 'requested' | 'handled';
 }

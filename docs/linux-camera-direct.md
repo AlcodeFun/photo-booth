@@ -22,13 +22,18 @@ exactly as it does on Windows — no booth code changes are required for Linux.
 This is the real booth flow. `GphotoCameraService` (Electron main) drives the
 `gphoto2` CLI as a subprocess:
 
-- **Live-view mirror:** `gphoto2 --stdout --capture-movie` streams concatenated MJPEG
-  frames. The service splits on SOI markers (`0xFF D8`) and pushes frames over IPC
-  (`camera:liveview`) to the renderer. Frames are **memory-only — never recorded**,
-  and the shutter is never re-triggered to serve the preview.
-- **Shutter:** `--set-config viewfinder=0` → `--capture-image-and-download` → the
-  full-res JPEG is read, returned to the renderer as a data URL, and **persisted at
-  full resolution** under the user's Pictures folder.
+- **Live-view mirror:** `gphoto2 --set-config viewfinder=1 --stdout --capture-movie`
+  streams concatenated MJPEG frames. The service waits for the first delivered frame
+  before reporting the stream ready, splits on SOI markers (`0xFF D8`), and pushes frames
+  over IPC (`camera:liveview`) to the renderer. Frames are **memory-only — never
+  recorded**, and the shutter is never re-triggered to serve the preview.
+- **Shutter:** the service first stops the Live View process and waits for it to exit,
+  then runs one capture command:
+  `gphoto2 --set-config viewfinder=0 --wait-event=500ms
+  --capture-image-and-download --force-overwrite --filename=<absolute-path>`.
+  The full-res JPEG is read, returned to the renderer as a data URL, and **persisted at
+  full resolution** under the user's Pictures folder. After either success or failure,
+  the service attempts to restore Live View.
 
 ### 1.1 Packages (install once)
 
@@ -79,12 +84,16 @@ Camera Settings screen:
   `~/Pictures/Photo Booth/photo-booth-<timestamp>.jpg` (per-user Pictures folder,
   auto-created), and the UI shows *"Saved to: …"*.
 
-Photo Capture screen uses **Path A automatically** whenever `available && isLiveViewing
-&& liveFrame`. Otherwise it falls back to **Path B** (`getUserMedia`) — so a plain
-webcam also works without any Canon.
+Photo Capture screen uses **Path A automatically** while the gphoto2 bridge reports an
+available camera. It waits for a valid feed before auto-starting a customer countdown;
+the shutter remains serialized behind the service queue. If the Canon is disconnected or
+unavailable, it falls back to **Path B** (`getUserMedia`) — so a plain webcam also works
+without any Canon.
 
 > 600D reminders: keep **Auto Power Off = Disable** (sleep kills Live View and PTP);
-> HDMI out only works while Live View is active; the HDMI port is **mini-HDMI (Type-C)**.
+> use **One Shot AF** so the normal `capture-image` command performs focus before the
+> shutter; do not run a second gphoto2 process against the camera. HDMI out only works
+> while Live View is active; the HDMI port is **mini-HDMI (Type-C)**.
 
 ---
 
@@ -191,6 +200,7 @@ sudo modprobe -r v4l2loopback
 | Symptom | Cause / fix |
 |---|---|
 | `gphoto2 --auto-detect` shows nothing | Camera off, USB cable, battery, or udev rule not applied — replug after `udevadm control --reload` |
+| Capture reports `0x2019: PTP DEVICE BUSY` or `COULD NOT CAPTURE IMAGE` | Do not start another gphoto2 command. Exit auxiliary camera tools, disable Auto Power Off, use One Shot AF, then retry from the app. The service already waits for the Live View process to exit and adds a 500 ms camera settling event before capture. Persistent errors still require a charged battery, a stable USB connection, and a camera power-cycle. |
 | PTP commands time out ("Could not query kernel driver …") | **Camera-side, not driver.** Low battery / auto-power-off / camera state. Recharge, power-cycle, replug. (On Windows the active driver `libusbK` was proven correct; the failure was the camera refusing PTP.) |
 | Live View starts then stops | 600D **Auto Power Off** — set to Disable in the camera menu |
 | No HDMI signal | 600D outputs HDMI **only during Live View**; port is mini-HDMI (Type-C) |

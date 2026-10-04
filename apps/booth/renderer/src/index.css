@@ -503,3 +503,29 @@
     opacity: 0;
   }
 }
+
+.photo-guide-pan {
+  animation: pb-photo-guide-pan 1.1s ease-in-out 3 both;
+}
+
+.photo-guide-zoom {
+  animation: pb-photo-guide-zoom 0.9s ease-in-out 3 both;
+}
+
+@keyframes pb-photo-guide-pan {
+  0%, 100% {
+    transform: translateX(-4px);
+  }
+  50% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes pb-photo-guide-zoom {
+  0%, 100% {
+    transform: scale(0.85);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+}

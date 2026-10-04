@@ -68,9 +68,9 @@ const forwardCameraEvents = () => {
   if (!cameraService) {
     return;
   }
-  cameraService.onStatus((payload) => mainWindow?.webContents.send('camera:status', payload));
+  cameraService.onStatus((payload) => broadcast('camera:status', payload));
   cameraService.onLiveView((frame) => {
-    mainWindow?.webContents.send('camera:liveview', frame);
+    broadcast('camera:liveview', frame);
     if (mjpegServer.isRunning()) {
       mjpegServer.push(Buffer.from(frame.frame));
     }

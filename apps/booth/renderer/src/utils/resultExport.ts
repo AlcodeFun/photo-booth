@@ -1,5 +1,5 @@
 import { FrameConfig, FramePhotoPlacement, FrameQRPlacement, FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
-import { resolveFrameTemplate } from './frameConfig';
+import { resolveFrameTemplate, resolveObjectPosition } from './frameConfig';
 import { getSelectedPhotoUrls, getSelectedLiveFrames } from './photoSlots';
 import { getCanvasFilter } from './filters';
 import { downloadBlob, downloadStamp } from './download';
@@ -67,11 +67,17 @@ const drawSlotImage = async (
   const radius = slot.borderRadius ?? 0;
 
   ctx.save();
+  if (slot.rotation) {
+    ctx.translate(x + width / 2, y + height / 2);
+    ctx.rotate((slot.rotation * Math.PI) / 180);
+    ctx.translate(-(x + width / 2), -(y + height / 2));
+  }
   roundedRect(ctx, x, y, width, height, radius);
   ctx.clip();
 
   const imgRatio = image.width / image.height;
   const boxRatio = width / height;
+  const position = resolveObjectPosition(slot.objectPosition);
 
   let drawWidth = width;
   let drawHeight = height;
@@ -82,27 +88,30 @@ const drawSlotImage = async (
     if (imgRatio > boxRatio) {
       drawWidth = height * imgRatio;
       drawHeight = height;
-      drawX = x + (width - drawWidth) / 2;
-      drawY = y;
     } else {
       drawWidth = width;
       drawHeight = width / imgRatio;
-      drawX = x;
-      drawY = y + (height - drawHeight) / 2;
     }
   } else if (imgRatio > boxRatio) {
     drawWidth = height * imgRatio;
     drawHeight = height;
-    drawX = x - (drawWidth - width) / 2;
-    drawY = y;
   } else {
     drawWidth = width;
     drawHeight = width / imgRatio;
-    drawX = x;
-    drawY = y - (drawHeight - height) / 2;
   }
+  drawX = x + (width - drawWidth) * position.x;
+  drawY = y + (height - drawHeight) * position.y;
 
   ctx.filter = canvasFilter;
+  const photoScale = Math.max(1, slot.photoScale ?? 1);
+  const photoOffsetX = slot.photoOffsetX ?? 0;
+  const photoOffsetY = slot.photoOffsetY ?? 0;
+  if (photoScale !== 1 || photoOffsetX !== 0 || photoOffsetY !== 0) {
+    ctx.translate(x + photoOffsetX * width, y + photoOffsetY * height);
+    ctx.translate(x, y);
+    ctx.scale(photoScale, photoScale);
+    ctx.translate(-x, -y);
+  }
   ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
   ctx.filter = 'none';
   ctx.restore();
@@ -488,9 +497,11 @@ export async function createResultLiveFramed(
 
   const longestClip = Math.max(1, ...liveClips.map((clip) => clip.length));
   const total = Math.min(Math.max(2, longestClip), Math.max(2, frames));
+  const finalFrameHold = 900;
   const gif = GIFEncoder();
 
-  for (let t = 0; t < total; t += 1) {
+  for (let t = 0; t <= total; t += 1) {
+    const isFinalFrame = t === total;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = template.backgroundColor ?? '#111111';
     ctx.fillRect(0, 0, width, height);
@@ -502,9 +513,9 @@ export async function createResultLiveFramed(
       const slot = template.photoSlots[i];
       const clip = liveClips[i] ?? [];
       const photoIndex = (slot.sourcePhotoSlot ?? slot.slotNumber) - 1;
-      const url = clip.length
+      const url = !isFinalFrame && clip.length
         ? clip[t % clip.length]
-        : (photos[photoIndex] ?? photos[i]);
+        : photos[photoIndex] ?? photos[i];
       if (url) {
         await drawSlotImage(ctx, slot, url, canvasFilter);
       }
@@ -520,7 +531,11 @@ export async function createResultLiveFramed(
     const palette = quantize(imageData.data, 256);
     applyOrderedDither(imageData.data, width, height);
     const index = applyPalette(imageData.data, palette);
-    gif.writeFrame(index, width, height, { palette, delay: frameDelay, repeat: 0 });
+    gif.writeFrame(index, width, height, {
+      palette,
+      delay: isFinalFrame ? finalFrameHold : frameDelay,
+      repeat: 0,
+    });
   }
 
   gif.finish();

@@ -1,4 +1,6 @@
 import { getUploadedBlob, sessionFileUrl, updateSessionRecord, SessionPrintStatus } from './sessions';
+import { BoothPrintStatus } from './sessions';
+import { useSessionStore } from '../store/sessionStore';
 import { IElectronAPIPrintJobState, IElectronAPIPrintQueueSnapshot } from '../global';
 
 /**
@@ -19,6 +21,14 @@ const JOB_TO_SESSION_STATUS: Record<IElectronAPIPrintJobState, SessionPrintStatu
   completed: 'success',
   failed: 'error',
   canceled: 'ready_to_print',
+};
+
+const SESSION_TO_BOOTH_STATUS: Record<SessionPrintStatus, BoothPrintStatus> = {
+  printing: 'PRINTING',
+  ready_to_print: 'READY_TO_PRINT',
+  queued: 'QUEUED',
+  success: 'SUCCESS',
+  error: 'ERROR',
 };
 
 const IMAGE_WAIT_MS = 45000;
@@ -107,6 +117,10 @@ export const startPrintQueueSync = () => {
       const status = JOB_TO_SESSION_STATUS[job.state];
       if (status) {
         updateSessionRecord(job.token, { print_status: status });
+        const store = useSessionStore.getState();
+        if (store.sessionToken === job.token) {
+          store.setPrintStatus(SESSION_TO_BOOTH_STATUS[status]);
+        }
       }
     }
   });

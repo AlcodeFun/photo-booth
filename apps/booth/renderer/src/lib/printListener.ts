@@ -18,7 +18,7 @@
  * in localStorage so the listener keeps working across renderer reloads and
  * after the booth resets for the next paying customer.
  */
-import { PhotoSlotState } from '@photo-booth/types';
+import { FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
 import { useBoothConfig } from '../store/boothConfigStore';
 import { useSessionStore } from '../store/sessionStore';
 import { GALLERY_URL } from '../config';
@@ -44,6 +44,7 @@ const TOKENS_KEY = 'photo-booth.print-tokens';
 const HANDLED_KEY = 'photo-booth.generated-requests';
 const POLL_INTERVAL = 4000;
 const MAX_TRACKED_TOKENS = 12;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const readStringArray = (key: string): string[] => {
   try {
@@ -77,7 +78,6 @@ const handledAdd = (requestId: string) => {
 };
 
 const handledHas = (requestId: string): boolean => readStringArray(HANDLED_KEY).includes(requestId);
-
 let processing = false;
 
 /**
@@ -116,6 +116,23 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     return;
   }
 
+  const adjustments = request.adjustments ?? manifest.adjustments;
+  const arrangedTemplate: FrameTemplateConfig = {
+    ...manifest.template,
+    photoSlots: manifest.template.photoSlots.map((placement, index) => {
+      const adjustment = adjustments?.[index];
+      return adjustment
+        ? {
+            ...placement,
+            objectPosition: `${clamp(adjustment.x, 0, 1) * 100}% ${clamp(adjustment.y, 0, 1) * 100}%`,
+            photoScale: clamp(adjustment.scale, 1, 3),
+            photoOffsetX: clamp(adjustment.offsetX ?? 0, 1 - clamp(adjustment.scale, 1, 3), 0),
+            photoOffsetY: clamp(adjustment.offsetY ?? 0, 1 - clamp(adjustment.scale, 1, 3), 0),
+          }
+        : placement;
+    }),
+  };
+
   try {
     const { outputs } = useBoothConfig.getState();
 
@@ -131,7 +148,7 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     // gallery. template + filterId come from the persisted arrangement so the
     // composed sheet matches what the customer arranged and approved.
     const photoSlots: PhotoSlotState[] = slots.map((name, index) => {
-      const placement = manifest.template.photoSlots[index];
+      const placement = arrangedTemplate.photoSlots[index];
       const clip = liveClips && name ? (liveClips[photoIndexFromName(name)] ?? []) : [];
       return {
         slotNumber: placement.slotNumber,
@@ -154,10 +171,10 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
       id: manifest.frameId,
       name: 'gallery arrangement',
       previewUrl: '',
-      template: manifest.template,
+      template: arrangedTemplate,
     };
 
-    const qrCodeUrl = manifest.template.qrSlots?.length
+    const qrCodeUrl = arrangedTemplate.qrSlots?.length
       ? (await generateQrDataUrl(sessionUrl(endpoint, token), 256).catch(() => null)) ?? undefined
       : undefined;
 
@@ -168,7 +185,7 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     const canvas = await renderComposition(frame, photoSlots, manifest.filterId, {
       includeFrame: true,
       qrCodeUrl,
-      template: manifest.template,
+      template: arrangedTemplate,
     });
     const framedBlob = await canvasToJpegBlob(canvas);
     if (!framedBlob) {

@@ -71,7 +71,7 @@ const mapSessionRow = (row: Record<string, unknown>): SessionRecord => ({
 });
 
 /** Session print status values produced by the booth (store/PRINT_QR). */
-export type BoothPrintStatus = 'IDLE' | 'PRINTING' | 'QUEUED' | 'SUCCESS' | 'ERROR';
+export type BoothPrintStatus = 'IDLE' | 'PRINTING' | 'QUEUED' | 'READY_TO_PRINT' | 'SUCCESS' | 'ERROR';
 /** Session upload status values produced by the booth (store/PRINT_QR). */
 export type BoothUploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
 
@@ -86,6 +86,8 @@ export const normalizePrintStatus = (status: BoothPrintStatus): SessionPrintStat
       ? 'error'
       : status === 'QUEUED'
         ? 'queued'
+        : status === 'READY_TO_PRINT'
+          ? 'ready_to_print'
         : 'printing';
 
 const persistGuard = (promise: Promise<unknown>): void => {

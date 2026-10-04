@@ -134,3 +134,30 @@ export const resolveFrameTemplate = (
     createFallbackFrameTemplate(normalizedSlotCount)
   );
 };
+
+const objectPositionOffset = (value: string, axis: 'x' | 'y'): number => {
+  if (value === 'center') return 0.5;
+  if (axis === 'x' && value === 'left') return 0;
+  if (axis === 'x' && value === 'right') return 1;
+  if (axis === 'y' && value === 'top') return 0;
+  if (axis === 'y' && value === 'bottom') return 1;
+  const percentage = value.match(/^(-?\d+(?:\.\d+)?)%$/);
+  return percentage ? Number(percentage[1]) / 100 : 0.5;
+};
+
+export const resolveObjectPosition = (position = 'center') => {
+  const tokens = position.trim().toLowerCase().split(/\s+/);
+  let [horizontal = 'center', vertical = 'center'] = tokens;
+
+  if (tokens.length === 1 && ['top', 'bottom'].includes(horizontal)) {
+    vertical = horizontal;
+    horizontal = 'center';
+  } else if (['top', 'bottom'].includes(horizontal) && ['left', 'right'].includes(vertical)) {
+    [horizontal, vertical] = [vertical, horizontal];
+  }
+
+  return {
+    x: objectPositionOffset(horizontal, 'x'),
+    y: objectPositionOffset(vertical, 'y'),
+  };
+};

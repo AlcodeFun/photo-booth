@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, PointerEvent, WheelEvent } from 'react';
 import { FrameConfig, FrameTemplateConfig } from '@photo-booth/types';
 import { resolveFrameTemplate } from '../utils/frameConfig';
 
@@ -11,8 +11,15 @@ interface FrameCanvasProps {
   className?: string;
   style?: CSSProperties;
   showGuides?: boolean;
+  showGuideDimensions?: boolean;
   activeSlotNumber?: number;
+  activeGuideClassName?: string;
   onSlotSelect?: (slotNumber: number) => void;
+  onCanvasBackgroundClick?: () => void;
+  onSlotPointerDown?: (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => void;
+  onSlotPointerMove?: (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => void;
+  onSlotPointerUp?: (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => void;
+  onSlotWheel?: (slotNumber: number, event: WheelEvent<HTMLButtonElement>) => void;
   /** Real QR code image to render inside each QR placeholder (replaces the placeholder graphic). */
   qrCodeUrl?: string;
 }
@@ -41,8 +48,15 @@ export const FrameCanvas = ({
   className = '',
   style,
   showGuides = false,
+  showGuideDimensions = true,
   activeSlotNumber,
+  activeGuideClassName = 'outline-sky-400',
   onSlotSelect,
+  onCanvasBackgroundClick,
+  onSlotPointerDown,
+  onSlotPointerMove,
+  onSlotPointerUp,
+  onSlotWheel,
   qrCodeUrl,
 }: FrameCanvasProps) => {
   const resolvedSlotCount = photoSlotCount ?? Math.max(photos.length, 1);
@@ -60,6 +74,9 @@ export const FrameCanvas = ({
     <div
       className={`relative overflow-hidden border shadow-2xl bg-blue-600 border-blue-400 text-white ${className}`}
       style={canvasStyle}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onCanvasBackgroundClick?.();
+      }}
     >
       {resolvedTemplate.photoSlots.map((slot) => {
         const sourcePhotoSlot = slot.sourcePhotoSlot ?? slot.slotNumber;
@@ -77,11 +94,11 @@ export const FrameCanvas = ({
         };
 
         const slotClassName = `absolute flex items-center justify-center overflow-hidden bg-black text-[10px] font-semibold uppercase tracking-wider text-white/50 transition-all ${
-          onSlotSelect ? 'cursor-pointer' : 'cursor-default'
+          photoUrl && onSlotPointerDown ? 'cursor-grab active:cursor-grabbing' : onSlotSelect ? 'cursor-pointer' : 'cursor-default'
         } ${
           showGuides
             ? isActive
-              ? 'outline outline-4 outline-sky-400'
+              ? `outline outline-4 ${activeGuideClassName}`
               : 'outline outline-2 outline-white/40'
             : ''
         }`;
@@ -90,10 +107,18 @@ export const FrameCanvas = ({
             {photoUrl ? (
               <img
                 src={photoUrl}
-                alt={`Source photo ${sourcePhotoSlot}`}
+                alt={`Foto sumber ${sourcePhotoSlot}`}
                 draggable={false}
                 className={`h-full w-full ${slot.objectFit === 'contain' ? 'object-contain' : 'object-cover'}`}
-                style={{ objectPosition: slot.objectPosition ?? 'center', filter }}
+                style={{
+                  objectPosition: slot.objectPosition ?? 'center',
+                  filter,
+                  transform:
+                    (slot.photoScale ?? 1) !== 1 || slot.photoOffsetX || slot.photoOffsetY
+                      ? `translate(${(slot.photoOffsetX ?? 0) * 100}%, ${(slot.photoOffsetY ?? 0) * 100}%) scale(${slot.photoScale ?? 1})`
+                      : undefined,
+                  transformOrigin: '0 0',
+                }}
               />
             ) : (
               <span
@@ -104,7 +129,7 @@ export const FrameCanvas = ({
                   textShadow: '0 1px 3px rgba(0, 0, 0, 0.45)',
                 }}
               >
-                Photo {sourcePhotoSlot}
+                Slot {sourcePhotoSlot}
               </span>
             )}
           </>
@@ -115,10 +140,19 @@ export const FrameCanvas = ({
             <button
               key={slot.slotNumber}
               type="button"
-              onClick={() => onSlotSelect(slot.slotNumber)}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSlotSelect(slot.slotNumber);
+              }}
+              title={photoUrl ? 'Geser untuk memindahkan; gulir untuk memperbesar' : 'Pilih slot ini'}
+              onPointerDown={onSlotPointerDown ? (event) => onSlotPointerDown(slot.slotNumber, event) : undefined}
+              onPointerMove={onSlotPointerMove ? (event) => onSlotPointerMove(slot.slotNumber, event) : undefined}
+              onPointerUp={onSlotPointerUp ? (event) => onSlotPointerUp(slot.slotNumber, event) : undefined}
+              onPointerCancel={onSlotPointerUp ? (event) => onSlotPointerUp(slot.slotNumber, event) : undefined}
+              onWheel={onSlotWheel ? (event) => onSlotWheel(slot.slotNumber, event) : undefined}
               className={slotClassName}
               style={slotStyle}
-              aria-label={`Photo area ${slot.slotNumber}, source photo ${sourcePhotoSlot}`}
+              aria-label={`Area foto ${slot.slotNumber}, foto sumber ${sourcePhotoSlot}`}
             >
               {content}
             </button>
@@ -130,7 +164,7 @@ export const FrameCanvas = ({
             key={slot.slotNumber}
             className={slotClassName}
             style={slotStyle}
-            aria-label={`Photo area ${slot.slotNumber}, source photo ${sourcePhotoSlot}`}
+            aria-label={`Area foto ${slot.slotNumber}, foto sumber ${sourcePhotoSlot}`}
           >
             {content}
           </div>
@@ -200,7 +234,26 @@ export const FrameCanvas = ({
         </div>
       )}
 
-      {showGuides && (
+      {showGuides && activeSlotNumber != null && (() => {
+        const activeSlot = resolvedTemplate.photoSlots.find((slot) => slot.slotNumber === activeSlotNumber);
+        if (!activeSlot) return null;
+        return (
+          <div
+            className="pointer-events-none absolute border-[3px] border-[#ff4bb5]"
+            style={{
+              left: toPercent(activeSlot.x, resolvedTemplate.width),
+              top: toPercent(activeSlot.y, resolvedTemplate.height),
+              width: toPercent(activeSlot.width, resolvedTemplate.width),
+              height: toPercent(activeSlot.height, resolvedTemplate.height),
+              borderRadius: activeSlot.borderRadius,
+              transform: activeSlot.rotation ? `rotate(${activeSlot.rotation}deg)` : undefined,
+              zIndex: frameLayerZIndex + 10,
+            }}
+          />
+        );
+      })()}
+
+      {showGuides && showGuideDimensions && (
         <div
           className="absolute bottom-3 right-3 rounded bg-black/70 px-2 py-1 text-[10px] font-semibold text-white/80"
           style={{ zIndex: frameLayerZIndex + 1 }}

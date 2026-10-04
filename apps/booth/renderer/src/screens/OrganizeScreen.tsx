@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent, WheelEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { FrameTemplateConfig } from '@photo-booth/types';
 import { GALLERY_URL } from '../config';
 import FrameCanvas from '../components/FrameCanvas';
@@ -10,8 +12,10 @@ import {
   sessionUrl,
   writeJsonFile,
   type OrganizeManifest,
+  type OrganizePhotoAdjustment,
   type PrintRequestFile,
 } from '../lib/organize';
+import { resolveObjectPosition } from '../utils/frameConfig';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
@@ -52,13 +56,22 @@ const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(r
  * never talks to a printer.
  */
 
-const actionButtonClass = (extra: string) =>
-  `h-9 rounded-[10px] border-[3px] px-3.5 text-xs font-black uppercase tracking-[0.12em] transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 ${extra}`;
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-const dockButtonClass = (active: boolean) =>
-  `flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] transition-colors ${
-    active ? 'bg-[#e9d7ff] text-[#4d2d85]' : 'text-[#7a4de3] hover:bg-[#f3ecff]'
-  }`;
+const initialAdjustment = (
+  template: FrameTemplateConfig,
+  index: number,
+  saved?: OrganizePhotoAdjustment,
+): OrganizePhotoAdjustment => {
+  const position = resolveObjectPosition(template.photoSlots[index]?.objectPosition);
+  return {
+    x: Number.isFinite(saved?.x) ? clamp(saved!.x, 0, 1) : position.x,
+    y: Number.isFinite(saved?.y) ? clamp(saved!.y, 0, 1) : position.y,
+    scale: Number.isFinite(saved?.scale) ? clamp(saved!.scale, 1, 3) : 1,
+    offsetX: Number.isFinite(saved?.offsetX) ? saved!.offsetX : 0,
+    offsetY: Number.isFinite(saved?.offsetY) ? saved!.offsetY : 0,
+  };
+};
 
 export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const endpoint = GALLERY_URL;
@@ -70,15 +83,30 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [organize, setOrganize] = useState<OrganizeManifest | null>(null);
   const [template, setTemplate] = useState<FrameTemplateConfig | null>(null);
   const [slots, setSlots] = useState<(string | null)[]>([]);
+  const [adjustments, setAdjustments] = useState<OrganizePhotoAdjustment[]>([]);
   const [pickSlot, setPickSlot] = useState<number | null>(null);
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [showPhotoGestureGuide, setShowPhotoGestureGuide] = useState(false);
   const [sent, setSent] = useState(false);
   const [status, setStatus] = useState<{ text: string; kind?: 'ok' | 'err' }>({ text: '' });
   const [panelOpen, setPanelOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null);
   const arrangeRetries = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
+  const gestureGuideTimerRef = useRef<number | null>(null);
+  const dragRef = useRef<{
+    index: number;
+    startX: number;
+    startY: number;
+    width: number;
+    height: number;
+    overflowX: number;
+    overflowY: number;
+    adjustment: OrganizePhotoAdjustment;
+    moved: boolean;
+  } | null>(null);
+  const zoomCursorTimerRef = useRef<number | null>(null);
+  const skipSlotClickRef = useRef(false);
   const [waiting, setWaiting] = useState<'busy' | 'done' | 'error' | null>(null);
   const waitStartedRef = useRef(false);
 
@@ -120,13 +148,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         if (result && result.status === 'error') {
           setWaiting('error');
           setStatus({
-            text: 'The booth could not prepare your prints. Please try sending again.',
+            text: 'Booth tidak dapat menyiapkan cetakan. Silakan kirim ulang.',
             kind: 'err',
           });
           return;
         }
         setWaiting('done');
-        setStatus({ text: 'Your photos are ready ✦', kind: 'ok' });
+        setStatus({ text: 'Foto Anda siap ✦', kind: 'ok' });
         window.setTimeout(goToGallery, 900);
         return;
       } catch {
@@ -134,7 +162,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       }
     }
     setWaiting('done');
-    setStatus({ text: 'Your photos are ready ✦', kind: 'ok' });
+    setStatus({ text: 'Foto Anda siap ✦', kind: 'ok' });
     window.setTimeout(goToGallery, 600);
   }, [endpoint, token, goToGallery]);
 
@@ -171,7 +199,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const load = useCallback(async () => {
     if (!endpoint) {
-      setError('Gallery is not configured. Please open this session later.');
+      setError('Galeri belum dikonfigurasi. Silakan buka sesi ini nanti.');
       setPhase('missing');
       return;
     }
@@ -227,11 +255,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           setSlots(() => {
             const next = (manifest.slots ?? []).slice();
             while (next.length < n) next.push(null);
-            for (let i = 0; i < n; i += 1) {
-              if (next[i] == null && photoFiles[i]) next[i] = photoFiles[i].name;
-            }
             return next;
           });
+          setAdjustments(
+            Array.from({ length: n }, (_, i) =>
+              initialAdjustment(resolved, i, manifest.adjustments?.[i]),
+            ),
+          );
           arrangeRetries.current = 0;
           setPhase('ready');
           return;
@@ -244,11 +274,11 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         arrangeRetries.current += 1;
         setTimeout(() => void load(), 5000);
       } else {
-        setError('Your photos are ready. Please ask an attendant for help arranging your frame.');
+        setError('Foto Anda sudah siap. Minta bantuan petugas untuk mengatur bingkai.');
         setPhase('missing');
       }
     } catch {
-      setError('We could not find this session. It may have expired.');
+      setError('Sesi tidak ditemukan atau mungkin sudah kedaluwarsa.');
       setPhase('missing');
     }
   }, [endpoint, token, loadFrame, goToGallery, waitForCompletion]);
@@ -297,10 +327,20 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       template
         ? {
             ...template,
-            photoSlots: template.photoSlots.map((slot, i) => ({ ...slot, sourcePhotoSlot: i + 1 })),
+            photoSlots: template.photoSlots.map((slot, i) => {
+              const adjustment = adjustments[i] ?? initialAdjustment(template, i);
+              return {
+                ...slot,
+                sourcePhotoSlot: i + 1,
+                objectPosition: `${adjustment.x * 100}% ${adjustment.y * 100}%`,
+                photoScale: adjustment.scale,
+                photoOffsetX: adjustment.offsetX ?? 0,
+                photoOffsetY: adjustment.offsetY ?? 0,
+              };
+            }),
           }
         : null,
-    [template],
+    [template, adjustments],
   );
 
   const previewPhotos = useMemo(
@@ -309,62 +349,185 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     [template, slots, fileUrl],
   );
 
-  const onPickSlot = (i: number) => {
-    if (slots[i] != null) {
-      const next = [...slots];
-      next[i] = null;
-      repaintSlots(next);
-      setPickSlot(null);
+  const onPickSlot = (index: number) => {
+    if (skipSlotClickRef.current) {
+      skipSlotClickRef.current = false;
       return;
     }
-    setPickSlot((prev) => (prev === i ? null : i));
+    setPickSlot(index);
+    setPanelOpen(slots[index] == null);
+    if (slots[index] != null) revealPhotoGestureGuide();
+    else hidePhotoGestureGuide();
   };
 
-  const toggleSel = (i: number) => {
-    const next = new Set(selected);
-    if (next.has(i)) next.delete(i);
-    else next.add(i);
-    setSelected(next);
+  const revealPhotoGestureGuide = () => {
+    setShowPhotoGestureGuide(true);
+    if (gestureGuideTimerRef.current != null) window.clearTimeout(gestureGuideTimerRef.current);
+    gestureGuideTimerRef.current = window.setTimeout(() => {
+      setShowPhotoGestureGuide(false);
+      gestureGuideTimerRef.current = null;
+    }, 3600);
   };
 
-  const selectAllToggle = () => {
-    if (selected.size > 0) setSelected(new Set());
-    else setSelected(new Set(photos.map((_, i) => i)));
-  };
-
-  const autoPlace = () => {
-    const used = new Set(slots.filter(Boolean));
-    const pool: string[] = [];
-    photos.forEach((item, i) => {
-      if (selected.has(i) && !used.has(item.name)) {
-        pool.push(item.name);
-        used.add(item.name);
-      }
-    });
-    if (pool.length === 0) {
-      photos.forEach((item) => {
-        if (!used.has(item.name)) {
-          pool.push(item.name);
-          used.add(item.name);
-        }
-      });
+  const hidePhotoGestureGuide = () => {
+    setShowPhotoGestureGuide(false);
+    if (gestureGuideTimerRef.current != null) {
+      window.clearTimeout(gestureGuideTimerRef.current);
+      gestureGuideTimerRef.current = null;
     }
-    const next = [...slots];
-    for (let i = 0; i < next.length && pool.length; i += 1) {
-      if (next[i] == null) next[i] = pool.shift() ?? null;
-    }
-    setSelected(new Set());
-    repaintSlots(next);
   };
 
-  const clearFrame = () => {
-    repaintSlots(Array.from({ length: slotCount }, () => null));
+  const clearCanvasSelection = () => {
     setPickSlot(null);
+    setPanelOpen(false);
+    hidePhotoGestureGuide();
+  };
+
+  const assignPhoto = (name: string) => {
+    const target = pickSlot ?? slots.findIndex((slot) => slot == null);
+    if (target < 0) return;
+    const replacing = slots[target] !== name;
+    const next = [...slots];
+    next[target] = name;
+    repaintSlots(next);
+    if (replacing && template) {
+      setAdjustments((current) =>
+        current.map((adjustment, index) => index === target ? initialAdjustment(template, target) : adjustment),
+      );
+    }
+    setPickSlot(target);
+    setPanelOpen(false);
+    revealPhotoGestureGuide();
+  };
+
+  const deleteSelectedPhoto = () => {
+    if (pickSlot == null) return;
+    const next = [...slots];
+    next[pickSlot] = null;
+    repaintSlots(next);
+    if (template) {
+      const reset = initialAdjustment(template, pickSlot);
+      setAdjustments((current) => current.map((adjustment, index) => index === pickSlot ? reset : adjustment));
+    }
+    setPanelOpen(false);
+    hidePhotoGestureGuide();
+  };
+
+  const unselectAllSlots = () => {
+    repaintSlots(Array.from({ length: slotCount }, () => null));
+    if (template) {
+      setAdjustments(Array.from({ length: slotCount }, (_, index) => initialAdjustment(template, index)));
+    }
+    setPickSlot(null);
+    hidePhotoGestureGuide();
+  };
+
+  const zoomPhotoAtPointer = (slotNumber: number, event: WheelEvent<HTMLButtonElement>) => {
+    const index = displayTemplate?.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber) ?? -1;
+    if (index < 0 || !slots[index]) return;
+    event.preventDefault();
+    event.stopPropagation();
+    setPickSlot(index);
+    setPanelOpen(false);
+    if (event.deltaY !== 0) hidePhotoGestureGuide();
+    const rect = event.currentTarget.getBoundingClientRect();
+    const target = event.currentTarget;
+    target.style.cursor = 'zoom-in';
+    if (zoomCursorTimerRef.current != null) window.clearTimeout(zoomCursorTimerRef.current);
+    zoomCursorTimerRef.current = window.setTimeout(() => {
+      target.style.cursor = 'grab';
+      zoomCursorTimerRef.current = null;
+    }, 350);
+    const pointerX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+    const pointerY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+    const current = adjustments[index] ?? (template ? initialAdjustment(template, index) : { x: 0.5, y: 0.5, scale: 1 });
+    const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), 1, 3);
+    const factor = scale / current.scale;
+    setAdjustments((all) =>
+      all.map((adjustment, currentIndex) =>
+        currentIndex === index
+          ? {
+              ...adjustment,
+              scale,
+              offsetX: clamp(pointerX - factor * (pointerX - (current.offsetX ?? 0)), 1 - scale, 0),
+              offsetY: clamp(pointerY - factor * (pointerY - (current.offsetY ?? 0)), 1 - scale, 0),
+            }
+          : adjustment,
+      ),
+    );
+  };
+
+  const startPhotoDrag = (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
+    const index = displayTemplate?.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber) ?? -1;
+    const placement = displayTemplate?.photoSlots[index];
+    if (index < 0 || !placement || !slots[index] || !template) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const image = event.currentTarget.querySelector('img');
+    const coverScale = image?.naturalWidth && image.naturalHeight
+      ? Math.max(rect.width / image.naturalWidth, rect.height / image.naturalHeight)
+      : 1;
+    const overflowX = (placement.objectFit ?? 'cover') === 'cover' && image?.naturalWidth
+      ? Math.max(0, image.naturalWidth * coverScale - rect.width)
+      : 0;
+    const overflowY = (placement.objectFit ?? 'cover') === 'cover' && image?.naturalHeight
+      ? Math.max(0, image.naturalHeight * coverScale - rect.height)
+      : 0;
+    event.preventDefault();
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPickSlot(index);
+    setPanelOpen(false);
+    dragRef.current = {
+      index,
+      startX: event.clientX,
+      startY: event.clientY,
+      width: Math.max(1, rect.width),
+      height: Math.max(1, rect.height),
+      overflowX,
+      overflowY,
+      adjustment: adjustments[index] ?? initialAdjustment(template, index),
+      moved: false,
+    };
+  };
+
+  const movePhotoDrag = (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
+    const drag = dragRef.current;
+    if (!drag || displayTemplate?.photoSlots[drag.index]?.slotNumber !== slotNumber) return;
+    const deltaX = event.clientX - drag.startX;
+    const deltaY = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
+    drag.moved = true;
+    skipSlotClickRef.current = true;
+    hidePhotoGestureGuide();
+    setAdjustments((current) =>
+      current.map((adjustment, index) =>
+        index === drag.index
+          ? drag.adjustment.scale <= 1.001
+            ? {
+                ...adjustment,
+                x: drag.overflowX > 0 ? clamp(drag.adjustment.x - deltaX / drag.overflowX, 0, 1) : drag.adjustment.x,
+                y: drag.overflowY > 0 ? clamp(drag.adjustment.y - deltaY / drag.overflowY, 0, 1) : drag.adjustment.y,
+              }
+            : {
+                ...adjustment,
+                offsetX: clamp((drag.adjustment.offsetX ?? 0) + deltaX / drag.width, 1 - drag.adjustment.scale, 0),
+                offsetY: clamp((drag.adjustment.offsetY ?? 0) + deltaY / drag.height, 1 - drag.adjustment.scale, 0),
+              }
+          : adjustment,
+      ),
+    );
+  };
+
+  const finishPhotoDrag = (slotNumber: number) => {
+    const drag = dragRef.current;
+    if (!drag || displayTemplate?.photoSlots[drag.index]?.slotNumber !== slotNumber) return;
+    if (drag.moved) window.setTimeout(() => { skipSlotClickRef.current = false; }, 250);
+    dragRef.current = null;
   };
 
   const saveSlots = async (): Promise<boolean> => {
     if (!organize || !endpoint) return false;
-    const manifest = { ...organize, slots: slots.slice() };
+    const manifest = { ...organize, slots: slots.slice(), adjustments: adjustments.slice() };
     const ok = await writeJsonFile(endpoint, token, ORGANIZE_FILE, manifest);
     if (ok) setOrganize(manifest);
     return ok;
@@ -373,9 +536,9 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const sendToPrint = async () => {
     if (sent || !endpoint) return;
     setSent(true);
-    setStatus({ text: 'Sending your frame …' });
+    setStatus({ text: 'Mengirim bingkai …' });
     try {
-      if (!(await saveSlots())) throw new Error('organize save failed');
+      if (!(await saveSlots())) throw new Error('gagal menyimpan susunan');
       const reqId =
         'req_' +
         (typeof crypto !== 'undefined' && crypto.randomUUID
@@ -385,11 +548,12 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         requestId: reqId,
         requestedAt: Date.now(),
         slots: slots.slice(),
+        adjustments: adjustments.slice(),
         by: 'organize',
         status: 'requested' as const,
       };
       if (!(await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, payload))) {
-        throw new Error('print request failed');
+        throw new Error('permintaan cetak gagal');
       }
       // The ONLY status change this page makes: print_status -> ready_to_print.
       // The booth generates the framed outputs; the admin prints them manually.
@@ -399,13 +563,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       // From here the booth generates the framed outputs; keep the customer on
       // a "Preparing your prints…" screen until every output is generated AND
       // uploaded (request flips to 'handled'), then hand them to the gallery.
-      setStatus({ text: 'Preparing your prints…', kind: 'ok' });
+      setStatus({ text: 'Menyiapkan cetakan…', kind: 'ok' });
       waitStartedRef.current = false;
       setWaiting('busy');
       void waitForCompletion();
     } catch {
       setSent(false);
-      setStatus({ text: 'Could not send. Try again.', kind: 'err' });
+      setStatus({ text: 'Tidak dapat mengirim. Coba lagi.', kind: 'err' });
     }
   };
 
@@ -415,10 +579,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         {waiting === 'error' ? (
           <div className="max-w-sm">
             <p className="text-lg font-black uppercase tracking-widest">
-              We could not prepare your prints.
+              Cetakan tidak dapat disiapkan.
             </p>
             <p className="mt-2 text-sm text-white/70">
-              The booth hit a snag generating your framed photo. Please try sending it again.
+              Booth mengalami kendala saat membuat foto bingkai. Silakan kirim ulang.
             </p>
             <div className="mt-6 flex flex-col gap-3">
               <button
@@ -429,13 +593,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                   setSent(false);
                 }}
               >
-                Try again
+                Coba Lagi
               </button>
               <button
                 className="rounded-full border-[3px] border-white px-6 py-3 text-sm font-black uppercase tracking-wide text-white"
                 onClick={goToGallery}
               >
-                Open gallery
+                Buka Galeri
               </button>
             </div>
           </div>
@@ -443,12 +607,12 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           <div>
             <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-[#d9f85a]" />
             <p className="text-lg font-black uppercase tracking-widest">
-              {waiting === 'done' ? 'Your photos are ready!' : 'Preparing your prints…'}
+              {waiting === 'done' ? 'Foto Anda siap!' : 'Menyiapkan cetakan…'}
             </p>
             <p className="mt-2 text-sm text-white/70">
               {waiting === 'done'
-                ? 'Opening your gallery…'
-                : 'The booth is generating your framed photo — a moment please.'}
+                ? 'Membuka galeri…'
+                : 'Booth sedang membuat foto bingkai — mohon tunggu.'}
             </p>
           </div>
         )}
@@ -460,7 +624,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#2b1055] p-6 text-center text-white">
         <p className="text-lg font-bold opacity-90">
-          {error ?? 'We could not find this session. It may have expired.'}
+          {error ?? 'Sesi tidak ditemukan atau mungkin sudah kedaluwarsa.'}
         </p>
       </div>
     );
@@ -470,7 +634,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#2b1055] text-white">
         <p className="animate-pulse text-lg font-black uppercase tracking-widest opacity-80">
-          Loading your photos…
+          Memuat foto Anda…
         </p>
       </div>
     );
@@ -487,82 +651,97 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       : 'cursor-not-allowed border-[#c9b8ff] bg-white opacity-50');
 
   const photosPanel = (
-    <div className="grid gap-3">
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={autoPlace}
-          className={actionButtonClass('border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] hover:bg-[#e9ff9e]')}
-        >
-          Auto-place
-        </button>
-        <button
-          type="button"
-          onClick={clearFrame}
-          className={actionButtonClass('border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]')}
-        >
-          Clear frame
-        </button>
-      </div>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-extrabold text-[#5b3aa8]">
-          {selected.size} of {photos.length} selected
-        </span>
-        <button
-          type="button"
-          onClick={selectAllToggle}
-          className={actionButtonClass('border-[#8f6fee] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]')}
-        >
-          {selected.size > 0 ? 'Clear all' : 'Select all'}
-        </button>
-      </div>
+    <div className="grid gap-4">
       {photos.length > 0 ? (
-        <div className="columns-2 gap-3 [column-fill:balance]">
+        <div className="grid grid-cols-2 gap-3">
           {photos.map((item, i) => (
             <button
               key={item.name}
               type="button"
-              onClick={() => {
-                if (pickSlot != null) {
-                  const next = [...slots];
-                  next[pickSlot] = item.name;
-                  repaintSlots(next);
-                  setPickSlot(null);
-                  return;
-                }
-                toggleSel(i);
-              }}
-              className={`relative mb-3 block w-full overflow-hidden rounded-[10px] border-4 transition-colors ${
-                selected.has(i) ? 'border-[#ff4bb5] opacity-90' : 'border-transparent'
-              }`}
+              onClick={() => assignPhoto(item.name)}
+              className="group min-w-0 overflow-hidden rounded-[12px] border-2 border-[#c9b8ff] bg-white p-1.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#ff4bb5] hover:shadow-md"
             >
-              {selected.has(i) && (
-                <span className="absolute left-2 top-2 z-10 grid h-6 w-6 place-items-center rounded-full bg-[#ff4bb5] text-xs font-black text-white">
-                  ✓
-                </span>
-              )}
-              <img src={item.url} alt={`Photo ${i + 1}`} loading="lazy" className="block w-full" />
+              <span className="block aspect-[4/3] w-full overflow-hidden rounded-md bg-[#efe8ff]">
+                <img src={item.url} alt={`Foto ${i + 1}`} loading="lazy" className="block h-full w-full object-contain" />
+              </span>
+              <span className="block truncate px-1 py-2 text-center text-xs font-black text-[#4d2d85]">
+                Foto {i + 1}
+              </span>
             </button>
           ))}
         </div>
       ) : (
-        <p className="text-sm font-bold text-[#5b3aa8]">No photos yet.</p>
+        <p className="text-sm font-bold text-[#5b3aa8]">Belum ada foto.</p>
       )}
     </div>
   );
 
+  const selectedPlacement = pickSlot != null ? displayTemplate.photoSlots[pickSlot] : null;
+  const selectionPill = (() => {
+    if (panelOpen || pickSlot == null || !slots[pickSlot] || !selectedPlacement || !template || !frameRef.current) return null;
+    const rect = frameRef.current.getBoundingClientRect();
+    const centerX = rect.left + ((selectedPlacement.x + selectedPlacement.width / 2) / template.width) * rect.width;
+    const slotTop = rect.top + (selectedPlacement.y / template.height) * rect.height;
+    const slotBottom = rect.top + ((selectedPlacement.y + selectedPlacement.height) / template.height) * rect.height;
+    const pillHeight = showPhotoGestureGuide ? 82 : 42;
+    const pillWidth = 208;
+    const left = clamp(centerX - pillWidth / 2, 8, Math.max(8, window.innerWidth - pillWidth - 8));
+    const topAbove = slotTop - pillHeight - 8;
+    const topBelow = slotBottom + 8;
+    const bottomInset = window.innerWidth < 1024 ? 72 : 8;
+    const maxTop = Math.max(8, window.innerHeight - bottomInset - pillHeight);
+    const pillTop = topAbove >= 8
+      ? topAbove
+      : topBelow <= maxTop
+        ? topBelow
+        : clamp(topAbove, 8, maxTop);
+    return createPortal(
+      <div className="fixed z-[200] flex flex-col items-center gap-1" style={{ left, top: pillTop }}>
+        <div className="flex items-center gap-1 rounded-full border border-[#c9b8ff] bg-white/95 p-1 shadow-lg">
+          <button
+            type="button"
+            onClick={() => setPanelOpen(true)}
+            className="rounded-full bg-[#d9f85a] px-3 py-2 text-xs font-black text-[#4d2d85]"
+          >
+            Ganti
+          </button>
+          <button
+            type="button"
+            onClick={deleteSelectedPhoto}
+            className="rounded-full bg-[#ffe0ef] px-3 py-2 text-xs font-black text-[#b3206e]"
+          >
+            Hapus
+          </button>
+        </div>
+        {showPhotoGestureGuide && (
+          <div className="flex items-center gap-3 rounded-full border border-white/80 bg-[#2b1055]/90 px-3 py-1.5 text-[0.65rem] font-black uppercase text-white shadow-lg">
+            <span className="flex items-center gap-1">
+              <span className="photo-guide-pan text-base leading-none" aria-hidden="true">↔</span>
+              Geser
+            </span>
+            <span className="h-3 w-px bg-white/40" aria-hidden="true" />
+            <span className="flex items-center gap-1">
+              <span className="photo-guide-zoom text-base leading-none" aria-hidden="true">↕</span>
+              Perbesar
+            </span>
+          </div>
+        )}
+      </div>,
+      document.body,
+    );
+  })();
+
   return (
     <section className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#fbf3ff] text-[#4d2d85]">
-      {/* Top bar */}
       <header className="z-[60] flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
-            Arrange &amp; print
+            Atur Bingkai
           </h1>
           <p className="truncate text-xs font-bold text-[#7a4de3]">
             {pickSlot != null
-              ? `Slot ${pickSlot + 1} selected — tap a photo to place it.`
-              : 'Tap a slot on the frame, then tap a photo.'}
+              ? `Slot ${pickSlot + 1} dipilih`
+              : 'Pilih slot bingkai untuk menambahkan foto'}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -575,14 +754,23 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           >
             {filled}/{slotCount}
           </span>
-          <a
-            href={endpoint ? sessionUrl(endpoint, token) : '#'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="rounded-full border-2 border-[#a35ef6] bg-[#d9f85a] px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition hover:bg-[#e9ff9e]"
+          <button
+            type="button"
+            onClick={unselectAllSlots}
+            disabled={filled === 0}
+            title="Batalkan Pilihan"
+            className="hidden rounded-full border-2 border-[#ff9ecb] bg-[#ffe0ef] px-3 py-2 text-xs font-black uppercase text-[#b3206e] disabled:opacity-40 lg:inline-flex"
           >
-            View photos
-          </a>
+            Batalkan Pilihan
+          </button>
+          <button
+            type="button"
+            onClick={() => void sendToPrint()}
+            disabled={!allAssigned || sent}
+            className={sendButtonClass}
+          >
+            {sent ? 'Mengirim…' : 'Cetak'}
+          </button>
           {status.text && (
             <span
               className={`hidden text-xs font-extrabold sm:inline ${
@@ -599,21 +787,16 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         </div>
       </header>
 
-      {/* Canvas area — fills the full width, same as FrameCanvasEditor */}
-      <div
-        className={`flex min-h-0 flex-1 transition-opacity ${panelOpen ? 'opacity-60' : ''}`}
-      >
+      <div className="flex min-h-0 flex-1">
         <div
           ref={areaRef}
-          className="relative flex min-h-0 flex-1 items-center justify-center overflow-visible p-4 pb-20 lg:p-6 lg:pb-6"
+          className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 pb-20 lg:p-6 lg:pb-6"
+          onClick={(event) => {
+            if (event.target === event.currentTarget) clearCanvasSelection();
+          }}
         >
-          <div className="absolute left-4 top-4 z-[80]">
-            <span className="grid h-10 max-w-[72vw] place-items-center rounded-full border-2 border-[#c9b8ff] bg-white/95 px-4 text-xs font-black text-[#5b3aa8] shadow-md">
-              {pickSlot != null ? `Slot ${pickSlot + 1} selected` : 'Tap a slot to select it'}
-            </span>
-          </div>
-
           <div
+            ref={frameRef}
             className="relative touch-none bg-white shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
             style={{
               width: canvasSize ? `${canvasSize.width}px` : undefined,
@@ -628,143 +811,118 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 const i = displayTemplate.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber);
                 if (i >= 0) onPickSlot(i);
               }}
+              onCanvasBackgroundClick={clearCanvasSelection}
+              onSlotPointerDown={startPhotoDrag}
+              onSlotPointerMove={movePhotoDrag}
+              onSlotPointerUp={finishPhotoDrag}
+              onSlotWheel={zoomPhotoAtPointer}
               activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
+              activeGuideClassName="outline-[#ff4bb5]"
               showGuides
+              showGuideDimensions={false}
               className="h-full w-full !border-0 !text-[#4d2d85]"
             />
           </div>
-
-          {/* Re-open collapsed floating panel */}
-          {!sidebarOpen && (
+          {!panelOpen && (
             <button
               type="button"
-              onClick={() => setSidebarOpen(true)}
-              title="Show photos"
-              className="absolute right-3 top-1/2 z-[85] hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border-2 border-[#8f6fee] bg-white/95 text-[#4d2d85] shadow-lg transition hover:bg-white lg:grid"
+              onClick={() => setPanelOpen(true)}
+              title="Semua Foto"
+              aria-label="Buka panel semua foto"
+              className="absolute right-4 top-1/2 z-[85] hidden -translate-y-1/2 items-center gap-2 rounded-full border-2 border-[#a35ef6] bg-white/95 px-4 py-3 text-sm font-black uppercase text-[#4d2d85] shadow-lg transition hover:bg-[#efe8ff] lg:flex"
             >
-              ✛
+              <span aria-hidden="true">▦</span> Semua Foto
             </button>
           )}
         </div>
-
-        {/* Desktop floating panel — photo picker + actions */}
-        <aside
-          className={`pointer-events-auto absolute right-3 top-1/2 z-[90] hidden max-h-[calc(100%-24px)] w-[380px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_16px_48px_rgba(77,45,133,0.35)] transition-all duration-200 lg:flex ${
-            sidebarOpen
-              ? 'translate-x-0 opacity-100'
-              : 'pointer-events-none translate-x-[110%] opacity-0'
-          }`}
-        >
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">All photos</h2>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(false)}
-              title="Collapse photos"
-              className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-[#c9b8ff] bg-white text-[#5b3aa8] transition hover:bg-[#efe8ff]"
-            >
-              ›
-            </button>
-          </header>
-          <div className="pb-scroll min-h-0 flex-1 overflow-y-auto px-4 py-4">{photosPanel}</div>
-          <footer className="border-t-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
-            <button
-              type="button"
-              onClick={() => void sendToPrint()}
-              disabled={!allAssigned || sent}
-              className={`w-full ${sendButtonClass}`}
-            >
-              {sent ? 'Sending…' : 'Ready to print'}
-            </button>
-            {status.text && (
-              <p
-                className={`mt-2 text-center text-xs font-extrabold ${
-                  status.kind === 'ok'
-                    ? 'text-[#15803d]'
-                    : status.kind === 'err'
-                      ? 'text-[#b3206e]'
-                      : 'text-[#7a4de3]'
-                }`}
-              >
-                {status.text}
-              </p>
-            )}
-          </footer>
-        </aside>
       </div>
 
-      {/* Mobile bottom dock */}
+      {selectionPill}
+
       <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-[#c9b8ff] bg-white/95 backdrop-blur lg:hidden">
-        <div className="flex h-14 items-stretch gap-1 px-2 py-1">
+        <div className="mx-auto flex h-14 max-w-3xl items-stretch gap-2 px-3 py-1.5">
           <button
             type="button"
-            onClick={() => setPanelOpen((current) => !current)}
-            title="Photos"
-            className={dockButtonClass(panelOpen)}
+            onClick={() => setPanelOpen(true)}
+            title="Semua Foto"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-[#a35ef6] bg-white text-sm font-black uppercase text-[#4d2d85]"
           >
-            <span className="text-[0.85rem] leading-none">▦</span>
-            Photos
-          </button>
-          <button type="button" onClick={autoPlace} title="Auto-place photos into slots" className={dockButtonClass(false)}>
-            <span className="text-[0.85rem] leading-none">⟳</span>
-            Auto
-          </button>
-          <button type="button" onClick={clearFrame} title="Clear the frame" className={dockButtonClass(false)}>
-            <span className="text-[0.85rem] leading-none">✕</span>
-            Clear
+            <span aria-hidden="true">▦</span> Semua Foto
           </button>
           <button
             type="button"
-            id="organize-send"
-            disabled={!allAssigned || sent}
-            onClick={() => void sendToPrint()}
-            className={`flex h-full min-w-0 flex-[1.8] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] transition-colors ${
-              sendReady
-                ? 'border-[3px] border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_0_0_3px_rgba(163,94,246,0.15)]'
-                : 'cursor-not-allowed border-[3px] border-[#c9b8ff] bg-white text-[#a29ac0] opacity-70'
-            }`}
+            onClick={unselectAllSlots}
+            disabled={filled === 0}
+            title="Batalkan Pilihan"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-[#ff9ecb] bg-[#ffe0ef] text-sm font-black uppercase text-[#b3206e] disabled:opacity-40"
           >
-            <span className="text-[0.85rem] leading-none">»</span>
-            {sent ? 'Sending…' : 'Ready to print'}
+            <span aria-hidden="true">☐</span> Batalkan Pilihan
           </button>
         </div>
       </div>
 
-      {/* Mobile bottom sheet — photo picker */}
-      <div
-        className={`absolute inset-x-0 bottom-14 z-[110] flex max-h-[60vh] flex-col overflow-hidden rounded-t-[18px] border-t-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_-12px_40px_rgba(77,45,133,0.25)] transition-transform duration-300 ease-out lg:hidden ${
-          panelOpen ? 'translate-y-0' : 'pointer-events-none translate-y-[calc(100%+3.5rem)]'
+      <button
+        type="button"
+        aria-label="Close photo picker"
+        aria-hidden={!panelOpen}
+        tabIndex={panelOpen ? 0 : -1}
+        onClick={clearCanvasSelection}
+        className={`fixed inset-0 z-[100] bg-black/25 transition-opacity duration-300 ease-in-out ${
+          panelOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      />
+
+      <section
+        aria-hidden={!panelOpen}
+        className={`pointer-events-auto fixed right-3 top-1/2 z-[110] hidden max-h-[calc(100dvh-24px)] w-[420px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_16px_48px_rgba(77,45,133,0.35)] transition-all duration-300 ease-in-out lg:flex ${
+          panelOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-[110%] opacity-0'
         }`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-2.5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">All photos</h2>
-            {status.text && (
-              <span
-                className={`text-xs font-extrabold ${
-                  status.kind === 'ok'
-                    ? 'text-[#15803d]'
-                    : status.kind === 'err'
-                      ? 'text-[#b3206e]'
-                      : 'text-[#7a4de3]'
-                }`}
-              >
-                {status.text}
-              </span>
-            )}
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Semua Foto</h2>
+            <p className="text-xs font-bold text-[#7a4de3]">
+              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
+            </p>
           </div>
           <button
             type="button"
-            onClick={() => setPanelOpen(false)}
-            className="rounded-full border-2 border-[#c9b8ff] bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8]"
+            onClick={clearCanvasSelection}
+            aria-label="Tutup pemilih foto"
+            tabIndex={panelOpen ? 0 : -1}
+            className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-[#c9b8ff] bg-white text-lg font-black text-[#5b3aa8] transition hover:bg-[#efe8ff]"
           >
-            Close
+            ×
           </button>
         </header>
-        <div className="pb-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
-          {photosPanel}
-        </div>
-      </div>
+        <div className="pb-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">{photosPanel}</div>
+      </section>
+
+      <section
+        aria-hidden={!panelOpen}
+        className={`pointer-events-auto fixed inset-x-3 bottom-[4.5rem] z-[110] mx-auto flex max-h-[58vh] max-w-5xl flex-col overflow-hidden rounded-t-[18px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_-12px_40px_rgba(77,45,133,0.25)] transition-transform duration-300 ease-in-out lg:hidden ${
+          panelOpen ? 'translate-y-0' : 'pointer-events-none translate-y-[calc(100%+5rem)]'
+        }`}
+      >
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Semua Foto</h2>
+            <p className="text-xs font-bold text-[#7a4de3]">
+              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={clearCanvasSelection}
+            aria-label="Tutup pemilih foto"
+            tabIndex={panelOpen ? 0 : -1}
+            className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#c9b8ff] bg-white text-lg font-black text-[#5b3aa8]"
+          >
+            ×
+          </button>
+        </header>
+        <div className="pb-scroll min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">{photosPanel}</div>
+      </section>
     </section>
   );
 };

@@ -49,6 +49,9 @@ export interface FramePhotoPlacement {
   zIndex?: number;
   objectFit?: FramePhotoFit;
   objectPosition?: string;
+  photoScale?: number;
+  photoOffsetX?: number;
+  photoOffsetY?: number;
 }
 
 export interface FrameQRPlacement {
