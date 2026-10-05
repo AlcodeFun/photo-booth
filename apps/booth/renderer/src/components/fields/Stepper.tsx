@@ -48,7 +48,7 @@ export const formatNumericText = (raw: string, decimals = 0): string => {
  */
 export const formatTokenText = (raw: string): string => {
   const cleaned = raw
-    .replace(/[^0-9/.\-]/g, '')
+    .replace(/[^0-9/.-]/g, '')
     .replace(/\/{2,}/g, '/')
     .replace(/\.{2,}/g, '.')
     .replace(/-{2,}/g, '-');
