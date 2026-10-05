@@ -1,11 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { formatBoothCopy } from '@photo-booth/types';
 import FrameCanvas from '../components/FrameCanvas';
 import { useSessionStore } from '../store/sessionStore';
 import { useBoothConfig } from '../store/boothConfigStore';
+import { useBoothAppearance, appearanceSurfaceStyle } from '../store/appearanceStore';
+import { withAlpha } from '../lib/appearance';
 import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
 import { getCanvasFilter } from '../utils/filters';
 import { createResultGif, createResultLiveFramed, renderComposition } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
+import ResultsView from '../components/booth/ResultsView';
 
 export const PrintQRScreen: React.FC = () => {
   const { frame, filterId, photoSlots, printStatus, uploadStatus, downloadUrl, completeSession } = useSessionStore(
@@ -23,6 +27,8 @@ export const PrintQRScreen: React.FC = () => {
   const flowMode = useBoothConfig((state) => state.flowMode);
   const printMode = useBoothConfig((state) => state.printer.printMode);
   const printerEnabled = useBoothConfig((state) => state.printer.enabled);
+  const active = useBoothAppearance((state) => state.active);
+  const { copy, theme } = active;
   const isTimedFlow = flowMode === 'timed';
   // Manual mode queues the print for the operator; the customer never waits on
   // a physical print, so the screen finishes as soon as the upload/QR is ready.
@@ -36,7 +42,6 @@ export const PrintQRScreen: React.FC = () => {
   const [qrOpen, setQrOpen] = useState(false);
   const [modalQr, setModalQr] = useState<string | null>(null);
   const [galleryOpen, setGalleryOpen] = useState(false);
-  const [slideIndex, setSlideIndex] = useState(0);
   const [viewer, setViewer] = useState<{ url: string; label: string; rounded: boolean } | null>(null);
   const [celebrate, setCelebrate] = useState(false);
 
@@ -133,17 +138,7 @@ export const PrintQRScreen: React.FC = () => {
     return () => URL.revokeObjectURL(url);
   }, [gifBlob]);
 
-  // Slideshow: loop through all captured photos automatically.
-  useEffect(() => {
-    if (allPhotos.length <= 1) {
-      setSlideIndex(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setSlideIndex((current) => (current + 1) % allPhotos.length);
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [allPhotos.length]);
+  // Slideshow rotation lives in ResultsView, which owns it.
 
   // Step 1 + Step 2 (token generation, registration, file upload) are owned by
   // lib/uploadJob, a store-level job that keeps running even after the customer
@@ -207,7 +202,7 @@ export const PrintQRScreen: React.FC = () => {
         includeFrame: true,
         qrCodeUrl: qrDataUrl ?? undefined,
       });
-      setViewer({ url: canvas.toDataURL('image/jpeg', 0.92), label: 'Framed photo', rounded: true });
+      setViewer({ url: canvas.toDataURL('image/jpeg', 0.92), label: copy.resultsFramedPhotoLabel, rounded: true });
     } catch {
       // ignore — leave the viewer closed
     }
@@ -215,18 +210,22 @@ export const PrintQRScreen: React.FC = () => {
 
   const handleViewLive = () => {
     if (liveUrl) {
-      setViewer({ url: liveUrl, label: 'Framed live photo', rounded: true });
+      setViewer({ url: liveUrl, label: copy.resultsFramedLiveBadge, rounded: true });
     }
   };
 
   const handleViewGif = () => {
     if (gifUrl) {
-      setViewer({ url: gifUrl, label: 'Animated GIF', rounded: true });
+      setViewer({ url: gifUrl, label: copy.resultsAnimatedGifBadge, rounded: true });
     }
   };
 
   const handleViewPhoto = (dataUrl: string, index: number) => {
-    setViewer({ url: dataUrl, label: `Photo ${index + 1}`, rounded: false });
+    setViewer({
+      url: dataUrl,
+      label: formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 }),
+      rounded: false,
+    });
   };
 
   // Escape closes whichever zoom modal is open.
@@ -257,18 +256,22 @@ export const PrintQRScreen: React.FC = () => {
     () =>
       Array.from({ length: 22 }, (_, i) => ({
         left: `${8 + ((i * 37) % 84)}%`,
-        color: ['#ff4bb5', '#a35ef6', '#4d2d85', '#ffec5a', '#ffffff'][i % 5],
+        color: [theme.primary, theme.secondary, theme.deep, theme.accent, theme.tertiary][i % 5],
         size: 8 + ((i * 3) % 8),
         duration: 2.6 + ((i * 7) % 18) / 10,
         delay: (i % 6) * 0.35,
       })),
-    [],
+    [theme],
   );
 
   return (
     <div
-      className="print-qrpage fixed inset-0 z-40 flex select-none flex-col overflow-hidden bg-[#d9f85a]"
-      style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}
+      className="print-qrpage fixed inset-0 z-40 flex select-none flex-col overflow-hidden"
+      style={{
+        ...appearanceSurfaceStyle(active, theme.tertiary),
+        color: theme.deep,
+        animation: 'pb-modal-fade 0.25s ease-out both',
+      }}
     >
       <style>{`
         @media print {
@@ -322,250 +325,54 @@ export const PrintQRScreen: React.FC = () => {
         </div>
       )}
 
-      {/* Main result — framed (left), photo slideshow + live (middle), QR (right).
-          Flow 2 hides every result and shows the QR alone (points to /p/:token,
-          whose arrange section lets the customer compose the frame for print). */}
-      <div className="print-no-show pb-scroll relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 lg:overflow-hidden">
-        {/* Floating background cuteness */}
-        <div className="pointer-events-none absolute inset-0 z-0">
-          {[
-            { left: '6%', top: '14%', size: 'text-xl', delay: '0s', rot: '12deg' },
-            { right: '10%', top: '10%', size: 'text-2xl', delay: '0.6s', rot: '-6deg' },
-            { left: '14%', bottom: '12%', size: 'text-2xl', delay: '1.1s', rot: '4deg' },
-            { right: '12%', bottom: '16%', size: 'text-xl', delay: '1.6s', rot: '-10deg' },
-          ].map((s, i) => (
-            <span
-              key={i}
-              className={`absolute ${s.size} opacity-30 select-none`}
-              style={{
-                left: s.left,
-                right: s.right,
-                top: s.top,
-                bottom: s.bottom,
-                transform: `rotate(${s.rot})`,
-                animation: 'pb-balloon-float 6s ease-in-out infinite',
-                animationDelay: s.delay,
-                ['--dx' as string]: '14px',
-                ['--dy' as string]: '-16px',
-                ['--rot' as string]: s.rot,
-              }}
-            >
-              {['💖', '⭐', '🎀', '✨'][i]}
-            </span>
-          ))}
-        </div>
-
-        <div className="relative z-10 flex min-h-0 h-full flex-col gap-4 lg:h-full lg:flex-row lg:items-stretch lg:justify-center">
-          {/* Left: framed photo — bare, clickable to zoom */}
-          {!isTimedFlow && (<>
-          <button
-            type="button"
-            onClick={() => void handleViewFramed()}
-            title="View framed photo larger"
-            aria-label="View framed photo larger"
-            className="group relative mx-auto flex h-[34vh] w-full max-w-[260px] min-h-0 shrink-0 cursor-pointer items-center justify-center self-center bg-transparent p-0 sm:max-w-[300px] lg:h-auto lg:max-w-none lg:flex-1 lg:self-auto"
-            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
-          >
-            {frame && photoSlots.length > 0 && outputs.framed ? (
-              <>
-                <div className="relative flex h-full w-full min-h-0 items-center justify-center">
-                  <FrameCanvas
-                    frame={frame}
-                    photos={selectedPhotos}
-                    photoSlotCount={photoSlots.length}
-                    filter={frameFilter}
-                    qrCodeUrl={qrDataUrl ?? undefined}
-                    className="max-h-full w-auto max-w-full rounded-md bg-white shadow-[0_14px_30px_rgba(77,45,133,0.25)] transition-transform group-hover:scale-[1.02]"
-                    style={{ height: '100%', aspectRatio: '3 / 4' }}
-                  />
-                  <span
-                    className="pointer-events-none absolute -right-1.5 -top-1.5 text-2xl"
-                    style={{ animation: 'pb-float 3.5s ease-in-out infinite' }}
-                  >
-                    💖
-                  </span>
-                </div>
-              </>
-            ) : (
-              <span className="rounded-lg bg-white/60 px-4 py-6 text-center text-sm font-bold text-[#4d2d85]/60">
-                No framed photo
-              </span>
-            )}
-          </button>
-
-          {/* Middle: photo slideshow (opens gallery) + live result below, same size */}
-          <div
-            className="flex min-h-0 flex-1 flex-col gap-3"
-            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.08s both' }}
-          >
-            <button
-              type="button"
-              onClick={() => outputs.allPhotos && setGalleryOpen(true)}
-              title="View all photos"
-              aria-label="View all photos"
-              className="group relative flex min-h-0 min-h-[26vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(77,45,133,0.2)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
-            >
-              {outputs.allPhotos && allPhotos.length > 0 ? (
-                <>
-                  <div className="relative m-auto h-full w-full overflow-hidden rounded-md bg-black/10">
-                    <div
-                      className="flex h-full w-full transition-transform duration-700 ease-out"
-                      style={{ transform: `translateX(-${slideIndex * 100}%)` }}
-                    >
-                      {allPhotos.map((dataUrl, index) => (
-                        <img
-                          key={index}
-                          src={dataUrl}
-                          alt={`Photo ${index + 1}`}
-                          draggable={false}
-                          className="h-full w-full shrink-0 object-cover"
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  {/* Slideshow dots */}
-                  {allPhotos.length > 1 && (
-                    <span className="pointer-events-none absolute inset-x-0 top-2 flex justify-center gap-1.5">
-                      {allPhotos.map((_, index) => (
-                        <span
-                          key={index}
-                          className={`h-2.5 w-2.5 rounded-full transition-all duration-300 ${
-                            index === slideIndex % allPhotos.length
-                              ? 'w-5 bg-[#ff4bb5] shadow-[0_0_6px_rgba(255,75,181,0.8)]'
-                              : 'bg-[#4d2d85]/30'
-                          }`}
-                        />
-                      ))}
-                    </span>
-                  )}
-                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#ff4bb5]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                    💖 View all photos ({allPhotos.length})
-                  </span>
-                </>
-              ) : (
-                <span className="text-center text-sm font-bold text-[#4d2d85]/60">
-                  {outputs.allPhotos ? 'No individual photos recorded.' : 'Photo collection is turned off.'}
-                </span>
-              )}
-            </button>
-
-            {/* Framed live result — each slot plays its own live view clip */}
-            {liveUrl && outputs.framedLive && (
-              <button
-                type="button"
-                onClick={handleViewLive}
-                title="View framed live photo"
-                aria-label="View framed live photo"
-                className="group relative flex min-h-0 min-h-[24vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#4acaf1] bg-white p-1.5 shadow-[0_6px_0_rgba(74,202,241,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
-              >
-                <img
-                  src={liveUrl}
-                  alt="Framed live photo preview"
-                  className="h-full w-full rounded-md object-cover"
-                />
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#4acaf1]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                  📹 Live
-                </span>
-              </button>
-            )}
-
-            {/* Plain animated GIF result */}
-            {gifUrl && outputs.gif && (
-              <button
-                type="button"
-                onClick={handleViewGif}
-                title="View animated GIF"
-                aria-label="View animated GIF"
-                className="group relative flex min-h-0 min-h-[24vh] flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-1.5 shadow-[0_6px_0_rgba(163,94,246,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
-              >
-                <img
-                  src={gifUrl}
-                  alt="Animated GIF preview"
-                  className="h-full w-full rounded-md object-cover"
-                />
-                <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#a35ef6]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                  🎞️ GIF
-                </span>
-              </button>
-            )}
-          </div>
-          </>)}
-
-          {/* Right: QR + Finish Session */}
-          <div
-            className={`flex min-h-0 flex-col items-center justify-center gap-5 ${isTimedFlow ? 'flex-1 lg:gap-10' : 'shrink-0 lg:w-64 lg:gap-[9rem] xl:w-72'}`}
-            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.16s both' }}
-          >
-            <div className="flex flex-col items-center gap-2">
-             <span className="text-center text-[0.6rem] font-black uppercase tracking-[0.2em] text-[#4d2d85]">
-             {isTimedFlow ? 'Scan QR, arrange your frame & print' : 'Scan QR to download your photos'}
-            </span>
-            <button
-              onClick={() => setQrOpen(true)}
-              aria-label="Enlarge QR code"
-              className="relative block cursor-pointer overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-white p-3 shadow-[0_8px_0_rgba(77,45,133,0.25)] transition-transform hover:-translate-y-0.5 hover:shadow-[0_12px_0_rgba(77,45,133,0.3)] hover:border-[#ff4bb5]"
-            >
-              {downloadUrl && qrDataUrl ? (
-                <>
-                  <img src={qrDataUrl} alt="Scan to download your photos" className="h-40 w-40 sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64" />
-                  {/* Pulsing aura */}
-                  <span
-                    className="pointer-events-none absolute inset-0 rounded-[14px]"
-                    style={{ animation: 'pb-pulse-ring 2.4s ease-out infinite' }}
-                  />
-                  {/* Scanning line */}
-                  <span
-                    className="pointer-events-none absolute inset-x-4 top-4 z-10 h-[3px] rounded-full bg-[#ff4bb5]/80 shadow-[0_0_10px_rgba(255,75,181,0.9)]"
-                    style={{ animation: 'pb-scan 2.8s ease-in-out infinite' }}
-                  />
-                 
-                </>
-              ) : (
-                <div className="flex h-40 w-40 flex-col items-center justify-center gap-1 text-center text-[0.6rem] font-black uppercase tracking-[0.18em] text-[#4d2d85] sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64">
-                  <span className="pb-tap text-base" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>⏳</span>
-                  Generating QR...
-                </div>
-              )}
-            </button>
-            </div>
-              
-             <button
-          onClick={completeSession}
-              disabled={!canFinishSession}
-          title="Finish Session"
-              className={`shrink-0 rounded-[12px] px-6 py-3 text-[1.2rem] font-black uppercase tracking-[0.16em] transition-all md:px-8 ${
-                canFinishSession
-              ? 'bg-[#ff4bb5] text-[#ffffff] shadow-[0_4px_0_rgba(0,0,0,0.18)] hover:-translate-y-0.5 hover:shadow-[0_7px_0_rgba(0,0,0,0.18)] active:translate-y-0'
-              : 'cursor-not-allowed bg-[#7d6ea6] text-white opacity-70'
-          }`}
-              style={canFinishSession ? { animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' } : undefined}
-        >
-          {isDone ? '✓ Selesai 🎉' : 'Finish Session'}
-        </button>
-          </div>
-          
-        </div>
-        
-      </div>
+      <ResultsView
+        copy={copy}
+        theme={theme}
+        isTimedFlow={isTimedFlow}
+        frame={frame}
+        photoUrls={selectedPhotos}
+        photoSlotCount={photoSlots.length}
+        filterStyle={frameFilter}
+        liveUrl={liveUrl}
+        gifUrl={gifUrl}
+        qrDataUrl={qrDataUrl}
+        showFramed={outputs.framed}
+        showAllPhotos={outputs.allPhotos}
+        showLive={outputs.framedLive}
+        showGif={outputs.gif}
+        isDone={isDone}
+        canFinish={canFinishSession}
+        surfaceStyle={appearanceSurfaceStyle(active, theme.tertiary)}
+        onFinish={completeSession}
+        onViewFramed={() => void handleViewFramed()}
+        onOpenGallery={() => setGalleryOpen(true)}
+        onViewLive={handleViewLive}
+        onViewGif={handleViewGif}
+        onOpenQr={() => setQrOpen(true)}
+      />
 
       {/* Fullscreen gallery — all photos */}
       {galleryOpen && (
         <div
-          className="print-no-show fixed inset-0 z-50 flex flex-col bg-[#1a0b2e]"
-          style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}
+          className="print-no-show fixed inset-0 z-50 flex flex-col"
+          style={{ backgroundColor: theme.deep, animation: 'pb-modal-fade 0.25s ease-out both' }}
           onMouseDown={() => setGalleryOpen(false)}
         >
-          <header className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#1a0b2e]/80 px-5 py-4 backdrop-blur">
+          <header
+            className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4 backdrop-blur"
+            style={{ backgroundColor: withAlpha(theme.deep, 0.8) }}
+          >
             <div>
-              <h3 className="text-lg font-bold text-white">Your photos</h3>
+              <h3 className="text-lg font-bold text-white">{copy.resultsGalleryTitle}</h3>
               <p className="text-xs text-white/40">
-                {allPhotos.length} photo{allPhotos.length === 1 ? '' : 's'}
+                {formatBoothCopy(copy.resultsViewAllPhotos, { count: allPhotos.length })}
               </p>
             </div>
             <button
               onClick={() => setGalleryOpen(false)}
-              className="grid h-9 w-9 place-items-center rounded-full bg-[#ff4bb5] text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95"
-              aria-label="Close"
+              className="grid h-9 w-9 place-items-center rounded-full text-white transition-transform hover:scale-110 active:scale-95"
+              style={{ backgroundColor: theme.primary, boxShadow: '0 4px 12px rgba(0,0,0,0.45)' }}
+              aria-label={copy.resultsClose}
             >
               &#10005;
             </button>
@@ -585,15 +392,23 @@ export const PrintQRScreen: React.FC = () => {
                   onClick={handleViewLive}
                   title="View framed live photo"
                   aria-label="View framed live photo"
-                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#4acaf1] bg-[#2b1a4a] p-1.5 shadow-[0_6px_0_rgba(74,202,241,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 p-1.5 transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                  style={{
+                    borderColor: theme.action,
+                    backgroundColor: theme.deep,
+                    boxShadow: `0 6px 0 ${withAlpha(theme.action, 0.25)}`,
+                  }}
                 >
                   <img
                     src={liveUrl}
-                    alt="Framed live photo"
+                    alt={copy.resultsFramedLiveBadge}
                     className="max-h-[46vh] w-auto rounded-md object-contain"
                   />
-                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#4acaf1]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                    📹 Framed live photo
+                  <span
+                    className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white"
+                    style={{ backgroundColor: withAlpha(theme.action, 0.9) }}
+                  >
+                    📹 {copy.resultsFramedLiveBadge}
                   </span>
                 </button>
               )}
@@ -604,15 +419,23 @@ export const PrintQRScreen: React.FC = () => {
                   onClick={handleViewGif}
                   title="View animated GIF"
                   aria-label="View animated GIF"
-                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 border-[#a35ef6] bg-[#2b1a4a] p-1.5 shadow-[0_6px_0_rgba(163,94,246,0.25)] transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                  className="group relative mb-6 flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 p-1.5 transition-transform hover:-translate-y-0.5 sm:p-2.5"
+                  style={{
+                    borderColor: theme.secondary,
+                    backgroundColor: theme.deep,
+                    boxShadow: `0 6px 0 ${withAlpha(theme.secondary, 0.25)}`,
+                  }}
                 >
                   <img
                     src={gifUrl}
-                    alt="Animated GIF"
+                    alt={copy.resultsAnimatedGifBadge}
                     className="max-h-[46vh] w-auto rounded-md object-contain"
                   />
-                  <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-[#a35ef6]/90 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white">
-                    🎞️ Animated GIF
+                  <span
+                    className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white"
+                    style={{ backgroundColor: withAlpha(theme.secondary, 0.9) }}
+                  >
+                    🎞️ {copy.resultsAnimatedGifBadge}
                   </span>
                 </button>
               )}
@@ -623,19 +446,20 @@ export const PrintQRScreen: React.FC = () => {
                     type="button"
                     key={index}
                     onClick={() => handleViewPhoto(dataUrl, index)}
-                    title={`View photo ${index + 1}`}
-                    aria-label={`View photo ${index + 1}`}
-                    className="group relative block w-full cursor-pointer overflow-hidden rounded-xl border border-white/10 bg-[#2b1a4a]"
+                    title={formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
+                    aria-label={formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
+                    className="group relative block w-full cursor-pointer overflow-hidden rounded-xl border border-white/10"
+                    style={{ backgroundColor: theme.surface }}
                   >
                     <div className="aspect-square w-full overflow-hidden bg-black/30">
                       <img
                         src={dataUrl}
-                        alt={`Photo ${index + 1}`}
+                        alt={formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
                         className="h-full w-full object-cover transition transform group-hover:scale-105"
                       />
                     </div>
                     <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-black/70 px-2 py-1.5 text-xs text-white/90">
-                      Photo {index + 1}
+                      {formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
                     </span>
                   </button>
                 ))}
@@ -648,31 +472,42 @@ export const PrintQRScreen: React.FC = () => {
       {/* QR enlarge modal */}
       {qrOpen && (
         <div
-          className="print-no-show fixed inset-0 z-50 flex items-center justify-center bg-[#1a0b2e]/90 p-4"
+          className="print-no-show fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: withAlpha(theme.deep, 0.9) }}
           onClick={() => setQrOpen(false)}
         >
           <div
-            className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[18px] border-[4px] border-[#ff4bb5] bg-white p-6"
+            className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[18px] border-[4px] bg-white p-6"
+            style={{ borderColor: theme.primary }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-center text-[0.9rem] font-black uppercase tracking-[0.14em] text-[#4d2d85]">
-              Scan untuk unduh
+            <h2
+              className="text-center text-[0.9rem] font-black uppercase tracking-[0.14em]"
+              style={{ color: theme.deep }}
+            >
+              {copy.resultsQrModalTitle}
             </h2>
             {modalQr ? (
-              <img src={modalQr} alt="Large QR code" className="h-72 w-72 rounded-[12px]" />
+              <img src={modalQr} alt={copy.resultsQrModalTitle} className="h-72 w-72 rounded-[12px]" />
             ) : (
-              <div className="flex h-72 w-72 items-center justify-center animate-pulse rounded-[12px] bg-gray-200">
+              <div
+                className="flex h-72 w-72 animate-pulse items-center justify-center rounded-[12px]"
+                style={{ backgroundColor: withAlpha(theme.deep, 0.15) }}
+              >
                 <span className="animate-spin text-xl">⏳</span>
               </div>
             )}
             {downloadUrl && (
-              <p className="max-w-full break-all text-center text-[0.6rem] font-bold text-[#4d2d85]">{downloadUrl}</p>
+              <p className="max-w-full break-all text-center text-[0.6rem] font-bold" style={{ color: theme.deep }}>
+                {downloadUrl}
+              </p>
             )}
             <button
               onClick={() => setQrOpen(false)}
-              className="rounded-full bg-[#ff4bb5] px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
+              className="rounded-full px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white"
+              style={{ backgroundColor: theme.primary, boxShadow: '0 3px 0 rgba(0,0,0,0.15)' }}
             >
-              Tutup
+              {copy.resultsClose}
             </button>
           </div>
         </div>
@@ -681,23 +516,24 @@ export const PrintQRScreen: React.FC = () => {
       {/* Result zoom modal — view any result enlarged, like the QR modal */}
       {viewer && (
         <div
-          className="print-no-show fixed inset-0 z-50 flex items-center justify-center bg-[#1a0b2e]/95 p-4"
+          className="print-no-show fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: withAlpha(theme.deep, 0.95) }}
           onClick={() => setViewer(null)}
         >
           <div className="flex max-h-[94vh] w-full max-w-4xl flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
             <img
               src={viewer.url}
               alt={viewer.label}
-              className={`max-h-[80vh] w-auto max-w-full bg-white object-contain shadow-2xl ${
-                viewer.rounded ? 'rounded-[14px] border-[4px] border-[#ff4bb5]' : ''
-              }`}
+              className="max-h-[80vh] w-auto max-w-full bg-white object-contain shadow-2xl"
+              style={viewer.rounded ? { borderRadius: '14px', border: `4px solid ${theme.primary}` } : undefined}
             />
             <p className="text-[0.7rem] font-black uppercase tracking-[0.2em] text-white">{viewer.label}</p>
             <button
               onClick={() => setViewer(null)}
-              className="rounded-full bg-[#ff4bb5] px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
+              className="rounded-full px-6 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white"
+              style={{ backgroundColor: theme.primary, boxShadow: '0 3px 0 rgba(0,0,0,0.15)' }}
             >
-              Tutup
+              {copy.resultsClose}
             </button>
           </div>
         </div>

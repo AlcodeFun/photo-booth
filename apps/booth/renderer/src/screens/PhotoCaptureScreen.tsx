@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
 import { useBoothConfig } from '../store/boothConfigStore';
+import { useBoothAppearance } from '../store/appearanceStore';
 import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
+import CaptureView from '../components/booth/CaptureView';
 
 export const PhotoCaptureScreen: React.FC = () => {
   const { currentPhotoSlot, sessionId, photoSlots, addPhotoAttempt, usePhoto, setScreen } =
@@ -16,6 +18,7 @@ export const PhotoCaptureScreen: React.FC = () => {
     }));
   const flowMode = useBoothConfig((state) => state.flowMode);
   const flowSettings = useBoothConfig((state) => state.flow);
+  const { copy, theme } = useBoothAppearance((state) => state.active);
   const isAutoFlow = flowMode === 'auto';
   const isTimedFlow = flowMode === 'timed';
   const currentSlot = photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
@@ -68,6 +71,22 @@ export const PhotoCaptureScreen: React.FC = () => {
     setShowPhotoSlotArrows(carousel.scrollWidth > carousel.clientWidth + 1);
     setCanScrollPhotoSlotsLeft(carousel.scrollLeft > 1);
     setCanScrollPhotoSlotsRight(carousel.scrollLeft + carousel.clientWidth < carousel.scrollWidth - 1);
+  }, []);
+
+  const scrollPhotoSlotsLeft = useCallback(() => {
+    const carousel = photoSlotCarouselRef.current;
+    if (!carousel) return;
+    carousel.scrollBy({ left: -carousel.clientWidth * 0.75, behavior: 'smooth' });
+  }, []);
+
+  const scrollPhotoSlotsRight = useCallback(() => {
+    const carousel = photoSlotCarouselRef.current;
+    if (!carousel) return;
+    carousel.scrollBy({ left: carousel.clientWidth * 0.75, behavior: 'smooth' });
+  }, []);
+
+  const handleSlotPhotoLoad = useCallback((naturalWidth: number, naturalHeight: number) => {
+    setPhotoAspectRatio(naturalWidth / naturalHeight);
   }, []);
 
   useEffect(() => {
@@ -477,225 +496,80 @@ export const PhotoCaptureScreen: React.FC = () => {
   const latestPhoto = currentSlot?.attempts[currentSlot.attempts.length - 1]?.localPath;
   const timedClock = timedPhase === 'active' ? timedRemaining : flowSettings.timeBudgetSeconds;
 
+  const handleCameraRetry = useCallback(() => {
+    void canon.retry();
+    setCountdown(flowSettings.shotCountdown);
+    setCameraReady(false);
+    setCameraError(null);
+    setCameraAttempt((value) => value + 1);
+    setIsPreparing(false);
+    setIsArmed(false);
+    setIsStarted(false);
+  }, [canon.retry, flowSettings.shotCountdown]);
+
   return (
     <div
+      className="fixed inset-0 z-50 h-[100dvh] w-screen"
       onClick={handleLiveViewClick}
-      className={`fixed inset-0 z-50 h-[100dvh] w-screen select-none overflow-hidden bg-black text-white ${!isStarted ? 'cursor-pointer' : ''}`}
-      aria-label="Fullscreen camera live view"
     >
-      {canonActive ? (
-        <img
-          src={canon.liveFrame ?? undefined}
-          alt="Canon live view"
-          className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`}
-        />
-      ) : (
-        <video ref={videoRef} autoPlay muted playsInline className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`} />
-      )}
-
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/65" />
-      {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
-
-      <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 px-5 py-5 sm:px-8 sm:py-7">
-        <div className="rounded-[12px] bg-black/45 px-4 py-3 backdrop-blur-sm">
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">
-            {isTimedFlow ? 'Sesi' : `Slot ke ${currentPhotoSlot} dari ${photoSlots.length}`}
-          </p>
-          <p className="mt-1 text-xl font-black uppercase tracking-[-0.02em] sm:text-2xl">
-            {isTimedFlow
-              ? `${currentSlot?.attempts.length ?? 0} photo diambil`
-              : `Kesempatan ke ${attemptNumber} dari ${maxAttempts}`}
-          </p>
-        </div>
-
-        {isTimedFlow && (
-          <div className="min-w-24 rounded-[12px] bg-black/45 px-4 py-3 text-center backdrop-blur-sm">
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">
-              {timedPhase === 'active' ? 'Time left' : 'Session'}
-            </p>
-            <p className="mt-1 text-2xl font-black tabular-nums">
-              {String(Math.floor(timedClock / 60)).padStart(2, '0')}:{String(timedClock % 60).padStart(2, '0')}
-            </p>
-          </div>
-        )}
-        <button
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setIsMirrored((mirrored) => !mirrored);
-          }}
-          className="shrink-0 rounded-[10px] border-[3px] border-[#a35ef6] bg-[#efe8ff] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
-          aria-pressed={isMirrored}
-          title="Toggle mirrored preview"
-        >
-          Mirror {isMirrored ? 'on' : 'off'}
-        </button>
-      </header>
-
-      {!feedReady && !shownError && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 text-sm font-bold uppercase tracking-[0.18em]">
-          Starting camera...
-        </div>
-      )}
-
-      {shownError && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-4 bg-black/65 px-6 text-center">
-          <span className="max-w-xl text-sm font-bold text-white sm:text-base">{shownError}</span>
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              void canon.retry();
-              setCountdown(useBoothConfig.getState().flow.shotCountdown);
-              setCameraReady(false);
-              setCameraError(null);
-              setCameraAttempt((value) => value + 1);
-              setIsPreparing(false);
-              setIsArmed(false);
-              setIsStarted(false);
-            }}
-            className="rounded-[8px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85] shadow-[0_4px_0_rgba(122,43,140,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0"
-          >
-            Retry camera
-          </button>
-        </div>
-      )}
-
-      {isStarted && countdown > 0 && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center">
-          <div className="text-[clamp(6rem,22vh,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">{countdown}</div>
-          <div className="mt-4 text-sm font-bold uppercase tracking-[0.18em] text-white/90">
-            {isPreparing ? 'Tunggu Sebentar' : 'Tahan Posemu'}
-          </div>
-        </div>
-      )}
-      {isStarted && countdown === 0 && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center text-3xl font-bold uppercase tracking-[0.12em] drop-shadow-lg sm:text-5xl">
-          {isCapturing ? 'Photo captured' : 'Cheese!'}
-        </div>
-      )}
-
-      {isTimedFlow && timedPhase === 'starting' && (
-        <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/20">
-          <div className="text-[clamp(6rem,22vh,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">{timedStartCountLeft}</div>
-          <div className="mt-4 text-sm font-bold uppercase tracking-[0.18em]">Get ready</div>
-        </div>
-      )}
-
-      {!isStarted && feedReady && !shownError && (isTimedFlow && timedPhase === 'idle' ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">Click dimana saja untuk memulai</p>
-        </div>
-      ) : isTimedFlow && timedPhase === 'active' ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">Click dimana saja untuk mengambil foto</p>
-        </div>
-      ) : !isAutoFlow ? (
-        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">Click dimana saja untuk mengambil foto</p>
-        </div>
-      ) : null)}
-
-      {isTimedFlow && latestPhoto && (
-        <aside className="absolute bottom-24 right-5 z-20 w-48 rounded-[12px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] p-2 backdrop-blur-sm sm:bottom-28 sm:right-8 sm:w-64">
-          <span className="absolute -left-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-[#ff4bb5] text-sm font-black text-white shadow-[0_2px_0_rgba(122,43,140,0.45)]">
-            {currentSlot?.attempts.length}
-          </span>
-          <img src={latestPhoto} alt="Foto Sebelumnya" className="h-44 w-full rounded-[8px] bg-black/35 object-contain shadow-lg sm:h-56" />
-          <p className="mt-2 text-center text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85]">Foto Sebelumnya</p>
-        </aside>
-      )}
-
-      <footer className="absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-4 px-5 pb-5 sm:px-8 sm:pb-7">
-        {!isTimedFlow && (
-          <nav
-            className="mx-auto flex w-full max-w-[min(92vw,1200px)] items-center justify-center gap-2"
-            aria-label="Photo slot progress"
-            onClick={(event) => event.stopPropagation()}
-          >
-            {showPhotoSlotArrows && (
-              <button
-                type="button"
-                aria-label="Previous photo slots"
-                disabled={!canScrollPhotoSlotsLeft}
-                onClick={() => photoSlotCarouselRef.current?.scrollBy({ left: -photoSlotCarouselRef.current.clientWidth * 0.75, behavior: 'smooth' })}
-                className="flex h-10 w-10 shrink-0 items-center justify-center text-3xl text-white enabled:hover:bg-white/15 disabled:opacity-30"
-              >
-                ‹
-              </button>
-            )}
-
-            <div
-              ref={photoSlotCarouselRef}
-              onScroll={updatePhotoSlotCarousel}
-              className="min-w-0 flex-1 overflow-x-auto scroll-smooth"
-            >
-              <div className="flex w-max min-w-full items-center justify-center gap-2 px-1">
-                {photoSlots.map((slot, index) => {
-                  const isCurrent = slot.slotNumber === currentPhotoSlot;
-                  const isComplete = Boolean(slot.selectedAttempt);
-                  const photoUrl = selectedPhotoUrls[index];
-                  return (
-                    <span
-                      key={slot.slotNumber}
-                      ref={isCurrent ? activePhotoSlotRef : null}
-                      aria-current={isCurrent ? 'step' : undefined}
-                      className={`flex shrink-0 flex-col items-center gap-1 border-b-4 px-2 py-2 text-xs font-bold sm:px-3 sm:py-3 ${
-                        isCurrent ? 'border-white bg-white/20 text-white' : isComplete ? 'border-white/60 text-white/80' : 'border-white/25 text-white/60'
-                      }`}
-                    >
-                      {photoUrl ? (
-                        <img
-                          src={photoUrl}
-                          alt={`Photo slot ${slot.slotNumber}`}
-                          className="h-24 w-auto max-w-40 object-contain sm:h-32 sm:max-w-56"
-                          onLoad={(event) => {
-                            const { naturalWidth, naturalHeight } = event.currentTarget;
-                            if (naturalWidth > 0 && naturalHeight > 0) {
-                              setPhotoAspectRatio(naturalWidth / naturalHeight);
-                            }
-                          }}
-                        />
-                      ) : (
-                        <span
-                          className="relative flex h-24 shrink-0 items-center justify-center border border-white/35 sm:h-32"
-                          style={{ aspectRatio: photoAspectRatio ?? '3 / 4' }}
-                        >
-                          <span className="px-2 text-center text-white/60">Photo slot {slot.slotNumber}</span>
-                        </span>
-                      )}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-
-            {showPhotoSlotArrows && (
-              <button
-                type="button"
-                aria-label="Next photo slots"
-                disabled={!canScrollPhotoSlotsRight}
-                onClick={() => photoSlotCarouselRef.current?.scrollBy({ left: photoSlotCarouselRef.current.clientWidth * 0.75, behavior: 'smooth' })}
-                className="flex h-10 w-10 shrink-0 items-center justify-center text-3xl text-white enabled:hover:bg-white/15 disabled:opacity-30"
-              >
-                ›
-              </button>
-            )}
-          </nav>
-        )}
-
-        {isTimedFlow && <div className="w-16" aria-hidden="true" />}
-      </footer>
-
-      {isPreparing && (
-        <div
-          className="absolute inset-0 z-[60] flex items-center justify-center bg-white px-6 text-center text-4xl font-bold text-black sm:text-6xl"
-          role="status"
-          aria-live="polite"
-        >
-          Tahan posisimu ya!
-        </div>
-      )}
+      <CaptureView
+        copy={copy}
+        theme={theme}
+        isTimedFlow={isTimedFlow}
+        isAutoFlow={isAutoFlow}
+        currentPhotoSlot={currentPhotoSlot}
+        totalSlots={photoSlots.length}
+        attemptNumber={attemptNumber}
+        maxAttempts={maxAttempts}
+        currentSlotAttemptCount={currentSlot?.attempts.length ?? 0}
+        timedPhase={timedPhase}
+        timedClock={timedClock}
+        timedStartCountLeft={timedStartCountLeft}
+        isMirrored={isMirrored}
+        countdown={countdown}
+        isStarted={isStarted}
+        isPreparing={isPreparing}
+        isCapturing={isCapturing}
+        feedReady={feedReady}
+        cameraError={shownError}
+        isFlash={isFlash}
+        photoAspectRatio={photoAspectRatio ?? 3 / 4}
+        slots={photoSlots.map((slot, index) => ({
+          slotNumber: slot.slotNumber,
+          isCurrent: slot.slotNumber === currentPhotoSlot,
+          isComplete: Boolean(slot.selectedAttempt),
+          photoUrl: selectedPhotoUrls[index],
+        }))}
+        latestPhoto={latestPhoto}
+        showPhotoSlotArrows={showPhotoSlotArrows}
+        cameraFeed={
+          canonActive ? (
+            <img
+              src={canon.liveFrame ?? undefined}
+              alt="Canon live view"
+              className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`}
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`absolute inset-0 h-full w-full object-cover ${isMirrored ? '-scale-x-100' : ''}`}
+            />
+          )
+        }
+        onToggleMirror={() => setIsMirrored((mirrored) => !mirrored)}
+        onRetry={handleCameraRetry}
+        slotStripRef={photoSlotCarouselRef}
+        onSlotStripScroll={updatePhotoSlotCarousel}
+        canScrollSlotsLeft={canScrollPhotoSlotsLeft}
+        canScrollSlotsRight={canScrollPhotoSlotsRight}
+        onScrollSlotsLeft={scrollPhotoSlotsLeft}
+        onScrollSlotsRight={scrollPhotoSlotsRight}
+        activeSlotRef={activePhotoSlotRef}
+        onSlotPhotoLoad={handleSlotPhotoLoad}
+      />
     </div>
   );
 };

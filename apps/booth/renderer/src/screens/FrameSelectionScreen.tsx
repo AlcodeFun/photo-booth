@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { FrameConfig } from '@photo-booth/types';
-import FrameCanvas from '../components/FrameCanvas';
 import { MOCK_FRAMES } from '../data/mockData';
 import { useFramesWithDrafts } from '../hooks/useFramesWithDrafts';
 import { listFrameTemplates } from '../lib/frames';
 import { useSessionStore } from '../store/sessionStore';
-import { resolveFrameTemplate } from '../utils/frameConfig';
+import { useBoothAppearance } from '../store/appearanceStore';
+import FrameSelectionView from '../components/booth/FrameSelectionView';
 
 export const FrameSelectionScreen: React.FC = () => {
   const selectFrame = useSessionStore((state) => state.selectFrame);
+  const { copy, theme } = useBoothAppearance((state) => state.active);
   const [frames, setFrames] = useState<FrameConfig[]>(MOCK_FRAMES);
   const [isLoading, setIsLoading] = useState(true);
   const framesWithDrafts = useFramesWithDrafts(frames, 3);
@@ -35,113 +36,24 @@ export const FrameSelectionScreen: React.FC = () => {
     };
   }, []);
 
-  const handleSelect = (frame: FrameConfig) => {
-    setSelected(frame);
-  };
-
-  const handleClose = () => {
-    setSelected(null);
-  };
-
   const handleConfirm = () => {
     if (selected) {
       selectFrame(selected);
     }
   };
 
-  const selectedPreviewRatio = selected
-    ? (() => {
-        const template = resolveFrameTemplate(selected, selected.photoSlots ?? 3);
-        return template.width / template.height;
-      })()
-    : 0.75;
-
   return (
-    <div className="flex h-[calc(100vh-3rem)] items-center justify-center select-none overflow-hidden p-2 sm:p-4 md:p-6">
-      <div className="flex h-full w-full max-w-[95vw] flex-col overflow-hidden rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-1.5 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-2 md:p-2.5">
-        <div className="pb-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-[14px] bg-[#ff4bb5] p-1.5 sm:p-2 md:p-2.5">
-          <div className="mb-1 shrink-0 text-center md:mb-3">
-            <p className="text-[0.65rem] font-black uppercase tracking-[0.28em] text-[#4d2d85] sm:text-[0.75rem]">Bingkai</p>
-            <h1 className="mt-0.5 text-[1.25rem] font-black uppercase tracking-[-0.08em] text-[#4d2d85] sm:text-[1.75rem] md:text-[2.25rem]">
-              Pilih gaya foto
-            </h1>
-          </div>
-
-          <div className="grid grid-cols-3 place-items-center gap-2 sm:gap-3">
-            {isLoading
-              ? Array.from({ length: 9 }, (_, index) => (
-                  <div
-                    key={`skeleton-${index}`}
-                    className="flex h-full w-full select-none flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 sm:p-2.5"
-                  >
-                    <div className="mb-2 aspect-[3/4] w-full animate-pulse rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-3" />
-                    <div className="mx-auto mb-2 h-[1rem] w-3/4 animate-pulse rounded-full bg-[#7a4de3]/25" />
-                  </div>
-                ))
-              : framesWithDrafts.map((frame) => (
-              <div
-                key={frame.id}
-                onClick={() => handleSelect(frame)}
-                className="flex h-full w-full cursor-pointer flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 transition-all duration-200 hover:border-[#4acaf1] sm:p-2.5"
-              >
-                <FrameCanvas
-                  frame={frame}
-                  photoSlotCount={frame.photoSlots ?? 3}
-                  className="mb-2 w-full rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-3"
-                />
-                <h3 className="shrink-0 px-1 text-center text-sm font-black uppercase tracking-[0.08em] text-[#4d2d85] sm:text-base">{frame.name}</h3>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {selected && (
-        <div
-          className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
-          style={{
-            background: 'rgba(10,5,25,.96)',
-            animation: 'pb-modal-fade 0.25s ease-out both',
-          }}
-          onClick={handleClose}
-        >
-          <div
-            className="relative flex max-h-[82vh] max-w-[92vw] items-center justify-center"
-            style={{ animation: 'pb-modal-zoom 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <FrameCanvas
-              frame={selected}
-              photoSlotCount={selected.photoSlots ?? 3}
-              className="rounded-[14px] border-[3px] border-[#4acaf1] bg-white shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
-              style={{
-                width: `min(80vh * ${selectedPreviewRatio}, 92vw)`,
-                aspectRatio: `${selectedPreviewRatio}`,
-              }}
-            />
-          </div>
-
-          <button
-            onClick={handleClose}
-            className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-[10px] border-[3px] border-[#a35ef6] bg-[#ff4bb5] text-[1.2rem] font-black text-white shadow-[0_4px_0_rgba(122,43,140,0.45)] transition-transform hover:-translate-y-0.5 active:translate-y-0 sm:h-10 sm:w-10"
-            aria-label="Close"
-          >
-            &#10005;
-          </button>
-
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-4 px-6 pb-8 pt-16">
-            <span className="mr-auto max-w-[52%] truncate text-[0.82rem] font-black uppercase tracking-[0.08em] text-white sm:text-[0.9rem]">
-              {selected.name}
-            </span>
-            <button
-              onClick={handleConfirm}
-              className="rounded-[12px] border-[3px] border-[#a35ef6] bg-[#efe8ff] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] text-[#4d2d85] shadow-[0_4px_0_rgba(122,43,140,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
-            >
-              Pilih bingkai
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="relative h-[calc(100vh-3rem)]">
+      <FrameSelectionView
+        copy={copy}
+        theme={theme}
+        frames={framesWithDrafts}
+        isLoading={isLoading}
+        selected={selected}
+        onSelect={setSelected}
+        onClose={() => setSelected(null)}
+        onConfirm={handleConfirm}
+      />
     </div>
   );
 };

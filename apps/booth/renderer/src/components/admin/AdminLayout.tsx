@@ -4,6 +4,7 @@ import {
   IconDashboard,
   IconLogout,
   IconMenu,
+  IconPalette,
   IconPhotoBooth,
   IconPrinter,
   IconSearch,
@@ -12,13 +13,19 @@ import {
 } from './AdminIcons';
 import { ConfirmModal } from './Modal';
 
-export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue';
+export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'appearance';
 
 const NAV_ITEMS: Array<{ area: AdminNavArea; label: string; keywords: string }> = [
   { area: 'dashboard', label: 'Dashboard', keywords: 'dashboard home summary overview' },
   { area: 'sesi', label: 'Sessions', keywords: 'sessions sesi upload results photos' },
   { area: 'print-queue', label: 'Print Queue', keywords: 'print printer queue selphy cups reprint batch' },
   { area: 'templates', label: 'Templates', keywords: 'templates frame gallery frames' },
+  {
+    area: 'appearance',
+    label: 'Appearance',
+    keywords:
+      'appearance theme colors colour background wallpaper branding branding style copy text copywriting typography booth look',
+  },
 ];
 
 interface AdminLayoutProps {
@@ -115,6 +122,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   {item.area === 'sesi' && <IconSessions />}
                   {item.area === 'print-queue' && <IconPrinter />}
                   {item.area === 'templates' && <IconTemplates />}
+                  {item.area === 'appearance' && <IconPalette />}
                 </span>
                 {!collapsed && <span className="truncate">{item.label}</span>}
               </button>
@@ -182,6 +190,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         {item.area === 'sesi' && <IconSessions className="h-4 w-4" />}
                         {item.area === 'print-queue' && <IconPrinter className="h-4 w-4" />}
                         {item.area === 'templates' && <IconTemplates className="h-4 w-4" />}
+                        {item.area === 'appearance' && <IconPalette className="h-4 w-4" />}
                       </span>
                       {item.label}
                     </button>
@@ -248,6 +257,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {item.area === 'sesi' && <IconSessions />}
                 {item.area === 'print-queue' && <IconPrinter />}
                 {item.area === 'templates' && <IconTemplates />}
+                {item.area === 'appearance' && <IconPalette />}
               </span>
             </button>
           );

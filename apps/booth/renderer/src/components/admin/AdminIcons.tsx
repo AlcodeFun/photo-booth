@@ -177,6 +177,20 @@ export const IconLink: React.FC<IconProps> = ({ className }) => (
   </Icon>
 );
 
+export const IconPalette: React.FC<IconProps> = ({ className }) => (
+  <Icon className={className}>
+    <path
+      d="M12 3a9 9 0 100 18h1.2a1.8 1.8 0 001.4-2.9 1.8 1.8 0 011.4-2.9H18a3 3 0 003-3 9 9 0 00-9-9z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+    <circle cx="7.5" cy="11.5" r="1.3" fill="currentColor" />
+    <circle cx="10.5" cy="7.5" r="1.3" fill="currentColor" />
+    <circle cx="15.5" cy="8.5" r="1.3" fill="currentColor" />
+  </Icon>
+);
+
 export const IconCheck: React.FC<IconProps> = ({ className }) => (
   <Icon className={className}>
     <path d="M4 12.5l5 5L20 6.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />

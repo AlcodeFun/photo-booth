@@ -4,6 +4,7 @@ import App from './App.tsx';
 import { startUploadWatcher } from './lib/uploadJob';
 import { startPrintListener } from './lib/printListener';
 import { startPrintQueueSync } from './lib/printQueueSync';
+import { useBoothAppearance } from './store/appearanceStore';
 import './index.css';
 
 // The hosted arrange page (/organize/:token) is a stateless customer screen —
@@ -31,6 +32,13 @@ if (!isOrganizePath && !isAdminWindow) {
   // Owns the main-process print queue bridge: resolves framed images for jobs
   // just-in-time and mirrors job state onto each session's print_status.
   startPrintQueueSync();
+}
+
+// Booth appearance (admin-editable theme/copy/background). The cached copy is
+// already applied synchronously by the store; this refreshes it from Supabase in
+// the background. Also runs in the admin window so its live preview is accurate.
+if (!isOrganizePath) {
+  void useBoothAppearance.getState().loadAppearance();
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

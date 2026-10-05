@@ -24,6 +24,28 @@
     --input: 240 3.7% 15.9%;
     --ring: 240 4.9% 83.9%;
     --radius: 0.75rem;
+
+    /* Booth appearance defaults.
+       Mirrors DEFAULT_BOOTH_APPEARANCE.theme so the customer-facing screens
+       paint correctly on the very first frame. The admin appearance editor
+       overrides these on :root at runtime (see store/appearanceStore.ts). */
+    --pb-primary: #ff4bb5;
+    --pb-primary-foreground: #ffffff;
+    --pb-secondary: #a35ef6;
+    --pb-secondary-foreground: #ffffff;
+    --pb-tertiary: #d9f85a;
+    --pb-tertiary-foreground: #4d2d85;
+    --pb-accent: #4acaf1;
+    --pb-accent-foreground: #4d2d85;
+    --pb-action: #ff7d57;
+    --pb-action-foreground: #ffffff;
+    --pb-background: #d9f85a;
+    --pb-foreground: #4d2d85;
+    --pb-card: #fdf3ff;
+    --pb-card-foreground: #3b2a7a;
+    --pb-surface: #ff4bb5;
+    --pb-surface-foreground: #4d2d85;
+    --pb-deep: #1a0b2e;
   }
 }
 
@@ -266,35 +288,35 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(12px, 2.5vh, 28px);
+  gap: clamp(12px, 2.5cqh, 28px);
   transform-style: preserve-3d;
 }
 
 /* Landscape: horizontal side-by-side strip */
-@media (orientation: landscape) {
+@container pb-screen (orientation: landscape) {
   .pb-collage {
     flex-direction: row;
   }
 
   .pb-court {
-    width: min(30vh, 28vw, 320px);
+    width: min(30cqh, 28cqw, 320px);
   }
 }
 
 /* Portrait: vertical stacked strip */
-@media (orientation: portrait) {
+@container pb-screen (orientation: portrait) {
   .pb-collage {
     flex-direction: column;
   }
 
   .pb-court {
-    width: min(30vh, 48vw, 320px);
+    width: min(30cqh, 48cqw, 320px);
   }
 }
 
 .pb-court {
   position: relative;
-  width: min(30vh, 28vw, 320px);
+  width: min(30cqh, 28cqw, 320px);
   background: #fff6ff;
   border-radius: 14px;
   padding: 10px 10px 16px;
@@ -370,17 +392,35 @@
 }
 
 /* ---- Responsive: gentle scale for tablet & mobile ---- */
+/* `container-type: size` makes the bumper's viewport-relative sizing resolve
+   against the screen box itself. The booth renders this full-viewport, but the
+   admin appearance preview renders the same markup scaled down inside a stage,
+   where vh/vw would otherwise measure the admin window. */
 .pb-screen {
   overflow: hidden;
+  container-type: size;
+  container-name: pb-screen;
 }
 
-@media (max-width: 1024px) {
+/* Bumper header sits on a translucent scrim on small screens only; the tint
+   tracks the appearance `deep` token so the booth matches the chosen palette. */
+.pb-bumper-header {
+  background-color: color-mix(in srgb, var(--pb-deep) 30%, transparent);
+}
+
+@media (min-width: 768px) {
+  .pb-bumper-header {
+    background-color: transparent;
+  }
+}
+
+@container pb-screen (max-width: 1024px) {
   .pb-layer {
     --bs: 0.66;
   }
 }
 
-@media (max-width: 480px) {
+@container pb-screen (max-width: 480px) {
   .pb-layer {
     --bs: 0.5;
   }

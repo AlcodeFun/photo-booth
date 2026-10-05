@@ -1,6 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSessionStore } from '../store/sessionStore';
+import { useBoothAppearance } from '../store/appearanceStore';
+import { withAlpha } from '../lib/appearance';
 import { navigateToAdmin } from '../lib/navigation';
+import BumperView from '../components/booth/BumperView';
 
 type Flavor = 'pink' | 'lime';
 
@@ -10,12 +13,8 @@ interface ThemePalette {
   outer: string;
 }
 
-const THEMES: Record<Flavor, ThemePalette> = {
-  pink: { inner: '#ff4bb5', mid: '#7a2b8c', outer: '#1a0b2e' },
-  lime: { inner: '#d9f85a', mid: '#5c8f26', outer: '#0a1405' },
-};
-
-const SPARKLE_COLORS = ['#ff4bb5', '#ffec5a', '#4acaf1', '#ff7d57', '#a35ef6', '#d9f85a', '#ffffff'];
+/** Sparkle colors that the appearance theme has no token for. */
+const EXTRA_SPARKLE_COLORS = ['#ffec5a', '#ffffff'];
 
 /* ---- easing / interpolation helpers ---- */
 const easePowerIn = (t: number) => t * t;
@@ -65,53 +64,6 @@ const lerpHex = (a: string, b: string, t: number) => {
   return `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 };
 
-/* ---- Decorative pieces ---- */
-interface BalloonProps {
-  className: string;
-  color: string;
-}
-
-const Balloon: React.FC<BalloonProps> = ({ className, color }) => {
-  const dur = 5 + Math.random() * 5;
-  const delay = Math.random() * -dur;
-  const dx = (Math.random() - 0.5) * 30;
-  const dy = 14 + Math.random() * 20;
-  const rot = (Math.random() - 0.5) * 20;
-  return (
-    <div
-      className={`pb-balloon ${className}`}
-      style={
-        {
-          '--bcolor': color,
-          '--pd': `${dur}s`,
-          '--pd-delay': `${delay}s`,
-          '--dx': `${dx}px`,
-          '--dy': `${dy}px`,
-          '--rot': `${rot}deg`,
-        } as React.CSSProperties
-      }
-    >
-      <div className="pb-body" />
-      <div className="pb-knot" />
-      <svg className="pb-string" width="14" height="56" viewBox="0 0 14 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M7 0 Q2 18 9 34 Q14 46 7 56" stroke="rgba(255,255,255,0.6)" strokeWidth="1.5" fill="none" />
-      </svg>
-    </div>
-  );
-};
-
-interface CourtProps {
-  src: string;
-  caption: string;
-  className?: string;
-}
-
-const Court: React.FC<CourtProps> = ({ src, caption, className }) => (
-  <div className={`pb-court ${className ?? ''}`}>
-    <img className="pb-photo" src={src} alt={caption} />
-    <div className="pb-cap">{caption}</div>
-  </div>
-);
 
 const photoAsset = (path: string) => `${import.meta.env.BASE_URL}${path}`;
 
@@ -123,12 +75,40 @@ const PHOTOS = [
 
 export const ContextBumperScreen: React.FC = () => {
   const confirmPayment = useSessionStore((state) => state.confirmPayment);
-  const [theme, setTheme] = useState<Flavor>('pink');
+  const { copy, theme } = useBoothAppearance((state) => state.active);
+  // Which of the two bumper gradients is currently showing.
+  const [flavor, setFlavor] = useState<Flavor>('pink');
   const [pinOpen, setPinOpen] = useState(false);
   const [pinDigits, setPinDigits] = useState<string[]>([]);
   const [pinError, setPinError] = useState(false);
 
   const ADMIN_PIN = '250503';
+
+  // Gradients and decoration colors follow the admin appearance. The animation
+  // loops below are long-lived effects, so the derived palettes are mirrored into
+  // refs — they read the latest theme without resubscribing on every change.
+  const themes = useMemo<Record<Flavor, ThemePalette>>(
+    () => ({
+      pink: { inner: theme.bumperInner, mid: theme.bumperMid, outer: theme.bumperOuter },
+      lime: {
+        inner: theme.bumperAltInner,
+        mid: theme.bumperAltMid,
+        outer: theme.bumperAltOuter,
+      },
+    }),
+    [theme],
+  );
+  const sparkleColors = useMemo(
+    () => [
+      theme.primary,
+      theme.tertiary,
+      theme.accent,
+      theme.action,
+      theme.secondary,
+      ...EXTRA_SPARKLE_COLORS,
+    ],
+    [theme],
+  );
 
   const rootRef = useRef<HTMLDivElement>(null);
   const farRef = useRef<HTMLDivElement>(null);
@@ -140,6 +120,10 @@ export const ContextBumperScreen: React.FC = () => {
   const switchingRef = useRef(false);
   const spinRef = useRef(0);
   const themeRef = useRef<Flavor>('pink');
+  const themesRef = useRef(themes);
+  themesRef.current = themes;
+  const sparkleColorsRef = useRef(sparkleColors);
+  sparkleColorsRef.current = sparkleColors;
   const mouseRef = useRef({ x: 0, y: 0, px: 0, py: 0 });
   const curMouseRef = useRef({ x: 0, y: 0 });
 
@@ -197,7 +181,7 @@ export const ContextBumperScreen: React.FC = () => {
       const scale = vw < 480 ? 0.45 : vw < 1024 ? 0.65 : 1;
       const size = (100 + Math.random() * 14) * scale;
       const dur = 4 + Math.random() * 6;
-      const color = SPARKLE_COLORS[Math.floor(Math.random() * SPARKLE_COLORS.length)];
+      const color = sparkleColorsRef.current[Math.floor(Math.random() * sparkleColorsRef.current.length)];
       el.style.cssText = `left: ${Math.random() * 100}%; width: ${size}px; height: ${size}px; --sc: ${color}; animation-duration: ${dur}s;`;
       box.appendChild(el);
       const to = window.setTimeout(() => el.remove(), dur * 1000 + 500);
@@ -223,8 +207,8 @@ export const ContextBumperScreen: React.FC = () => {
     if (!root) return;
 
     /* 1. Background morph */
-    const from = THEMES[themeRef.current];
-    const to = THEMES[flavor];
+    const from = themesRef.current[themeRef.current];
+    const to = themesRef.current[flavor];
     tweenNumbers(0, 1, 1.5, easePowerInOut, (p) => {
       root.style.setProperty('--pb-inner', lerpHex(from.inner, to.inner, p));
       root.style.setProperty('--pb-mid', lerpHex(from.mid, to.mid, p));
@@ -243,7 +227,7 @@ export const ContextBumperScreen: React.FC = () => {
       },
       () => {
         themeRef.current = flavor;
-        setTheme(flavor);
+        setFlavor(flavor);
 
         tweenNumbers(
           360,
@@ -324,91 +308,24 @@ export const ContextBumperScreen: React.FC = () => {
     }
   }, [pinDigits]);
 
-  const { inner, mid, outer } = THEMES.pink;
-
   return (
-    <div
-      ref={rootRef}
-      onClick={confirmPayment}
-      className={`pb-screen fixed inset-0 z-[60] select-none cursor-pointer ${theme === 'lime' ? 'pb-lime' : ''}`}
-      style={
-        {
-          '--pb-inner': inner,
-          '--pb-mid': mid,
-          '--pb-outer': outer,
-          background: 'radial-gradient(circle at center, var(--pb-inner) 0%, var(--pb-mid) 50%, var(--pb-outer) 100%)',
-        } as React.CSSProperties
-      }
-    >
-      {/* Header */}
-      <header className="sticky top-0 z-[120] flex items-center justify-center bg-[#1a0b2e]/30 px-[4%] py-4 backdrop-blur-md md:absolute md:inset-x-0 md:bg-transparent md:py-8 md:backdrop-blur-none">
-        <div className="flex items-center gap-2 text-lg md:text-xl" style={{ fontFamily: "'Galada', cursive" }}>
-          <h2
-            className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
-            style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
-          >
-            <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>Photostrip</span>
-          </h2>
-        </div>
-
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setPinOpen(true);
-          }}
-          title="Booth Setup"
-          aria-label="Booth Setup"
-          className="absolute right-[4%] top-1/2 -translate-y-1/2 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full border-2 border-white/30 bg-white/10 text-xl text-white backdrop-blur transition-transform hover:scale-110 hover:bg-white/25"
-        >
-          ⚙️
-        </button>
-      </header>
-
-      {/* Far background balloons */}
-      <div ref={farRef} className="pb-layer" style={{ zIndex: -1 }}>
-        <Balloon className="l1" color="#ffec5a" />
-        <Balloon className="l2" color="#a35ef6" />
-        <Balloon className="l3" color="#4acaf1" />
-        <Balloon className="l4" color="#ff4bb5" />
-      </div>
-
-      {/* Background balloons (behind the collage) */}
-      <div ref={bgRef} className="pb-layer" style={{ zIndex: 0 }}>
-        <Balloon className="b7" color="#ff7d57" />
-        <Balloon className="b8" color="#a35ef6" />
-        <Balloon className="b9" color="#ff4bb5" />
-      </div>
-
-      {/* Center product: 3D photo collage (horizontal on landscape, vertical on portrait) */}
-      <div className="pb-hero-center">
-        <div ref={collageWrapRef} className="pb-main">
-          <div ref={collageRef} className="pb-collage">
-            <Court src={PHOTOS[0]} caption="The Best" className="court-1" />
-            <Court src={PHOTOS[1]} caption="Photostrip" className="court-2" />
-            <Court src={PHOTOS[2]} caption="Experience" className="court-3" />
-          </div>
-        </div>
-      </div>
-
-      {/* Rising sparkles */}
-      <div ref={sparkleRef} className="pointer-events-none absolute inset-0 z-[5]" />
-
-      {/* Tap-to-start instruction */}
-      <div className="absolute inset-x-0 bottom-0 z-[110] flex justify-center pb-10">
-        <p
-          className="flex items-center gap-3 text-2xl tracking-wide text-white md:text-3xl"
-          style={{ fontFamily: "'Galada', cursive", animation: 'pb-bounce-in 1.4s ease 1s both, pb-glow 2.4s ease-in-out 2s infinite' }}
-        >
-          <span className="inline-block" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>👆</span>
-          Click dimana saja untuk mulai
-        </p>
-      </div>
+    <div className="fixed inset-0 z-[60]">
+      <BumperView
+        copy={copy}
+        theme={theme}
+        flavor={flavor}
+        palette={themes[flavor]}
+        photos={PHOTOS}
+        refs={{ rootRef, farRef, bgRef, collageWrapRef, collageRef, sparkleRef }}
+        onAdvance={confirmPayment}
+        onOpenPin={() => setPinOpen(true)}
+      />
 
       {/* Admin PIN modal — gate to camera settings */}
       {pinOpen && (
         <div
-          className="fixed inset-0 z-[200] flex items-center justify-center bg-[#1a0b2e]/80 p-4"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          style={{ backgroundColor: withAlpha(theme.deep, 0.8) }}
           onClick={(e) => {
             e.stopPropagation();
             closePin();
@@ -418,32 +335,34 @@ export const ContextBumperScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
-            aria-label="Admin PIN"
-            className="w-full max-w-xs rounded-[24px] border-4 border-[#ff4bb5] bg-[#fdf3ff] p-6 text-center shadow-2xl"
+            aria-label={copy.bumperPinTitle}
+            className="w-full max-w-xs rounded-[24px] border-4 p-6 text-center shadow-2xl"
+            style={{ borderColor: theme.primary, backgroundColor: theme.card, color: theme.cardForeground }}
           >
-            <h3 className="text-[0.9rem] font-black uppercase tracking-[0.14em] text-[#4d2d85]">Admin PIN</h3>
-            <p className="mt-1 text-[0.7rem] font-bold tracking-wide text-[#6d6a7f]">
-              Masukkan PIN untuk membuka setting kamera
-            </p>
+            <h3
+              className="text-[0.9rem] font-black uppercase tracking-[0.14em]"
+              style={{ color: theme.secondary }}
+            >
+              {copy.bumperPinTitle}
+            </h3>
+            <p className="mt-1 text-[0.7rem] font-bold tracking-wide text-[#6d6a7f]">{copy.bumperPinSubtitle}</p>
 
             {/* PIN dots */}
             <div className="mt-5 flex items-center justify-center gap-3">
               {Array.from({ length: 6 }, (_, i) => (
                 <span
                   key={i}
-                  className={`h-4 w-4 rounded-full border-2 ${
-                    pinDigits[i]
-                      ? pinError
-                        ? 'border-[#b0003a] bg-[#b0003a]'
-                        : 'border-[#ff4bb5] bg-[#ff4bb5]'
-                      : 'border-[#a35ef6] bg-white'
-                  }`}
+                  className="h-4 w-4 rounded-full border-2"
+                  style={{
+                    borderColor: pinDigits[i] ? (pinError ? theme.destructive : theme.primary) : theme.secondary,
+                    backgroundColor: pinDigits[i] ? (pinError ? theme.destructive : theme.primary) : theme.card,
+                  }}
                 />
               ))}
             </div>
             {pinError && (
-              <p className="mt-2 text-[0.7rem] font-black uppercase tracking-[0.1em] text-[#b0003a]">
-                PIN salah — coba lagi
+              <p className="mt-2 text-[0.7rem] font-black uppercase tracking-[0.1em]" style={{ color: theme.destructive }}>
+                {copy.bumperPinError}
               </p>
             )}
 
@@ -454,7 +373,8 @@ export const ContextBumperScreen: React.FC = () => {
                   key={digit}
                   type="button"
                   onClick={() => handlePinKey(digit)}
-                  className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                  className="rounded-[14px] border-[3px] bg-white py-3 text-xl font-black shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                  style={{ borderColor: theme.secondary, color: theme.secondary }}
                 >
                   {digit}
                 </button>
@@ -463,14 +383,16 @@ export const ContextBumperScreen: React.FC = () => {
                 type="button"
                 onClick={handlePinBackspace}
                 aria-label="Delete digit"
-                className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                className="rounded-[14px] border-[3px] bg-white py-3 text-xl font-black shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                style={{ borderColor: theme.secondary, color: theme.secondary }}
               >
                 ⌫
               </button>
               <button
                 type="button"
                 onClick={() => handlePinKey('0')}
-                className="rounded-[14px] border-[3px] border-[#a35ef6] bg-white py-3 text-xl font-black text-[#4d2d85] shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                className="rounded-[14px] border-[3px] bg-white py-3 text-xl font-black shadow-[0_3px_0_rgba(77,45,133,0.2)] active:translate-y-0.5"
+                style={{ borderColor: theme.secondary, color: theme.secondary }}
               >
                 0
               </button>
@@ -478,7 +400,8 @@ export const ContextBumperScreen: React.FC = () => {
                 type="button"
                 onClick={closePin}
                 aria-label="Close"
-                className="rounded-[14px] border-[3px] border-[#b0003a] bg-[#ff4bb5] py-3 text-xl font-black text-white shadow-[0_3px_0_rgba(0,0,0,0.2)] active:translate-y-0.5"
+                className="rounded-[14px] border-[3px] py-3 text-xl font-black text-white shadow-[0_3px_0_rgba(0,0,0,0.2)] active:translate-y-0.5"
+                style={{ backgroundColor: theme.destructive, borderColor: theme.destructive }}
               >
                 ✕
               </button>

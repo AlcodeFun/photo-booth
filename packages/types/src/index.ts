@@ -84,6 +84,613 @@ export interface FrameConfig {
   templatesByPhotoSlots?: Partial<Record<number, FrameTemplateConfig>>;
 }
 
+/**
+ * Booth appearance (customer-facing only).
+ *
+ * The admin dashboard theme is intentionally NOT part of this: everything here
+ * styles the guest journey (start screen -> tutorial -> capture -> results), so
+ * an operator can reskin the booth without touching the tools they work in.
+ */
+
+/** `default` renders the appearance shipped in code; `custom` renders the saved config. */
+export type BoothAppearanceMode = 'default' | 'custom';
+
+export type BoothBackgroundType = 'color' | 'image';
+
+export type BoothBackgroundFit = 'cover' | 'contain' | 'repeat';
+
+export type BoothCopyGroupId =
+  | 'bumper'
+  | 'tutorial'
+  | 'frame'
+  | 'capture'
+  | 'review'
+  | 'filter'
+  | 'results'
+  | 'complete';
+
+/**
+ * Every customer-facing string. Values may embed `{token}` placeholders which
+ * are filled in at render time via `formatBoothCopy`.
+ */
+export interface BoothCopywriting {
+  bumperBrand: string;
+  bumperTapToStart: string;
+  bumperCaption1: string;
+  bumperCaption2: string;
+  bumperCaption3: string;
+  bumperPinTitle: string;
+  bumperPinSubtitle: string;
+  bumperPinError: string;
+
+  tutorialEyebrow: string;
+  tutorialTitle: string;
+  tutorialStep1Title: string;
+  tutorialStep1Body: string;
+  tutorialStep2Title: string;
+  tutorialStep2Body: string;
+  tutorialStep3Title: string;
+  tutorialStep3Body: string;
+  tutorialStartButton: string;
+
+  frameEyebrow: string;
+  frameTitle: string;
+  frameConfirmButton: string;
+
+  readyTitle: string;
+  readySubtitle: string;
+  readyFrameLabel: string;
+  readyInstruction: string;
+  readyStartButton: string;
+
+  captureSlotLabel: string;  captureAttemptLabel: string;
+  captureTimedSessionLabel: string;
+  captureTimedPhotoCount: string;
+  captureTimeLeftLabel: string;
+  captureSessionLabel: string;
+  captureMirrorOn: string;
+  captureMirrorOff: string;
+  captureStarting: string;
+  captureRetry: string;
+  capturePreparing: string;
+  captureHoldPose: string;
+  captureCaptured: string;
+  captureCheese: string;
+  captureGetReady: string;
+  captureTapToStart: string;
+  captureTapToCapture: string;
+  capturePreviousPhoto: string;
+  captureHoldStill: string;
+
+  reviewHeader: string;
+  reviewPhotoLabel: string;
+  reviewAttemptLabel: string;
+  reviewQuestion: string;
+  reviewLastChance: string;
+  reviewRetakeButton: string;
+  reviewUseButton: string;
+  reviewNoPhoto: string;
+
+  filterTitle: string;
+  filterEffectsLabel: string;
+  filterApplyButton: string;
+
+  resultsNoFramed: string;
+  resultsViewAllPhotos: string;
+  resultsNoIndividualPhotos: string;
+  resultsCollectionOff: string;
+  resultsQrDownload: string;
+  resultsQrArrange: string;
+  resultsGeneratingQr: string;
+  resultsFinishButton: string;
+  resultsFinishDone: string;
+  resultsGalleryTitle: string;
+  resultsQrModalTitle: string;
+  resultsClose: string;
+  resultsLiveBadge: string;
+  resultsGifBadge: string;
+  resultsFramedLiveBadge: string;
+  resultsAnimatedGifBadge: string;
+  resultsPhotoLabel: string;
+  resultsFramedPhotoLabel: string;
+
+  completeTitle: string;
+  completeBody: string;
+  completeButton: string;
+  completeFootnote: string;
+}
+
+/** Design-system colors, applied to the booth as `--pb-*` CSS variables. */
+export interface BoothTheme {
+  primary: string;
+  primaryForeground: string;
+  secondary: string;
+  secondaryForeground: string;
+  tertiary: string;
+  tertiaryForeground: string;
+  accent: string;
+  accentForeground: string;
+  action: string;
+  actionForeground: string;
+  background: string;
+  foreground: string;
+  card: string;
+  cardForeground: string;
+  surface: string;
+  surfaceForeground: string;
+  muted: string;
+  mutedForeground: string;
+  destructive: string;
+  destructiveForeground: string;
+  deep: string;
+  bumperInner: string;
+  bumperMid: string;
+  bumperOuter: string;
+  bumperAltInner: string;
+  bumperAltMid: string;
+  bumperAltOuter: string;
+}
+
+export interface BoothBackground {
+  type: BoothBackgroundType;
+  color: string;
+  imageUrl?: string;
+  fit: BoothBackgroundFit;
+  position: string;
+}
+
+export interface BoothAppearance {
+  copy: BoothCopywriting;
+  theme: BoothTheme;
+  background: BoothBackground;
+}
+
+/** The row persisted in `public.booth_appearance`. */
+export interface BoothAppearanceSettings {
+  mode: BoothAppearanceMode;
+  appearance: BoothAppearance;
+}
+
+/**
+ * The appearance shipped with the app. Selecting `default` mode renders this,
+ * so an operator can always fall back to the look the booth launched with even
+ * if the custom config is saved, broken, or later removed.
+ */
+export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
+  copy: {
+    bumperBrand: 'Photostrip',
+    bumperTapToStart: 'Click dimana saja untuk mulai',
+    bumperCaption1: 'The Best',
+    bumperCaption2: 'Photostrip',
+    bumperCaption3: 'Experience',
+    bumperPinTitle: 'Admin PIN',
+    bumperPinSubtitle: 'Masukkan PIN untuk membuka setting kamera',
+    bumperPinError: 'PIN salah — coba lagi',
+
+    tutorialEyebrow: 'Panduan',
+    tutorialTitle: 'How it works',
+    tutorialStep1Title: 'Pilih Gaya',
+    tutorialStep1Body: 'Pilih bingkai yang paling cocok dengan moodmu.',
+    tutorialStep2Title: 'Pose Santai',
+    tutorialStep2Body: 'Ambil 3 foto dengan hitungan mundur dan retake sampai hasilnya pas.',
+    tutorialStep3Title: 'Cetak & Simpan',
+    tutorialStep3Body: 'Lihat hasil akhir, pilih filter, dan bagikan momen lewat QR.',
+    tutorialStartButton: 'Ayo mulai',
+
+    frameEyebrow: 'Bingkai',
+    frameTitle: 'Pilih gaya foto',
+    frameConfirmButton: 'Pilih bingkai',
+
+    readyTitle: 'Preview & Capture',
+    readySubtitle: 'Get ready to take {count} beautiful photos!',
+    readyFrameLabel: 'Frame Style',
+    readyInstruction:
+      'Stand directly in front of the camera, wait for the 5-second countdown, and smile! You will review each photo right after capturing.',
+    readyStartButton: 'Start Photo Session',
+
+    captureSlotLabel: 'Slot ke {current} dari {total}',
+    captureAttemptLabel: 'Kesempatan ke {current} dari {total}',
+    captureTimedSessionLabel: 'Sesi',
+    captureTimedPhotoCount: '{count} photo diambil',
+    captureTimeLeftLabel: 'Time left',
+    captureSessionLabel: 'Session',
+    captureMirrorOn: 'Mirror on',
+    captureMirrorOff: 'Mirror off',
+    captureStarting: 'Starting camera...',
+    captureRetry: 'Retry camera',
+    capturePreparing: 'Tunggu Sebentar',
+    captureHoldPose: 'Tahan Posemu',
+    captureCaptured: 'Photo captured',
+    captureCheese: 'Cheese!',
+    captureGetReady: 'Get ready',
+    captureTapToStart: 'Click dimana saja untuk memulai',
+    captureTapToCapture: 'Click dimana saja untuk mengambil foto',
+    capturePreviousPhoto: 'Foto Sebelumnya',
+    captureHoldStill: 'Tahan posisimu ya!',
+
+    reviewHeader: 'Photo review',
+    reviewPhotoLabel: 'Photo {current}',
+    reviewAttemptLabel: 'Attempt',
+    reviewQuestion: 'Apakah foto ini sudah pas?',
+    reviewLastChance: 'Kesempatan terakhir',
+    reviewRetakeButton: 'Foto Ulang',
+    reviewUseButton: 'Pakai Foto',
+    reviewNoPhoto: 'No photo captured',
+
+    filterTitle: 'Pilih Filter yang Kamu Suka',
+    filterEffectsLabel: 'Efek foto',
+    filterApplyButton: 'Gunakan Filter',
+
+    resultsNoFramed: 'No framed photo',
+    resultsViewAllPhotos: 'View all photos ({count})',
+    resultsNoIndividualPhotos: 'No individual photos recorded.',
+    resultsCollectionOff: 'Photo collection is turned off.',
+    resultsQrDownload: 'Scan QR to download your photos',
+    resultsQrArrange: 'Scan QR, arrange your frame & print',
+    resultsGeneratingQr: 'Generating QR...',
+    resultsFinishButton: 'Finish Session',
+    resultsFinishDone: '✓ Selesai 🎉',
+    resultsGalleryTitle: 'Your photos',
+    resultsQrModalTitle: 'Scan untuk unduh',
+    resultsClose: 'Tutup',
+    resultsLiveBadge: '📹 Live',
+    resultsGifBadge: '🎞️ GIF',
+    resultsFramedLiveBadge: '📹 Framed live photo',
+    resultsAnimatedGifBadge: '🎞️ Animated GIF',
+    resultsPhotoLabel: 'Photo {index}',
+    resultsFramedPhotoLabel: 'Framed photo',
+
+    completeTitle: 'Thank You!',
+    completeBody:
+      'Your photo session is complete. Enjoy your prints and save this moment for later.',
+    completeButton: 'Start New Session',
+    completeFootnote: 'Automatically returning to start screen in a few seconds...',
+  },
+  theme: {
+    primary: '#ff4bb5',
+    primaryForeground: '#ffffff',
+    secondary: '#a35ef6',
+    secondaryForeground: '#ffffff',
+    tertiary: '#d9f85a',
+    tertiaryForeground: '#4d2d85',
+    accent: '#4acaf1',
+    accentForeground: '#4d2d85',
+    action: '#ff7d57',
+    actionForeground: '#ffffff',
+    background: '#d9f85a',
+    foreground: '#4d2d85',
+    card: '#fdf3ff',
+    cardForeground: '#3b2a7a',
+    surface: '#ff4bb5',
+    surfaceForeground: '#4d2d85',
+    muted: '#7d6ea6',
+    mutedForeground: '#ffffff',
+    destructive: '#b0003a',
+    destructiveForeground: '#ffffff',
+    deep: '#1a0b2e',
+    bumperInner: '#ff4bb5',
+    bumperMid: '#7a2b8c',
+    bumperOuter: '#1a0b2e',
+    bumperAltInner: '#d9f85a',
+    bumperAltMid: '#5c8f26',
+    bumperAltOuter: '#0a1405',
+  },
+  background: {
+    type: 'color',
+    color: '#d9f85a',
+    fit: 'cover',
+    position: 'center',
+  },
+};
+
+export const DEFAULT_BOOTH_APPEARANCE_SETTINGS: BoothAppearanceSettings = {
+  mode: 'default',
+  appearance: DEFAULT_BOOTH_APPEARANCE,
+};
+
+export interface BoothCopyField {
+  key: keyof BoothCopywriting;
+  label: string;
+  hint?: string;
+  multiline?: boolean;
+}
+
+export interface BoothCopyGroup {
+  id: BoothCopyGroupId;
+  label: string;
+  fields: BoothCopyField[];
+}
+
+/**
+ * Drives the admin appearance editor (and keeps the copy map exhaustive at
+ * compile time: a new copy key without a field entry fails the build).
+ */
+export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
+  {
+    id: 'bumper',
+    label: 'Start screen',
+    fields: [
+      { key: 'bumperBrand', label: 'Brand wordmark' },
+      { key: 'bumperTapToStart', label: 'Tap to start hint' },
+      { key: 'bumperCaption1', label: 'Collage caption 1' },
+      { key: 'bumperCaption2', label: 'Collage caption 2' },
+      { key: 'bumperCaption3', label: 'Collage caption 3' },
+      { key: 'bumperPinTitle', label: 'Setup PIN title' },
+      { key: 'bumperPinSubtitle', label: 'Setup PIN subtitle' },
+      { key: 'bumperPinError', label: 'Setup PIN error' },
+    ],
+  },
+  {
+    id: 'tutorial',
+    label: 'Tutorial',
+    fields: [
+      { key: 'tutorialEyebrow', label: 'Eyebrow' },
+      { key: 'tutorialTitle', label: 'Title' },
+      { key: 'tutorialStep1Title', label: 'Step 1 title' },
+      { key: 'tutorialStep1Body', label: 'Step 1 body', multiline: true },
+      { key: 'tutorialStep2Title', label: 'Step 2 title' },
+      { key: 'tutorialStep2Body', label: 'Step 2 body', multiline: true },
+      { key: 'tutorialStep3Title', label: 'Step 3 title' },
+      { key: 'tutorialStep3Body', label: 'Step 3 body', multiline: true },
+      { key: 'tutorialStartButton', label: 'Start button' },
+    ],
+  },
+  {
+    id: 'frame',
+    label: 'Frame selection',
+    fields: [
+      { key: 'frameEyebrow', label: 'Eyebrow' },
+      { key: 'frameTitle', label: 'Title' },
+      { key: 'frameConfirmButton', label: 'Confirm button' },
+    ],
+  },
+  {
+    id: 'capture',
+    label: 'Capture screen',
+    fields: [
+      { key: 'captureSlotLabel', label: 'Slot label', hint: 'Tokens: {current}, {total}' },
+      {
+        key: 'captureAttemptLabel',
+        label: 'Attempt label',
+        hint: 'Tokens: {current}, {total}',
+      },
+      { key: 'captureTimedSessionLabel', label: 'Timed session label' },
+      { key: 'captureTimedPhotoCount', label: 'Timed photo count', hint: 'Token: {count}' },
+      { key: 'captureTimeLeftLabel', label: 'Time left label' },
+      { key: 'captureSessionLabel', label: 'Session label' },
+      { key: 'captureMirrorOn', label: 'Mirror button (on)' },
+      { key: 'captureMirrorOff', label: 'Mirror button (off)' },
+      { key: 'captureStarting', label: 'Camera starting message' },
+      { key: 'captureRetry', label: 'Camera retry button' },
+      { key: 'capturePreparing', label: 'Preparing message' },
+      { key: 'captureHoldPose', label: 'Hold pose message' },
+      { key: 'captureCaptured', label: 'Captured message' },
+      { key: 'captureCheese', label: 'Shutter message' },
+      { key: 'captureGetReady', label: 'Get ready message' },
+      { key: 'captureTapToStart', label: 'Tap to start hint' },
+      { key: 'captureTapToCapture', label: 'Tap to capture hint' },
+      { key: 'capturePreviousPhoto', label: 'Previous photo label' },
+      { key: 'captureHoldStill', label: 'Fullscreen hold message' },
+    ],
+  },
+  {
+    id: 'review',
+    label: 'Photo review',
+    fields: [
+      { key: 'reviewHeader', label: 'Header' },
+      { key: 'reviewPhotoLabel', label: 'Photo label', hint: 'Token: {current}' },
+      { key: 'reviewAttemptLabel', label: 'Attempt label' },
+      { key: 'reviewQuestion', label: 'Question' },
+      { key: 'reviewLastChance', label: 'Last chance badge' },
+      { key: 'reviewRetakeButton', label: 'Retake button' },
+      { key: 'reviewUseButton', label: 'Use photo button' },
+      { key: 'reviewNoPhoto', label: 'Empty state' },
+    ],
+  },
+  {
+    id: 'filter',
+    label: 'Filter selection',
+    fields: [
+      { key: 'filterTitle', label: 'Title' },
+      { key: 'filterEffectsLabel', label: 'Effects label' },
+      { key: 'filterApplyButton', label: 'Apply button' },
+    ],
+  },
+  {
+    id: 'results',
+    label: 'Results & QR',
+    fields: [
+      { key: 'resultsNoFramed', label: 'No framed photo' },
+      { key: 'resultsViewAllPhotos', label: 'View all photos badge', hint: 'Token: {count}' },
+      { key: 'resultsNoIndividualPhotos', label: 'No individual photos' },
+      { key: 'resultsCollectionOff', label: 'Collection turned off' },
+      { key: 'resultsQrDownload', label: 'QR hint (standard flow)' },
+      { key: 'resultsQrArrange', label: 'QR hint (timed flow)' },
+      { key: 'resultsGeneratingQr', label: 'Generating QR message' },
+      { key: 'resultsFinishButton', label: 'Finish button' },
+      { key: 'resultsFinishDone', label: 'Finish button (done)' },
+      { key: 'resultsGalleryTitle', label: 'Gallery title' },
+      { key: 'resultsQrModalTitle', label: 'QR modal title' },
+      { key: 'resultsClose', label: 'Close button' },
+      { key: 'resultsLiveBadge', label: 'Live badge' },
+      { key: 'resultsGifBadge', label: 'GIF badge' },
+      { key: 'resultsFramedLiveBadge', label: 'Framed live badge' },
+      { key: 'resultsAnimatedGifBadge', label: 'Animated GIF badge' },
+      { key: 'resultsPhotoLabel', label: 'Photo thumbnail label', hint: 'Token: {index}' },
+      { key: 'resultsFramedPhotoLabel', label: 'Framed photo label' },
+    ],
+  },
+  {
+    id: 'complete',
+    label: 'Complete screen',
+    fields: [
+      { key: 'completeTitle', label: 'Title' },
+      { key: 'completeBody', label: 'Body', multiline: true },
+      { key: 'completeButton', label: 'Button' },
+      { key: 'completeFootnote', label: 'Footnote' },
+    ],
+  },
+];
+
+export type BoothThemeGroupId = 'brand' | 'accents' | 'surfaces' | 'bumper';
+
+export interface BoothThemeField {
+  key: keyof BoothTheme;
+  label: string;
+}
+
+/**
+ * A named, ready-to-apply colorway. The four brand colors are the anchors; the
+ * remaining tokens are tints/shades of those anchors so a palette stays
+ * internally consistent instead of mixing in unrelated hues.
+ */
+export interface BoothThemePreset {
+  id: string;
+  label: string;
+  /** The source colors the palette was built from, in brand order. */
+  swatches: string[];
+  theme: BoothTheme;
+  /** Suggested flat background color to pair with the theme. */
+  backgroundColor: string;
+}
+
+/**
+ * "Earthy" — muted olive / clay / slate with a warm cream base, lifted by a
+ * single brand gold.
+ *
+ * NOTE: the cream was supplied as `#FSF0E6`, which is not a valid hex value
+ * (`S` is not a hex digit). It is read here as `#FDF0E6`. Correct
+ * `BOOTH_THEME_PRESETS[0].swatches[3]` and `.backgroundColor` if a different
+ * cream was meant.
+ */
+export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
+  {
+    id: 'earthy',
+    label: 'Earthy',
+    swatches: ['#3F4B38', '#674A38', '#668B98', '#FDF0E6', '#E8B85F'],
+    backgroundColor: '#FDF0E6',
+    theme: {
+      // Brand darks carry the foreground text, so they all pair with the cream.
+      primary: '#3F4B38',
+      primaryForeground: '#FDF0E6',
+      secondary: '#674A38',
+      secondaryForeground: '#FDF0E6',
+      // A darker shade of the brand teal: the raw #668B98 only reaches 3.29:1
+      // against the cream, which fails AA for the 14px button labels.
+      tertiary: '#45636E',
+      tertiaryForeground: '#FDF0E6',
+
+      // Highlight: the brand gold. It is the one warm, saturated note in an
+      // otherwise muted palette, so it carries the attention (review dots, card
+      // borders, balloons). Only ever a fill/border here — gold text on the
+      // cream would sit at 1.64:1 — hence the near-black foreground.
+      accent: '#E8B85F',
+      accentForeground: '#241E18',
+
+      // Call to action uses the most chromatic brand color so the primary
+      // buttons still read as buttons against the olive and clay.
+      action: '#45636E',
+      actionForeground: '#FDF0E6',
+
+      // Light surfaces layered from the cream, each one step deeper.
+      background: '#FDF0E6',
+      foreground: '#3F4B38',
+      card: '#F3E6D8',
+      cardForeground: '#4A3B2A',
+      surface: '#F8EDE1',
+      surfaceForeground: '#3F4B38',
+      muted: '#B9AC99',
+      mutedForeground: '#4A3B2A',
+
+      // Muted brick rather than pure red, to stay inside the earthy range.
+      destructive: '#9B3B2E',
+      destructiveForeground: '#FDF0E6',
+
+      // Darkest tone: photo/review backdrop and text on light surfaces.
+      deep: '#241E18',
+
+      // Bumper gradients run bright center -> brand dark -> near-black.
+      bumperInner: '#668B98',
+      bumperMid: '#3F4B38',
+      bumperOuter: '#241E18',
+      bumperAltInner: '#E8B85F',
+      bumperAltMid: '#674A38',
+      bumperAltOuter: '#2A2119',
+    },
+  },
+];
+
+export const DEFAULT_BOOTH_THEME_PRESET_ID = BOOTH_THEME_PRESETS[0].id;
+
+export interface BoothThemeGroup {
+  id: BoothThemeGroupId;
+  label: string;
+  fields: BoothThemeField[];
+}
+
+export const BOOTH_THEME_GROUPS: BoothThemeGroup[] = [
+  {
+    id: 'brand',
+    label: 'Brand',
+    fields: [
+      { key: 'primary', label: 'Primary' },
+      { key: 'primaryForeground', label: 'Primary text' },
+      { key: 'secondary', label: 'Secondary' },
+      { key: 'secondaryForeground', label: 'Secondary text' },
+      { key: 'surface', label: 'Panel' },
+      { key: 'surfaceForeground', label: 'Panel text' },
+    ],
+  },
+  {
+    id: 'accents',
+    label: 'Accents',
+    fields: [
+      { key: 'tertiary', label: 'Tertiary' },
+      { key: 'tertiaryForeground', label: 'Tertiary text' },
+      { key: 'accent', label: 'Accent' },
+      { key: 'accentForeground', label: 'Accent text' },
+      { key: 'action', label: 'Action button' },
+      { key: 'actionForeground', label: 'Action text' },
+    ],
+  },
+  {
+    id: 'surfaces',
+    label: 'Surfaces',
+    fields: [
+      { key: 'background', label: 'Background' },
+      { key: 'foreground', label: 'Background text' },
+      { key: 'card', label: 'Card' },
+      { key: 'cardForeground', label: 'Card text' },
+      { key: 'muted', label: 'Muted' },
+      { key: 'mutedForeground', label: 'Muted text' },
+      { key: 'destructive', label: 'Destructive' },
+      { key: 'destructiveForeground', label: 'Destructive text' },
+      { key: 'deep', label: 'Deep (overlays)' },
+    ],
+  },
+  {
+    id: 'bumper',
+    label: 'Start screen gradient',
+    fields: [
+      { key: 'bumperInner', label: 'Gradient inner' },
+      { key: 'bumperMid', label: 'Gradient middle' },
+      { key: 'bumperOuter', label: 'Gradient outer' },
+      { key: 'bumperAltInner', label: 'Alt inner' },
+      { key: 'bumperAltMid', label: 'Alt middle' },
+      { key: 'bumperAltOuter', label: 'Alt outer' },
+    ],
+  },
+];
+
+/** Fills `{token}` placeholders in a copy string; unknown tokens are left as-is. */
+export const formatBoothCopy = (
+  template: string,
+  vars: Record<string, string | number> = {},
+): string =>
+  template.replace(/\{(\w+)\}/g, (match, token: string) =>
+    token in vars ? String(vars[token]) : match,
+  );
+
 export type CameraStatus =
   | 'DISCONNECTED'
   | 'CONNECTING'

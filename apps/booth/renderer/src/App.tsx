@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSessionStore } from './store/sessionStore';
+import { appearanceBackgroundStyle, useBoothAppearance } from './store/appearanceStore';
 import { AdminApp } from './screens/admin/AdminApp';
 import { OrganizeScreen } from './screens/OrganizeScreen';
 import {
@@ -57,6 +58,9 @@ function App() {
   const isBoothSetupRoute = isBoothSetupPath(route.path, route.hash);
   const isAdminRoute = isAdminPath(route.path, route.hash);
   const organizeToken = getOrganizeToken(route.path);
+  // Admin-editable booth look. Only the customer-facing shell uses it, so the
+  // dashboard and the hosted arrange page keep their own fixed styling.
+  const appearance = useBoothAppearance((state) => state.active);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -126,7 +130,13 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen w-screen bg-[#d9f85a] px-4 py-6 md:px-8">
+    <div
+      className="min-h-screen w-screen px-4 py-6 md:px-8"
+      style={{
+        ...appearanceBackgroundStyle(appearance),
+        color: appearance.theme.foreground,
+      }}
+    >
       <main className="mx-auto w-full max-w-[1200px]">{renderScreen()}</main>
     </div>
   );
