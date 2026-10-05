@@ -204,6 +204,15 @@ app.whenReady().then(() => {
   ipcMain.handle('camera:stopLiveView', () => cameraService?.stopLiveView() ?? null);
   ipcMain.handle('camera:prepareCapture', () => cameraService?.prepareCapture() ?? null);
   ipcMain.handle('camera:takePicture', () => cameraService?.takePicture() ?? null);
+  ipcMain.handle('camera:getSettings', () =>
+    cameraService?.readSettings() ?? { model: null, items: [] },
+  );
+  ipcMain.handle('camera:applySettings', (_event, settings: import('@photo-booth/types').CameraSettingsValues) =>
+    cameraService?.applySettings(settings ?? {}) ?? null,
+  );
+  ipcMain.handle('camera:configure', (_event, config: import('@photo-booth/types').CameraAutoConfig) =>
+    cameraService?.configure(config) ?? { autoConnect: false, pollIntervalSeconds: 5 },
+  );
 
   ipcMain.handle('camera:mjpeg:get', () => ({
     running: mjpegServer.isRunning(),

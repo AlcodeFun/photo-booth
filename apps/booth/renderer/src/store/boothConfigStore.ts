@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import type { CameraSettingKey, CameraSettingsValues } from '@photo-booth/types';
 
 /**
  * Booth setup configuration (camera, printer, capture flow, outputs).
@@ -16,6 +17,87 @@ export const CAPTURE_FLOW_LABELS: Record<CaptureFlowMode, string> = {
   retake: 'Retake per slot',
   timed: 'Timed unlimited session',
   auto: 'Continuous auto sequence',
+};
+
+/**
+ * Camera behaviour + shooting settings of the tethered Canon EOS 600D.
+ *
+ * The values are raw gphoto2 choice tokens (`av`, `4`, `1/125`, `400`, …). The set-up
+ * screen resolves them against the option lists the connected camera actually
+ * reports, so a camera that does not offer one of them is simply skipped instead of
+ * failing the whole write. Defaults are tuned for an indoor booth under fixed
+ * light: aperture priority at f/4, ISO 400 (fixed, so exposure does not drift into
+ * blurry high-ISO frames), fine JPEG, full resolution, evaluative metering and
+ * One Shot AF as required for tethered `capture-image` focusing.
+ */
+export interface BoothCameraSettings {
+  /** Detect the camera automatically and start live view when it is plugged in. */
+  autoConnect: boolean;
+  /** How often the camera port is polled for a hot-plugged device. */
+  pollIntervalSeconds: number;
+  exposureMode: string;
+  aperture: string;
+  shutterSpeed: string;
+  iso: string;
+  exposureCompensation: string;
+  whiteBalance: string;
+  meteringMode: string;
+  imageQuality: string;
+  imageSize: string;
+  pictureStyle: string;
+  focusMode: string;
+  driveMode: string;
+  flashMode: string;
+  autoPowerOff: string;
+}
+
+export const DEFAULT_CAMERA_SETTINGS: BoothCameraSettings = {
+  autoConnect: true,
+  pollIntervalSeconds: 5,
+  exposureMode: 'av',
+  aperture: '4',
+  shutterSpeed: '1/125',
+  iso: '400',
+  exposureCompensation: '0',
+  whiteBalance: 'auto',
+  meteringMode: 'evaluative',
+  imageQuality: 'fine',
+  imageSize: 'large',
+  pictureStyle: 'standard',
+  focusMode: 'one-shot',
+  driveMode: 'single',
+  flashMode: 'off',
+  autoPowerOff: 'off',
+};
+
+/** Shooting settings in the order the set-up screen shows them. */
+const CAMERA_SETTING_KEYS: CameraSettingKey[] = [
+  'exposureMode',
+  'aperture',
+  'shutterSpeed',
+  'iso',
+  'exposureCompensation',
+  'whiteBalance',
+  'meteringMode',
+  'imageQuality',
+  'imageSize',
+  'pictureStyle',
+  'focusMode',
+  'driveMode',
+  'flashMode',
+  'autoPowerOff',
+];
+
+/** Drops the booth-only keys (auto-connect, poll interval) for the camera service. */
+export const toCameraSettingValues = (camera: BoothCameraSettings): CameraSettingsValues => {
+  const values: CameraSettingsValues = {};
+  for (const key of CAMERA_SETTING_KEYS) {
+    const value = camera[key];
+    if (typeof value === 'string' && value !== '') {
+      values[key] = value;
+    }
+  }
+  return values;
 };
 
 export interface BoothOutputSettings {
@@ -100,11 +182,13 @@ export interface BoothConfigState {
   flow: CaptureFlowSettings;
   outputs: BoothOutputSettings;
   printer: BoothPrinterSettings;
+  camera: BoothCameraSettings;
 
   setFlowMode: (mode: CaptureFlowMode) => void;
   updateFlow: (patch: Partial<CaptureFlowSettings>) => void;
   updateOutputs: (patch: Partial<BoothOutputSettings>) => void;
   updatePrinter: (patch: Partial<BoothPrinterSettings>) => void;
+  updateCamera: (patch: Partial<BoothCameraSettings>) => void;
   resetConfig: () => void;
 }
 
@@ -114,6 +198,7 @@ export const DEFAULT_BOOTH_CONFIG = {
   flow: DEFAULT_FLOW_SETTINGS,
   outputs: DEFAULT_OUTPUTS,
   printer: DEFAULT_PRINTER,
+  camera: DEFAULT_CAMERA_SETTINGS,
 };
 
 export const useBoothConfig = create<BoothConfigState>()(
@@ -125,16 +210,18 @@ export const useBoothConfig = create<BoothConfigState>()(
       updateFlow: (flow) => set((state) => ({ flow: { ...state.flow, ...flow } })),
       updateOutputs: (outputs) => set((state) => ({ outputs: { ...state.outputs, ...outputs } })),
       updatePrinter: (printer) => set((state) => ({ printer: { ...state.printer, ...printer } })),
+      updateCamera: (camera) => set((state) => ({ camera: { ...state.camera, ...camera } })),
       resetConfig: () => set({ ...DEFAULT_BOOTH_CONFIG }),
     }),
     {
       name: 'photo-booth.setup',
-      version: 5,
+      version: 6,
       migrate: (persistedState, version) => {
         const state = persistedState as {
           flow?: Record<string, unknown>;
           outputs?: Record<string, unknown>;
           printer?: Record<string, unknown>;
+          camera?: Record<string, unknown>;
         };
         if (version < 2 && state.flow) {
           // Auto flow had a separate "gap between shots" — the countdown now
@@ -152,6 +239,10 @@ export const useBoothConfig = create<BoothConfigState>()(
         if (version < 5 && state.printer && state.printer.printMode === undefined) {
           // v5 adds the manual/auto print mode; default to manual (least waste).
           state.printer.printMode = 'manual';
+        }
+        if (version < 6) {
+          // v6 adds the camera slice (auto-connect + 600D shooting settings).
+          state.camera = { ...DEFAULT_CAMERA_SETTINGS, ...(state.camera ?? {}) };
         }
         return state as unknown as BoothConfigState;
       },

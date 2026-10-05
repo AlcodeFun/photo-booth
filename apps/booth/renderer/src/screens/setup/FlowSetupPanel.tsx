@@ -5,6 +5,7 @@ import {
   CaptureFlowMode,
   CaptureFlowSettings,
 } from '../../store/boothConfigStore';
+import { NumberStepper } from '../../components/fields/Stepper';
 
 interface FlowOption {
   mode: CaptureFlowMode;
@@ -56,25 +57,15 @@ const NumberField: React.FC<{
   suffix?: string;
   onChange: (value: number) => void;
 }> = ({ label, value, min, max, suffix, onChange }) => (
-  <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
-    {label}
-    <div className="flex items-center gap-2">
-      <input
-        type="number"
-        min={min}
-        max={max}
-        value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isNaN(next)) {
-            onChange(Math.min(max, Math.max(min, next)));
-          }
-        }}
-        className="w-24 rounded-[8px] border-[3px] border-[#c9b8ff] bg-white px-3 py-2 text-sm font-black text-[#4d2d85] outline-none focus:border-[#a35ef6]"
-      />
-      {suffix && <span className="text-xs font-bold text-[#7a4de3]">{suffix}</span>}
-    </div>
-  </label>
+  <NumberStepper
+    label={label}
+    value={value}
+    min={min}
+    max={max}
+    step={1}
+    suffix={suffix}
+    onChange={onChange}
+  />
 );
 
 export const FlowSetupPanel: React.FC = () => {

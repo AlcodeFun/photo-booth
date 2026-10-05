@@ -58,38 +58,38 @@ export const FrameSelectionScreen: React.FC = () => {
 
   return (
     <div className="flex h-[calc(100vh-3rem)] items-center justify-center select-none overflow-hidden p-2 sm:p-4 md:p-6">
-      <div className="flex h-full w-full max-w-[1400px] flex-col overflow-hidden rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-2 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-4 md:p-6">
-        <div className="pb-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-[14px] bg-[#ff4bb5] p-2 sm:p-3 md:p-5">
-          <div className="mb-2 shrink-0 text-center md:mb-6">
-            <p className="text-[0.7rem] font-black uppercase tracking-[0.28em] text-[#4d2d85] sm:text-[0.8rem]">Bingkai</p>
-            <h1 className="mt-1 text-[1.4rem] font-black uppercase tracking-[-0.08em] text-[#4d2d85] sm:text-[2rem] md:text-[2.6rem]">
+      <div className="flex h-full w-full max-w-[95vw] flex-col overflow-hidden rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-1.5 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-2 md:p-2.5">
+        <div className="pb-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-[14px] bg-[#ff4bb5] p-1.5 sm:p-2 md:p-2.5">
+          <div className="mb-1 shrink-0 text-center md:mb-3">
+            <p className="text-[0.65rem] font-black uppercase tracking-[0.28em] text-[#4d2d85] sm:text-[0.75rem]">Bingkai</p>
+            <h1 className="mt-0.5 text-[1.25rem] font-black uppercase tracking-[-0.08em] text-[#4d2d85] sm:text-[1.75rem] md:text-[2.25rem]">
               Pilih gaya foto
             </h1>
           </div>
 
-          <div className="grid grid-cols-2 place-items-center gap-2 sm:gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-3 place-items-center gap-2 sm:gap-3">
             {isLoading
-              ? Array.from({ length: 8 }, (_, index) => (
+              ? Array.from({ length: 9 }, (_, index) => (
                   <div
                     key={`skeleton-${index}`}
-                    className="flex w-full select-none flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 sm:p-3"
+                    className="flex h-full w-full select-none flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 sm:p-2.5"
                   >
-                    <div className="mb-2 aspect-[3/4] w-full animate-pulse rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-4" />
-                    <div className="mx-auto mb-3 h-[1.05rem] w-3/4 animate-pulse rounded-full bg-[#7a4de3]/25" />
+                    <div className="mb-2 aspect-[3/4] w-full animate-pulse rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-3" />
+                    <div className="mx-auto mb-2 h-[1rem] w-3/4 animate-pulse rounded-full bg-[#7a4de3]/25" />
                   </div>
                 ))
               : framesWithDrafts.map((frame) => (
               <div
                 key={frame.id}
                 onClick={() => handleSelect(frame)}
-                className="flex w-full cursor-pointer flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 transition-all duration-200 hover:border-[#4acaf1] sm:p-3"
+                className="flex h-full w-full cursor-pointer flex-col rounded-[16px] border-[4px] border-[#a35ef6] bg-[#fdf3ff] p-2 transition-all duration-200 hover:border-[#4acaf1] sm:p-2.5"
               >
                 <FrameCanvas
                   frame={frame}
                   photoSlotCount={frame.photoSlots ?? 3}
-                  className="mb-2 w-full rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-4"
+                  className="mb-2 w-full rounded-[12px] border-[3px] border-[#7a4de3] bg-[#f3dcee] sm:mb-3"
                 />
-                <h3 className="shrink-0 text-center text-sm font-black uppercase tracking-[0.08em] text-[#4d2d85]">{frame.name}</h3>
+                <h3 className="shrink-0 px-1 text-center text-sm font-black uppercase tracking-[0.08em] text-[#4d2d85] sm:text-base">{frame.name}</h3>
               </div>
             ))}
           </div>
@@ -123,7 +123,7 @@ export const FrameSelectionScreen: React.FC = () => {
 
           <button
             onClick={handleClose}
-            className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full bg-[#ff4bb5] text-[1.05rem] font-black text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95 sm:h-9 sm:w-9"
+            className="absolute right-6 top-6 flex h-9 w-9 items-center justify-center rounded-[10px] border-[3px] border-[#a35ef6] bg-[#ff4bb5] text-[1.2rem] font-black text-white shadow-[0_4px_0_rgba(122,43,140,0.45)] transition-transform hover:-translate-y-0.5 active:translate-y-0 sm:h-10 sm:w-10"
             aria-label="Close"
           >
             &#10005;
@@ -135,7 +135,7 @@ export const FrameSelectionScreen: React.FC = () => {
             </span>
             <button
               onClick={handleConfirm}
-              className="shrink-0 rounded-full bg-[#4acaf1] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] text-[#4d2d85] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
+              className="rounded-[12px] border-[3px] border-[#a35ef6] bg-[#efe8ff] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] text-[#4d2d85] shadow-[0_4px_0_rgba(122,43,140,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
             >
               Pilih bingkai
             </button>

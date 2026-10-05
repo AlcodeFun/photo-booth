@@ -37,13 +37,13 @@ export const PhotoReviewScreen: React.FC = () => {
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/75" />
 
       <header className="absolute inset-x-0 top-0 z-10 flex items-start justify-between px-5 py-5 sm:px-8 sm:py-7">
-        <div className="bg-black/45 px-4 py-3 backdrop-blur-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/75">Photo review</p>
-          <h1 className="mt-1 text-xl font-bold sm:text-2xl">Photo {currentPhotoSlot}</h1>
+        <div className="rounded-[12px] bg-black/45 px-4 py-3 backdrop-blur-sm">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">Photo review</p>
+          <h1 className="mt-1 text-xl font-black uppercase tracking-[-0.02em] sm:text-2xl">Photo {currentPhotoSlot}</h1>
         </div>
-        <div className="bg-black/45 px-4 py-3 text-right backdrop-blur-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/75">Attempt</p>
-          <p className="mt-1 text-xl font-bold tabular-nums">
+        <div className="rounded-[12px] bg-black/45 px-4 py-3 text-right backdrop-blur-sm">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">Attempt</p>
+          <p className="mt-1 text-xl font-black tabular-nums">
             {attemptCount}
             <span className="text-white/65">/{maxAttempts}</span>
           </p>
@@ -52,19 +52,19 @@ export const PhotoReviewScreen: React.FC = () => {
 
       <footer className="absolute inset-x-0 bottom-0 z-10 flex flex-col items-center gap-4 px-5 pb-5 sm:px-8 sm:pb-7">
         <div className="flex flex-col items-center gap-2">
-          <p className="text-sm font-bold text-white sm:text-base">Apakah foto ini sudah pas?</p>
+          <p className="text-sm font-black uppercase tracking-[0.12em] text-white sm:text-base">Apakah foto ini sudah pas?</p>
           <div className="flex items-center gap-2" aria-label={`Attempt ${attemptCount} of ${maxAttempts}`}>
           {attemptDots.map((n) => (
             <span
               key={n}
-                className={`h-2.5 w-2.5 rounded-full ${n <= attemptCount ? 'bg-white' : 'bg-white/35'}`}
+                className={`h-2.5 w-2.5 rounded-full ${n <= attemptCount ? 'bg-[#4acaf1]' : 'bg-white/35'}`}
             />
           ))}
           </div>
         </div>
 
         {maxAttemptsReached && (
-          <span className="bg-red-500/90 px-4 py-2 text-xs font-bold uppercase tracking-[0.1em] text-white">
+          <span className="rounded-[10px] border-[3px] border-white/80 bg-[#ff4bb5] px-4 py-2 text-xs font-black uppercase tracking-[0.14em] text-white shadow-[0_4px_0_rgba(122,43,140,0.45)]">
             Kesempatan terakhir
           </span>
         )}
@@ -73,10 +73,10 @@ export const PhotoReviewScreen: React.FC = () => {
           <button
             onClick={retakePhoto}
             disabled={maxAttemptsReached}
-            className={`min-h-14 flex-1 px-5 py-4 text-sm font-bold uppercase tracking-[0.1em] transition-colors ${
+            className={`min-h-14 flex-1 rounded-[10px] border-[3px] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] transition-all ${
               maxAttemptsReached
-                ? 'cursor-not-allowed bg-white/25 text-white/60'
-                : 'bg-white/90 text-black hover:bg-white'
+                ? 'cursor-not-allowed border-white/40 bg-white/25 text-white/60'
+                : 'border-[#a35ef6] bg-[#efe8ff] text-[#4d2d85] hover:-translate-y-0.5 active:translate-y-0'
             }`}
           >
             Foto Ulang
@@ -84,7 +84,7 @@ export const PhotoReviewScreen: React.FC = () => {
 
           <button
             onClick={usePhoto}
-            className="min-h-14 flex-1 bg-rose-400 px-5 py-4 text-sm font-bold uppercase tracking-[0.1em] text-black transition-colors hover:bg-rose-300"
+            className="min-h-14 flex-1 rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-5 py-4 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85] shadow-[0_4px_0_rgba(122,43,140,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0"
           >
             Pakai Foto
           </button>

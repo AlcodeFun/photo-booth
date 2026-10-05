@@ -1,6 +1,11 @@
 /// <reference types="vite/client" />
 
 import {
+  CameraAutoConfig,
+  CameraAutoConfigResult,
+  CameraSettingsApplyResult,
+  CameraSettingsSnapshot,
+  CameraSettingsValues,
   CameraStatePayload,
   CameraLiveFrame,
   CameraCaptureResult,
@@ -14,6 +19,12 @@ export interface IElectronAPICamera {
   stopLiveView: () => Promise<CameraStatePayload>;
   prepareCapture: () => Promise<CameraStatePayload>;
   takePicture: () => Promise<CameraCaptureResult>;
+  /** Reads the values the connected camera offers for every supported setting. */
+  getSettings: () => Promise<CameraSettingsSnapshot>;
+  /** Pushes settings to the camera (live view is paused for the write). */
+  applySettings: (settings: CameraSettingsValues) => Promise<CameraSettingsApplyResult>;
+  /** Auto-connect / poll interval / settings the booth wants applied on connect. */
+  configure: (config: CameraAutoConfig) => Promise<CameraAutoConfigResult>;
   onStatus: (callback: (payload: CameraStatePayload) => void) => () => void;
   onLiveView: (callback: (frame: CameraLiveFrame) => void) => () => void;
   mjpeg: IElectronAPIMjpeg;

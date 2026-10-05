@@ -1,17 +1,9 @@
 import { ChangeEvent, ReactNode, useEffect, useRef, useState } from 'react';
+import { formatNumericText } from '../../components/fields/Stepper';
 
 const toNumericValue = (value: string) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const sanitizeNumberInput = (raw: string, allowDecimal: boolean) => {
-  const cleaned = raw.replace(allowDecimal ? /[^0-9.]/g : /[^0-9]/g, '');
-  if (!allowDecimal) {
-    return cleaned;
-  }
-  const [head, ...rest] = cleaned.split('.');
-  return rest.length > 0 ? `${head}.${rest.join('')}` : head;
 };
 
 const FIELD_CLASS =
@@ -53,7 +45,7 @@ export const NumberField = ({ label, value, min, max, allowDecimal = false, onCh
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     editingRef.current = true;
-    const sanitized = sanitizeNumberInput(event.target.value, allowDecimal);
+    const sanitized = formatNumericText(event.target.value, allowDecimal ? 2 : 0);
     setText(sanitized);
     onChange(toNumericValue(sanitized));
   };

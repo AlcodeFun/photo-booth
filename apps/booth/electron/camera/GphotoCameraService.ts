@@ -5,8 +5,16 @@ import * as os from 'os';
 import * as path from 'path';
 import { app } from 'electron';
 import {
+  CameraAutoConfig,
+  CameraAutoConfigResult,
   CameraCaptureResult,
   CameraLiveFrame,
+  CameraSettingKey,
+  CameraSettingOption,
+  CameraSettingsApplyResult,
+  CameraSettingsSnapshot,
+  CameraSettingsValues,
+  CameraSettingState,
   CameraStatePayload,
   CameraStatus,
 } from '@photo-booth/types';
@@ -20,6 +28,8 @@ import {
  *  - live view mirror  gphoto2 --set-config viewfinder=1 --stdout --capture-movie
  *  - shutter trigger   gphoto2 --set-config viewfinder=0 --wait-event=500ms
  *                      --capture-image-and-download
+ *  - read settings     gphoto2 --get-config /main/settings/<name> ...
+ *  - write settings    gphoto2 --set-config /main/settings/<name>=<value>
  *
  * The live view is a true mirror: LiveView is engaged once and frames are streamed
  * and rendered in memory only — nothing is recorded, and the shutter is never
@@ -27,6 +37,12 @@ import {
  * demand (button press); the stream pauses for that moment. Each successful
  * capture is persisted at full resolution under the user's Pictures folder
  * (Pictures\Photo Booth) so the original is never lost.
+ *
+ * Hot-plug: a lightweight watcher polls `gphoto2 --auto-detect` while the camera is
+ * not in use. When a camera appears it is marked ready, the configured shooting
+ * settings are pushed to it and (when auto-connect is on) live view starts without
+ * the operator touching anything; when the camera disappears the status drops back
+ * to DISCONNECTED so the booth UI reacts to the unplug.
  *
  * On Windows the camera must be bound to the WinUSB/libusbK driver (Zadig) and the
  * gphoto2 Windows build must be reachable via GPHOTO2_PATH / PATH / resources/bin.
@@ -39,11 +55,61 @@ const STREAM_STOP_GRACE_MS = 5000;
 const STREAM_FORCE_KILL_TIMEOUT_MS = 2000;
 const CAPTURE_EVENT_WAIT_MS = 500;
 const SKIP_VIEWFINDER_DROP = process.env.CAMERA_SKIP_VIEWFINDER_DROP === '1';
+/** Bounds for the hot-plug watcher, in milliseconds. */
+const POLL_INTERVAL_MIN_MS = 2000;
+const POLL_INTERVAL_MAX_MS = 30000;
+const POLL_INTERVAL_DEFAULT_MS = 5000;
+/** `--get-config` timeout — one batched query per panel open. */
+const READ_SETTINGS_TIMEOUT_MS = 20000;
 /** JPEG Start-Of-Image marker (FF D8) as a byte sequence — `indexOf` needs a
  *  Buffer, not the bare number 0xffd8, which is matched as the single byte 0xd8. */
 const SOI_MARKER = Buffer.from([0xff, 0xd8]);
 /** Drop the frame buffer if it ever balloons (it never should). */
 const MAX_BUFFER_BYTES = 8 * 1024 * 1024;
+
+/**
+ * gphoto2 config paths for the exposure/image settings a booth operator cares
+ * about on an EOS 600D. Canon namespaces everything under `/main/settings`, and
+ * unsupported names simply fail to query — the panel then hides that setting.
+ */
+const SETTING_PATHS: Record<CameraSettingKey, string> = {
+  exposureMode: '/main/settings/exposuremode',
+  aperture: '/main/settings/aperture',
+  shutterSpeed: '/main/settings/shutterspeed',
+  iso: '/main/settings/iso',
+  exposureCompensation: '/main/settings/exposurecompensation',
+  whiteBalance: '/main/settings/whitebalance',
+  meteringMode: '/main/settings/meteringmode',
+  imageQuality: '/main/settings/imagequality',
+  imageSize: '/main/settings/imagesize',
+  pictureStyle: '/main/settings/picturestyle',
+  focusMode: '/main/settings/focusmode',
+  driveMode: '/main/settings/drivemode',
+  flashMode: '/main/settings/flashmode',
+  autoPowerOff: '/main/settings/poweroff',
+};
+
+const SETTING_LABELS: Record<CameraSettingKey, string> = {
+  exposureMode: 'Exposure mode',
+  aperture: 'Aperture',
+  shutterSpeed: 'Shutter speed',
+  iso: 'ISO',
+  exposureCompensation: 'Exposure compensation',
+  whiteBalance: 'White balance',
+  meteringMode: 'Metering mode',
+  imageQuality: 'Image quality',
+  imageSize: 'Image size',
+  pictureStyle: 'Picture style',
+  focusMode: 'Focus mode',
+  driveMode: 'Drive mode',
+  flashMode: 'Flash mode',
+  autoPowerOff: 'Auto power off',
+};
+
+const SETTING_KEYS = Object.keys(SETTING_PATHS) as CameraSettingKey[];
+const SETTING_KEY_BY_PATH = new Map<string, CameraSettingKey>(
+  SETTING_KEYS.map((key) => [SETTING_PATHS[key], key]),
+);
 
 type StatusHandler = (payload: CameraStatePayload) => void;
 type LiveFrameHandler = (frame: CameraLiveFrame) => void;
@@ -80,10 +146,20 @@ export class GphotoCameraService {
   private frameBuffer: Buffer = Buffer.alloc(0);
   private tail: Promise<unknown> = Promise.resolve();
 
+  private disposed = false;
+  private pollTimer: ReturnType<typeof setTimeout> | null = null;
+  private pollIntervalMs = POLL_INTERVAL_DEFAULT_MS;
+  private autoConnect = true;
+  /** Settings the booth wants on the camera; re-pushed on every (re)connect. */
+  private desiredSettings: CameraSettingsValues = {};
+  /** What the hardware last accepted, so we never re-run an identical write. */
+  private appliedSettings: CameraSettingsValues = {};
+
   constructor() {
     this.tmpDir = mkdtempSync(path.join(os.tmpdir(), 'photo-booth-camera-'));
     this.captureDir = path.join(app.getPath('pictures'), 'Photo Booth');
     this.binary = this.resolveBinary();
+    this.schedulePoll(POLL_INTERVAL_DEFAULT_MS);
   }
 
   // --- public API (used by the IPC handlers) -------------------------------
@@ -130,39 +206,77 @@ export class GphotoCameraService {
   }
 
   async startLiveView(): Promise<CameraStatePayload> {
-    return this.enqueue(async () => {
-      if (this.status === 'LIVE_VIEW' && this.movieChild !== null) {
-        this.setStatus('LIVE_VIEW');
-        return this.state();
-      }
-      const forceDetection = this.status === 'ERROR';
-      this.setStatus('CONNECTING');
-      try {
-        await this.ensureCameraDetected(forceDetection);
-        this.capturePrepared = false;
-        this.restoreAfterCapture = false;
-        await this.startMovieStream();
-        return this.state();
-      } catch (error) {
-        this.setStatus('ERROR', this.describe(error));
-        return this.state();
-      }
-    });
+    return this.enqueue(() => this.startLiveViewCore());
   }
 
   async stopLiveView(): Promise<CameraStatePayload> {
-    return this.enqueue(async () => {
-      try {
-        await this.stopMovieStream();
-        this.capturePrepared = false;
-        this.restoreAfterCapture = false;
-        this.setStatus(this.model ? 'READY' : 'DISCONNECTED');
-        return this.state();
-      } catch (error) {
-        this.setStatus('ERROR', this.describe(error));
-        return this.state();
-      }
-    });
+    return this.enqueue(() => this.stopLiveViewCore());
+  }
+
+  private async startLiveViewCore(): Promise<CameraStatePayload> {
+    if (this.status === 'LIVE_VIEW' && this.movieChild !== null) {
+      this.setStatus('LIVE_VIEW');
+      return this.state();
+    }
+    const forceDetection = this.status === 'ERROR';
+    this.setStatus('CONNECTING');
+    try {
+      await this.ensureCameraDetected(forceDetection);
+      this.capturePrepared = false;
+      this.restoreAfterCapture = false;
+      await this.startMovieStream();
+      return this.state();
+    } catch (error) {
+      this.setStatus('ERROR', this.describe(error));
+      return this.state();
+    }
+  }
+
+  private async stopLiveViewCore(): Promise<CameraStatePayload> {
+    try {
+      await this.stopMovieStream();
+      this.capturePrepared = false;
+      this.restoreAfterCapture = false;
+      this.setStatus(this.model ? 'READY' : 'DISCONNECTED');
+      return this.state();
+    } catch (error) {
+      this.setStatus('ERROR', this.describe(error));
+      return this.state();
+    }
+  }
+
+  /**
+   * Reads the values the connected camera offers for every supported setting in a
+   * single batched `--get-config` call. The watcher keeps the booth in the loop, so
+   * unplugging the camera between polls is reported as DISCONNECTED rather than
+   * silently keeping a stale model name.
+   */
+  async readSettings(): Promise<CameraSettingsSnapshot> {
+    return this.enqueue(() => this.readSettingsCore());
+  }
+
+  /** Pushes the given settings to the camera, stopping/restarting live view. */
+  async applySettings(settings: CameraSettingsValues): Promise<CameraSettingsApplyResult> {
+    return this.enqueue(() => this.applySettingsCore(settings));
+  }
+
+  /**
+   * Stores the renderer's booth configuration. Settings that differ from what the
+   * hardware already accepted are pushed immediately when a camera is available;
+   * they are always re-pushed the next time a camera is detected.
+   */
+  async configure(config: CameraAutoConfig): Promise<CameraAutoConfigResult> {
+    const previous = this.desiredSettings;
+    this.autoConnect = config.autoConnect;
+    this.pollIntervalMs = this.clampPollInterval(config.pollIntervalSeconds);
+    this.desiredSettings = { ...config.settings };
+    const needsApply = Object.keys(this.desiredSettings).some(
+      (key) => this.desiredSettings[key as CameraSettingKey] !== previous[key as CameraSettingKey],
+    );
+    if (needsApply) {
+      void this.enqueue(() => this.applySettingsCoreIfChanged(this.desiredSettings)).catch(() => undefined);
+    }
+    return { autoConnect: this.autoConnect, pollIntervalSeconds: Math.round(this.pollIntervalMs / 1000) };
   }
 
   async prepareCapture(): Promise<CameraStatePayload> {
@@ -267,8 +381,246 @@ export class GphotoCameraService {
   }
 
   dispose(): void {
+    this.disposed = true;
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer);
+      this.pollTimer = null;
+    }
     void this.stopMovieStream().catch(() => this.movieChild?.kill('SIGKILL'));
     this.events.removeAllListeners();
+  }
+
+  // --- hot-plug watcher ----------------------------------------------------
+
+  private clampPollInterval(seconds: number): number {
+    const value = Number.isFinite(seconds) ? seconds * 1000 : POLL_INTERVAL_DEFAULT_MS;
+    return Math.min(POLL_INTERVAL_MAX_MS, Math.max(POLL_INTERVAL_MIN_MS, Math.round(value)));
+  }
+
+  private schedulePoll(delayMs: number): void {
+    if (this.disposed) {
+      return;
+    }
+    if (this.pollTimer !== null) {
+      clearTimeout(this.pollTimer);
+    }
+    const timer = setTimeout(() => {
+      this.pollTimer = null;
+      void this.pollDevice();
+    }, delayMs);
+    // Never keep the process alive just to poll for a camera.
+    if (typeof timer === 'object' && typeof timer.unref === 'function') {
+      timer.unref();
+    }
+    this.pollTimer = timer;
+  }
+
+  /**
+   * One hot-plug tick. While the camera is streaming or capturing the device is
+   * owned by gphoto2, so the tick backs off and tries again later — that is what
+   * keeps the watcher from causing `0x2019: PTP DEVICE BUSY`.
+   */
+  private async pollDevice(): Promise<void> {
+    if (this.disposed) {
+      return;
+    }
+    const busy =
+      this.movieChild !== null || this.status === 'CAPTURING' || this.status === 'CONNECTING' || this.status === 'LIVE_VIEW';
+    if (busy) {
+      this.schedulePoll(this.pollIntervalMs);
+      return;
+    }
+
+    const outcome = await this.enqueue(async () => {
+      const model = await this.detect(true).catch(() => null);
+      if (!model) {
+        this.model = null;
+        // A replugged/power-cycled camera no longer holds what we wrote to it.
+        this.appliedSettings = {};
+        this.capturePrepared = false;
+        this.restoreAfterCapture = false;
+        if (this.status === 'READY') {
+          this.setStatus('DISCONNECTED');
+        }
+        return { ready: false };
+      }
+      this.model = model;
+      if (this.status === 'DISCONNECTED' || this.status === 'ERROR') {
+        this.setStatus('READY');
+        return { ready: true };
+      }
+      return { ready: false };
+    }).catch(() => ({ ready: false }));
+
+    if (outcome.ready && this.autoConnect) {
+      // Queued behind the poll so the READY status reaches the UI first, and
+      // after the settings are on the hardware live view takes over the device.
+      void this.enqueue(async () => {
+        if (this.model === null) {
+          return;
+        }
+        if (Object.keys(this.desiredSettings).length > 0) {
+          const result = await this.applySettingsCore(this.desiredSettings);
+          if (result.failed.length > 0) {
+            console.warn(`[camera] auto-connect could not set: ${result.failed.map((f) => `${f.key}=${f.value} (${f.error})`).join(', ')}`);
+          }
+        }
+        if (this.model === null) {
+          return;
+        }
+        await this.startLiveViewCore();
+      }).catch(() => undefined);
+    }
+
+    this.schedulePoll(this.pollIntervalMs);
+  }
+
+  // --- camera settings -----------------------------------------------------
+
+  private async readSettingsCore(): Promise<CameraSettingsSnapshot> {
+    const items: CameraSettingState[] = SETTING_KEYS.map((key) => ({
+      key,
+      label: SETTING_LABELS[key],
+      options: [],
+      applied: this.appliedSettings[key] ?? null,
+    }));
+    try {
+      await this.ensureCameraDetected();
+    } catch (error) {
+      for (const item of items) {
+        item.error = this.describe(error);
+      }
+      return { model: this.model, items };
+    }
+
+    const byKey = new Map(items.map((item) => [item.key, item]));
+    const restoreLiveView = this.movieChild !== null;
+    if (restoreLiveView) {
+      await this.stopMovieStream();
+    }
+    try {
+      const paths = SETTING_KEYS.map((key) => SETTING_PATHS[key]);
+      const output = await this.run(['--get-config', ...paths], { timeout: READ_SETTINGS_TIMEOUT_MS });
+      this.parseConfigOutput(output).forEach(({ path, options }) => {
+        const key = SETTING_KEY_BY_PATH.get(path);
+        const item = key ? byKey.get(key) : undefined;
+        if (item) {
+          item.options = options;
+        }
+      });
+    } catch (error) {
+      const message = this.describe(error);
+      for (const item of items) {
+        item.error = message;
+      }
+    } finally {
+      if (restoreLiveView) {
+        this.scheduleLiveViewRestore();
+      }
+    }
+    return { model: this.model, items };
+  }
+
+  private async applySettingsCoreIfChanged(settings: CameraSettingsValues): Promise<CameraSettingsApplyResult | null> {
+    const changed = Object.keys(settings).some(
+      (key) => settings[key as CameraSettingKey] !== this.appliedSettings[key as CameraSettingKey],
+    );
+    if (!changed) {
+      return null;
+    }
+    return this.applySettingsCore(settings);
+  }
+
+  private async applySettingsCore(settings: CameraSettingsValues): Promise<CameraSettingsApplyResult> {
+    const applied: CameraSettingsApplyResult['applied'] = [];
+    const skipped: CameraSettingsApplyResult['skipped'] = [];
+    const failed: CameraSettingsApplyResult['failed'] = [];
+    const wanted = Object.entries(settings).filter(
+      (entry): entry is [CameraSettingKey, string] => typeof entry[1] === 'string' && entry[1] !== '',
+    );
+    if (wanted.length === 0) {
+      return { ok: true, applied, skipped, failed, snapshot: await this.readSettingsCore() };
+    }
+
+    try {
+      await this.ensureCameraDetected();
+    } catch (error) {
+      return {
+        ok: false,
+        applied,
+        skipped,
+        failed,
+        error: this.describe(error),
+      };
+    }
+
+    // The device can only serve one gphoto2 session at a time, so the option lists
+    // are read — and every write issued — with live view released, then restored.
+    const restoreLiveView = this.movieChild !== null;
+    if (restoreLiveView) {
+      await this.stopMovieStream();
+    }
+    let snapshot: CameraSettingsSnapshot;
+    try {
+      snapshot = await this.readSettingsCore();
+      const optionsByKey = new Map(snapshot.items.map((item) => [item.key, item.options]));
+      for (const [key, value] of wanted) {
+        const options = optionsByKey.get(key) ?? [];
+        if (options.length > 0 && !options.some((option) => option.value === value)) {
+          skipped.push({ key, value });
+          continue;
+        }
+        try {
+          await this.run(['--set-config', `${SETTING_PATHS[key]}=${value}`], { timeout: 15000 });
+          applied.push({ key, value });
+          this.appliedSettings = { ...this.appliedSettings, [key]: value };
+        } catch (error) {
+          failed.push({ key, value, error: this.describe(error) });
+        }
+      }
+    } finally {
+      if (restoreLiveView) {
+        this.scheduleLiveViewRestore();
+      }
+    }
+
+    return {
+      ok: failed.length === 0,
+      applied,
+      skipped,
+      failed,
+      snapshot,
+      ...(failed.length > 0 ? { error: failed.map((item) => `${item.key}: ${item.error}`).join(' · ') } : {}),
+    };
+  }
+
+  /**
+   * Parses `gphoto2 --get-config` output. Choice settings print one indented
+   * `value   Label` line per option, preceded by an unindented `path  Label` header.
+   */
+  private parseConfigOutput(output: string): Array<{ path: string; options: CameraSettingOption[] }> {
+    const sections: Array<{ path: string; options: CameraSettingOption[] }> = [];
+    let current: { path: string; options: CameraSettingOption[] } | null = null;
+    for (const line of output.split(/\r?\n/)) {
+      if (line.trim() === '') {
+        continue;
+      }
+      if (!/^\s/.test(line)) {
+        current = { path: line.trim().split(/\s+/)[0], options: [] };
+        sections.push(current);
+        continue;
+      }
+      if (!current) {
+        continue;
+      }
+      const match = line.trim().match(/^(\S+)(?:\s{1,}(.+))?$/);
+      if (!match) {
+        continue;
+      }
+      const label = (match[2] ?? '').trim();
+      current.options.push({ value: match[1], label: label === '' ? match[1] : label });
+    }
+    return sections;
   }
 
   // --- internals -----------------------------------------------------------

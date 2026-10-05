@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useBoothConfig } from '../../store/boothConfigStore';
 import { IElectronAPIPrinterStatusResult } from '../../global';
+import { NumberStepper } from '../../components/fields/Stepper';
 
 const PAPER_SIZES = [
   { value: '100x148mm', label: '4×6 — 100×148mm' },
@@ -346,22 +347,14 @@ export const PrinterSetupPanel: React.FC = () => {
                   updatePrinter({ colorMode: colorMode as 'color' | 'grayscale' })
                 }
               />
-              <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
-                Copies
-                <input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={printer.copies}
-                  onChange={(e) => {
-                    const next = Number(e.target.value);
-                    if (!Number.isNaN(next)) {
-                      updatePrinter({ copies: Math.min(10, Math.max(1, next)) });
-                    }
-                  }}
-                  className="rounded-[8px] border-[3px] border-[#c9b8ff] bg-white px-3 py-2 text-sm font-black text-[#4d2d85] outline-none focus:border-[#a35ef6]"
-                />
-              </label>
+              <NumberStepper
+                label="Copies"
+                value={printer.copies}
+                min={1}
+                max={10}
+                step={1}
+                onChange={(copies) => updatePrinter({ copies })}
+              />
             </div>
           </div>
 

@@ -114,3 +114,87 @@ export interface CameraStatePayload {
   info?: CameraInfo;
   error?: string;
 }
+
+/**
+ * Configurable shooting settings of the tethered camera, keyed by a stable
+ * camelCase name. The gphoto2 config path behind each key lives in the Electron
+ * camera service (the renderer only deals in keys + values).
+ */
+export type CameraSettingKey =
+  | 'exposureMode'
+  | 'aperture'
+  | 'shutterSpeed'
+  | 'iso'
+  | 'exposureCompensation'
+  | 'whiteBalance'
+  | 'meteringMode'
+  | 'imageQuality'
+  | 'imageSize'
+  | 'pictureStyle'
+  | 'focusMode'
+  | 'driveMode'
+  | 'flashMode'
+  | 'autoPowerOff';
+
+/** One `Key: Label` choice reported by the camera for a setting. */
+export interface CameraSettingOption {
+  /** Value written back with `--set-config <path>=<value>`. */
+  value: string;
+  /** Human label as printed by the camera (falls back to the raw value). */
+  label: string;
+}
+
+export interface CameraSettingState {
+  key: CameraSettingKey;
+  label: string;
+  /** Every value this camera offers for the setting, in menu order. */
+  options: CameraSettingOption[];
+  /** Last value the camera service pushed to the hardware (null = never). */
+  applied: string | null;
+  /** Set when the camera could not be queried for this setting. */
+  error?: string;
+}
+
+/** Values to push to the camera; empty/undefined keys are left untouched. */
+export type CameraSettingsValues = Partial<Record<CameraSettingKey, string>>;
+
+export interface CameraSettingsSnapshot {
+  model: string | null;
+  items: CameraSettingState[];
+}
+
+export interface CameraSettingChange {
+  key: CameraSettingKey;
+  value: string;
+}
+
+export interface CameraSettingFailure extends CameraSettingChange {
+  error: string;
+}
+
+export interface CameraSettingsApplyResult {
+  ok: boolean;
+  applied: CameraSettingChange[];
+  /** Values the connected camera does not offer (nothing was written). */
+  skipped: CameraSettingChange[];
+  failed: CameraSettingFailure[];
+  /** Freshly read state after applying, so the UI can show what stuck. */
+  snapshot?: CameraSettingsSnapshot;
+  /** Set when the whole operation failed (no camera / gphoto2 missing). */
+  error?: string;
+}
+
+/** Renderer → main configuration pushed whenever the booth setup changes. */
+export interface CameraAutoConfig {
+  /** Auto-detect + re-apply settings + start live view when a camera appears. */
+  autoConnect: boolean;
+  /** How often the camera port is polled for a hot-plugged device. */
+  pollIntervalSeconds: number;
+  /** Settings re-applied every time the camera is (re)connected. */
+  settings: CameraSettingsValues;
+}
+
+export interface CameraAutoConfigResult {
+  autoConnect: boolean;
+  pollIntervalSeconds: number;
+}

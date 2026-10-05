@@ -1,15 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CameraLiveFrame,
   CameraStatePayload,
   CameraStatus,
 } from '@photo-booth/types';
+import { toCameraSettingValues, useBoothConfig } from '../store/boothConfigStore';
 
 /**
  * Provides access to the Canon DSLR bridge exposed by the Electron main process.
  *
  * When running in a plain browser (no preload / no main-process camera bridge),
  * `available` is false and callers should fall back to the WebRTC capture path.
+ *
+ * The hook also pushes the booth's camera configuration (auto-connect, poll
+ * interval and the shooting settings) to the main process, so the hot-plug
+ * behaviour is identical in the booth flow and on the set-up screen.
  */
 function cameraIsAvailable(payload: CameraStatePayload): boolean {
   return Boolean(payload.info?.model) && payload.status !== 'ERROR' && payload.status !== 'DISCONNECTED';
@@ -17,6 +22,8 @@ function cameraIsAvailable(payload: CameraStatePayload): boolean {
 
 export function usePhotoBoothCamera() {
   const api = window.electronAPI?.camera;
+  const camera = useBoothConfig((state) => state.camera);
+  const settings = useMemo(() => toCameraSettingValues(camera), [camera]);
 
   const [available, setAvailable] = useState(false);
   const [status, setStatus] = useState<CameraStatus>('DISCONNECTED');
@@ -24,6 +31,21 @@ export function usePhotoBoothCamera() {
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
   const liveFrameUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    // `configure` only exists on a main process that knows about camera settings
+    // (an Electron build from before the hot-plug feature still works without it).
+    if (typeof api?.configure !== 'function') {
+      return;
+    }
+    api
+      .configure({
+        autoConnect: camera.autoConnect,
+        pollIntervalSeconds: camera.pollIntervalSeconds,
+        settings,
+      })
+      .catch((err: unknown) => setError(err instanceof Error ? err.message : String(err)));
+  }, [api, camera.autoConnect, camera.pollIntervalSeconds, settings]);
 
   useEffect(() => {
     if (!api) {

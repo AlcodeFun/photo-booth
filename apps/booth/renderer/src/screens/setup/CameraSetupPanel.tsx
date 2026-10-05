@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { CameraCaptureResult, CameraStatus } from '@photo-booth/types';
 import { usePhotoBoothCamera } from '../../hooks/usePhotoBoothCamera';
+import { useCameraSettings } from '../../hooks/useCameraSettings';
+import { OptionStepper, NumberStepper } from '../../components/fields/Stepper';
+import { useBoothConfig } from '../../store/boothConfigStore';
 
 const STATUS_STYLES: Record<CameraStatus, string> = {
   DISCONNECTED: 'border-rose-400 bg-rose-50 text-rose-700',
@@ -20,16 +23,54 @@ const STATUS_LABELS: Record<CameraStatus, string> = {
   ERROR: 'Error',
 };
 
+/** Settings shown first (the ones a booth operator tweaks most). */
+const PRIMARY_SETTINGS: Array<{ key: 'iso' | 'aperture' | 'shutterSpeed' | 'whiteBalance' | 'exposureCompensation' }> = [
+  { key: 'iso' },
+  { key: 'aperture' },
+  { key: 'shutterSpeed' },
+  { key: 'whiteBalance' },
+  { key: 'exposureCompensation' },
+];
+
+/** Everything else that the connected camera might expose. */
+const SECONDARY_SETTINGS: Array<{ key: 'exposureMode' | 'meteringMode' | 'imageQuality' | 'imageSize' | 'pictureStyle' | 'focusMode' | 'driveMode' | 'flashMode' | 'autoPowerOff' }> = [
+  { key: 'exposureMode' },
+  { key: 'meteringMode' },
+  { key: 'imageQuality' },
+  { key: 'imageSize' },
+  { key: 'pictureStyle' },
+  { key: 'focusMode' },
+  { key: 'driveMode' },
+  { key: 'flashMode' },
+  { key: 'autoPowerOff' },
+];
+
+const SETTING_LABELS: Record<string, string> = {
+  exposureMode: 'Exposure mode',
+  aperture: 'Aperture',
+  shutterSpeed: 'Shutter speed',
+  iso: 'ISO',
+  exposureCompensation: 'Exposure comp.',
+  whiteBalance: 'White balance',
+  meteringMode: 'Metering mode',
+  imageQuality: 'Image quality',
+  imageSize: 'Image size',
+  pictureStyle: 'Picture style',
+  focusMode: 'Focus mode',
+  driveMode: 'Drive mode',
+  flashMode: 'Flash mode',
+  autoPowerOff: 'Auto power off',
+};
+
 export const CameraSetupPanel: React.FC = () => {
   const canon = usePhotoBoothCamera();
+  const camera = useBoothConfig((state) => state.camera);
+  const updateCamera = useBoothConfig((state) => state.updateCamera);
+  const { optionsByKey, loading, busy: settingsBusy, result, error: settingsError, supported, apply } =
+    useCameraSettings(canon.status);
+
   const [testPhoto, setTestPhoto] = useState<CameraCaptureResult | null>(null);
   const [busy, setBusy] = useState(false);
-  const [mjpeg, setMjpeg] = useState<{ running: boolean; port: number }>({ running: false, port: 0 });
-  const [mjpegBusy, setMjpegBusy] = useState(false);
-
-  useEffect(() => {
-    window.electronAPI?.camera?.mjpeg?.get?.().then(setMjpeg).catch(() => undefined);
-  }, []);
 
   const statusStyle = STATUS_STYLES[canon.status] ?? STATUS_STYLES.DISCONNECTED;
   const statusLabel = STATUS_LABELS[canon.status] ?? canon.status;
@@ -43,14 +84,34 @@ export const CameraSetupPanel: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    if (result?.applied.length) {
+      // Refetch options after applying so labels show the camera's new state.
+      void (async () => {
+        try {
+          await apply({});
+        } catch (err) {
+      // eslint-disable-next-line no-console
+        console.warn('Failed to refresh camera settings after apply', err);
+        }
+      })();
+    }
+  }, [result, apply]);
+
+  const missing = useMemo(
+    () =>
+      result
+        ? result.skipped.map((item) => `${SETTING_LABELS[item.key] ?? item.key}: ${item.value}`)
+        : [],
+    [result],
+  );
+
   return (
     <div>
-      {!canon.available && (
+      {!canon.available && canon.status !== 'LIVE_VIEW' && (
         <div className="mb-5 rounded-[10px] border-[3px] border-amber-400 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-          No tethered camera is detected. Inside the booth this means no gphoto2-capable camera is
-          connected over USB/PTP (ensure gphoto2 is installed / reachable and the camera is bound to
-          the WinUSB driver). In a plain browser the hardware camera is unreachable — the simulated
-          camera is used here instead.
+          No tethered camera is detected. Turn on the EOS 600D, connect it over USB and let the booth
+          auto-connect. If it is already connected, press Test Connection / Start Live View.
         </div>
       )}
 
@@ -109,6 +170,98 @@ export const CameraSetupPanel: React.FC = () => {
               </div>
             </div>
           )}
+
+          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+                Auto-connect &amp; poll interval
+              </div>
+              <span className="rounded-full bg-[#4acaf1] px-3 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.14em] text-white">
+                {camera.autoConnect ? 'Auto' : 'Manual'}
+              </span>
+            </div>
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={camera.autoConnect}
+                onChange={(e) => updateCamera({ autoConnect: e.target.checked })}
+                className="h-5 w-5 accent-[#4acaf1]"
+              />
+              <span className="text-sm font-bold text-[#4d2d85]">
+                Auto-connect camera when plugged in (start live view + re-apply settings)
+              </span>
+            </label>
+            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <NumberStepper
+                label="Poll interval"
+                value={camera.pollIntervalSeconds}
+                min={2}
+                max={30}
+                step={1}
+                suffix="s"
+                disabled={!camera.autoConnect}
+                onChange={(pollIntervalSeconds) => updateCamera({ pollIntervalSeconds })}
+                hint="How often the booth checks for a hot-plugged camera."
+              />
+            </div>
+          </div>
+
+          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Camera settings</div>
+              <div className="flex items-center gap-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-[#7a4de3]">
+                {loading ? 'Loading…' : supported ? 'Live from gphoto2' : 'No camera options'}
+                {settingsBusy && <span className="ml-1 h-2.5 w-2.5 rounded-full bg-[#ff4bb5]" />}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {PRIMARY_SETTINGS.map((item) => (
+                <OptionStepper
+                  key={item.key}
+                  label={SETTING_LABELS[item.key]}
+                  value={String(camera[item.key] ?? '')}
+                  options={optionsByKey.get(item.key)?.options ?? []}
+onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<typeof camera>)}
+                  disabled={optionsByKey.get(item.key)?.options.length === 0}
+                />
+              ))}
+            </div>
+
+            <div className="mt-5">
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">More settings</div>
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {SECONDARY_SETTINGS.map((item) => (
+                  <OptionStepper
+                    key={item.key}
+                    label={SETTING_LABELS[item.key]}
+                    value={String(camera[item.key] ?? '')}
+                    options={optionsByKey.get(item.key)?.options ?? []}
+onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<typeof camera>)}
+                    disabled={optionsByKey.get(item.key)?.options.length === 0}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#4d2d85]/70">
+              <span>Apply writes them to the camera and pauses/restarts live view briefly.</span>
+              <button
+                type="button"
+                onClick={() => runAction(async () => apply({}))}
+                disabled={busy || settingsBusy}
+                className="rounded-[8px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-1.5 text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#4d2d85] disabled:opacity-50"
+              >
+                {settingsBusy ? 'Applying…' : 'Refresh options & re-apply'}
+              </button>
+            </div>
+
+            {missing.length > 0 && (
+              <div className="mt-3 rounded-[8px] border-2 border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+                Not set (not offered by this camera): {missing.join(', ')}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -117,7 +270,7 @@ export const CameraSetupPanel: React.FC = () => {
             <div className="space-y-2">
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || settingsBusy}
                 onClick={() =>
                   runAction(async () => {
                     setTestPhoto(null);
@@ -130,7 +283,7 @@ export const CameraSetupPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={busy || canon.status === 'DISCONNECTED'}
+                disabled={busy || settingsBusy || canon.status === 'DISCONNECTED'}
                 onClick={() => runAction(canon.stop)}
                 className="w-full rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#b3206e] disabled:opacity-50"
               >
@@ -138,7 +291,7 @@ export const CameraSetupPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={busy || canon.status !== 'LIVE_VIEW'}
+                disabled={busy || settingsBusy || canon.status !== 'LIVE_VIEW'}
                 onClick={() =>
                   runAction(async () => {
                     const result = await canon.capture();
@@ -153,7 +306,7 @@ export const CameraSetupPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || settingsBusy}
                 onClick={() =>
                   runAction(async () => {
                     setTestPhoto(null);
@@ -171,19 +324,18 @@ export const CameraSetupPanel: React.FC = () => {
             <div className="mb-1 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">How to test</div>
             <ol className="space-y-1.5 text-sm font-semibold text-[#4d2d85]">
               <li>1. Plug the Canon camera into USB and power it on.</li>
-              <li>2. Press <span className="font-black text-[#a35ef6]">Test Connection</span>.</li>
+              <li>2. Leave Auto-connect on, or press <span className="font-black text-[#a35ef6]">Test Connection</span>.</li>
               <li>3. Confirm the live view appears above.</li>
-              <li>4. Press <span className="font-black text-[#ff4bb5]">Take Test Picture</span>.</li>
+              <li>4. Pick ISO / aperture / shutter speed (values pulled live from gphoto2).</li>
+              <li>5. Press <span className="font-black text-[#ff4bb5]">Take Test Picture</span>.</li>
             </ol>
           </div>
-
-    
         </div>
       </div>
 
-      {canon.error && (
+      {(canon.error || settingsError) && (
         <div className="mt-6 rounded-[12px] border-[3px] border-rose-300 bg-rose-50 px-4 py-3 text-sm font-bold text-rose-600">
-          {canon.error}
+          {canon.error || settingsError}
         </div>
       )}
     </div>

@@ -211,22 +211,27 @@ const ICON_GIF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" str
 // Browsers only honor a limited number of programmatic downloads per gesture,
 // so trigger them one at a time with a short gap and show progress on the
 // invoking button. Otherwise only the last file (the GIF) would download.
-async function downloadMany(items, btnId) {
-  const btn = document.getElementById(btnId);
-  if (!btn || items.length === 0) return;
-  const original = btn.textContent;
-  btn.disabled = true;
-  try {
-    for (let i = 0; i < items.length; i++) {
-      if (i > 0) await sleep(400);
-      btn.textContent = 'Downloading ' + (i + 1) + ' / ' + items.length;
-      downloadUrl(items[i].url, items[i].name);
+  function downloadMany(items, btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn || items.length === 0) return;
+    if (items.length === 1) {
+      const single = items[0];
+      downloadUrl(single.url, single.name);
+      return;
     }
-  } finally {
-    btn.textContent = original;
-    btn.disabled = false;
+    const original = btn.textContent;
+    btn.disabled = true;
+    try {
+      for (let i = 0; i < items.length; i++) {
+        if (i > 0) await sleep(400);
+        btn.textContent = 'Downloading ' + (i + 1) + ' / ' + items.length;
+        downloadUrl(items[i].url, items[i].name);
+      }
+    } finally {
+      btn.textContent = original;
+      btn.disabled = false;
+    }
   }
-}
 
 function tileHtml(item, i) {
   return '<div class="tile" data-i="' + i + '" role="button" tabindex="0" aria-checked="false" aria-label="Select photo ' + (i + 1) + '">' +
@@ -281,9 +286,13 @@ function selectAllToggle() {
   syncActions();
 }
 
-function downloadAll() {
-  downloadMany(store.files, 'dlAll');
-}
+  function downloadAllPhotos() {
+    downloadMany(store.photos, 'dlAllPhotos');
+  }
+
+  function downloadAllOutputs() {
+    downloadMany(store.files, 'dlAllOutputs');
+  }
 
 function downloadSelected() {
   const items = [];
@@ -348,7 +357,8 @@ function wireViewer() {
 
 function wireActions() {
   document.getElementById('selAll').addEventListener('click', selectAllToggle);
-  document.getElementById('dlAll').addEventListener('click', downloadAll);
+  document.getElementById('dlAllPhotos').addEventListener('click', downloadAllPhotos);
+  document.getElementById('dlAllOutputs').addEventListener('click', downloadAllOutputs);
   document.getElementById('dlSelected').addEventListener('click', downloadSelected);
   document.querySelectorAll('.tile').forEach(function (t, i) {
     t.addEventListener('click', function (e) {
@@ -455,7 +465,8 @@ function render(files) {
       '<div class="actions">' +
         '<button class="btn sm ghost" id="selAll" type="button">Select all</button>' +
         '<button class="btn sm hidden" id="dlSelected" type="button">Download selected</button>' +
-        '<button class="btn sm" id="dlAll" type="button">Download all</button>' +
+        '<button class="btn sm" id="dlAllPhotos" type="button">Download all photos</button>' +
+        '<button class="btn sm ghost" id="dlAllOutputs" type="button">Download all results</button>' +
         '<span class="count" id="selCount">0 / ' + store.photos.length + ' selected</span>' +
       '</div>' +
     '</div>';

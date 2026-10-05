@@ -497,11 +497,11 @@ export const PhotoCaptureScreen: React.FC = () => {
       {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
 
       <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 px-5 py-5 sm:px-8 sm:py-7">
-        <div className="rounded-sm bg-black/45 px-4 py-3 backdrop-blur-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/75">
+        <div className="rounded-[12px] bg-black/45 px-4 py-3 backdrop-blur-sm">
+          <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">
             {isTimedFlow ? 'Sesi' : `Slot ke ${currentPhotoSlot} dari ${photoSlots.length}`}
           </p>
-          <p className="mt-1 text-xl font-bold sm:text-2xl">
+          <p className="mt-1 text-xl font-black uppercase tracking-[-0.02em] sm:text-2xl">
             {isTimedFlow
               ? `${currentSlot?.attempts.length ?? 0} photo diambil`
               : `Kesempatan ke ${attemptNumber} dari ${maxAttempts}`}
@@ -509,11 +509,11 @@ export const PhotoCaptureScreen: React.FC = () => {
         </div>
 
         {isTimedFlow && (
-          <div className="min-w-24 bg-black/45 px-4 py-3 text-center backdrop-blur-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-white/75">
+          <div className="min-w-24 rounded-[12px] bg-black/45 px-4 py-3 text-center backdrop-blur-sm">
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">
               {timedPhase === 'active' ? 'Time left' : 'Session'}
             </p>
-            <p className="mt-1 text-2xl font-bold tabular-nums">
+            <p className="mt-1 text-2xl font-black tabular-nums">
               {String(Math.floor(timedClock / 60)).padStart(2, '0')}:{String(timedClock % 60).padStart(2, '0')}
             </p>
           </div>
@@ -524,7 +524,7 @@ export const PhotoCaptureScreen: React.FC = () => {
             event.stopPropagation();
             setIsMirrored((mirrored) => !mirrored);
           }}
-          className="shrink-0 bg-black/45 px-3 py-2 text-xs font-bold uppercase tracking-[0.1em] backdrop-blur-sm hover:bg-black/70"
+          className="shrink-0 rounded-[10px] border-[3px] border-[#a35ef6] bg-[#efe8ff] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
           aria-pressed={isMirrored}
           title="Toggle mirrored preview"
         >
@@ -554,7 +554,7 @@ export const PhotoCaptureScreen: React.FC = () => {
               setIsArmed(false);
               setIsStarted(false);
             }}
-            className="bg-white px-5 py-3 text-sm font-bold uppercase tracking-[0.1em] text-black"
+            className="rounded-[8px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85] shadow-[0_4px_0_rgba(122,43,140,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0"
           >
             Retry camera
           </button>
@@ -597,12 +597,12 @@ export const PhotoCaptureScreen: React.FC = () => {
       ) : null)}
 
       {isTimedFlow && latestPhoto && (
-        <aside className="absolute bottom-24 right-5 z-20 w-48 bg-black/55 p-2 backdrop-blur-sm sm:bottom-28 sm:right-8 sm:w-64">
-          <span className="absolute -left-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-rose-400 text-sm font-bold text-black">
+        <aside className="absolute bottom-24 right-5 z-20 w-48 rounded-[12px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] p-2 backdrop-blur-sm sm:bottom-28 sm:right-8 sm:w-64">
+          <span className="absolute -left-2 -top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-[#ff4bb5] text-sm font-black text-white shadow-[0_2px_0_rgba(122,43,140,0.45)]">
             {currentSlot?.attempts.length}
           </span>
-          <img src={latestPhoto} alt="Foto Sebelumnya" className="h-44 w-full bg-black/35 object-contain shadow-lg sm:h-56" />
-          <p className="mt-2 text-center text-xs font-bold uppercase tracking-[0.1em]">Foto Sebelumnya</p>
+          <img src={latestPhoto} alt="Foto Sebelumnya" className="h-44 w-full rounded-[8px] bg-black/35 object-contain shadow-lg sm:h-56" />
+          <p className="mt-2 text-center text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85]">Foto Sebelumnya</p>
         </aside>
       )}
 
