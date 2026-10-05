@@ -174,6 +174,26 @@ const CONTROL = { printRequest: null, printResult: null };
 let changeCount = 0;
 let lastChangeAt = 0;
 
+// The banner above the grid carries two independent messages: the booth's
+// "still generating" state (driven by render()) and a download failure. The
+// 5s poll re-renders whenever the file list changes, so a download error has
+// to be parked here or it would be wiped mid-build.
+let noteError = null;
+
+function setNote(html, isError) {
+  const box = document.getElementById('note');
+  if (!box) return;
+  if (html) {
+    noteError = isError ? html : null;
+    box.innerHTML = html;
+  } else {
+    noteError = null;
+    box.innerHTML = '';
+  }
+}
+
+const ERR_DOWNLOAD = '<div class="note err">Those files could not be downloaded. Please ask the booth attendant.</div>';
+
 function fetchJson(name) {
   return fetch(location.origin + '/d/' + TOKEN + '/' + name + '?ts=' + Date.now())
     .then(function (r) { return r.ok ? r.json() : null; })
@@ -200,38 +220,150 @@ function downloadUrl(url, name) {
   a.remove();
 }
 
-function sleep(ms) {
-  return new Promise(function (resolve) { setTimeout(resolve, ms); });
-}
-
 const EYE_SVG = '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="2"/></svg>';
 const ICON_IMAGE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>';
 const ICON_GIF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7.5 10h1.5v4H7.5z"/><path d="M11 10v4"/><path d="M11 12h2.5"/></svg>';
 
-// Browsers only honor a limited number of programmatic downloads per gesture,
-// so trigger them one at a time with a short gap and show progress on the
-// invoking button. Otherwise only the last file (the GIF) would download.
-  function downloadMany(items, btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn || items.length === 0) return;
-    if (items.length === 1) {
-      const single = items[0];
-      downloadUrl(single.url, single.name);
+// Browsers only honor a handful of programmatic downloads per user gesture, so
+// firing one anchor per output silently drops all but the last file. Instead the
+// gallery fetches every selected output once and hands back a single .zip blob,
+// which also gives the customer one clean file instead of a burst of downloads.
+//
+// ZIP entries are written with the STORE method (no deflate): every output is
+// already a compressed format (JPEG/PNG/GIF), so deflating would burn CPU for
+// almost no size win — and it keeps the whole archive buildable in one pass.
+const CRC_TABLE = (function () {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[i] = c >>> 0;
+  }
+  return table;
+})();
+
+function crc32(bytes) {
+  let c = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+// MS-DOS date/time pair used by the ZIP local + central headers.
+function dosStamp(date) {
+  const time = ((date.getHours() << 11) | (date.getMinutes() << 5) | (date.getSeconds() >> 1)) & 0xffff;
+  const day = (((date.getFullYear() - 1980) << 9) | ((date.getMonth() + 1) << 5) | date.getDate()) & 0xffff;
+  return { time: time, date: day };
+}
+
+// entries: [{ name: string, bytes: Uint8Array }] -> Blob of a valid .zip
+function buildZip(entries) {
+  const encoder = new TextEncoder();
+  const stamp = dosStamp(new Date());
+  const parts = [];
+  const centrals = [];
+  let offset = 0;
+
+  for (const entry of entries) {
+    const nameBytes = encoder.encode(entry.name);
+    const crc = crc32(entry.bytes);
+    const size = entry.bytes.length;
+
+    const local = new Uint8Array(30 + nameBytes.length);
+    const lv = new DataView(local.buffer);
+    lv.setUint32(0, 0x04034b50, true);      // local file header signature
+    lv.setUint16(4, 20, true);              // version needed to extract
+    lv.setUint16(6, 0x0800, true);          // UTF-8 filename flag
+    lv.setUint16(8, 0, true);               // method 0 = stored
+    lv.setUint16(10, stamp.time, true);
+    lv.setUint16(12, stamp.date, true);
+    lv.setUint32(14, crc, true);
+    lv.setUint32(18, size, true);           // compressed size
+    lv.setUint32(22, size, true);           // uncompressed size
+    lv.setUint16(26, nameBytes.length, true);
+    lv.setUint16(28, 0, true);              // extra field length
+    local.set(nameBytes, 30);
+    parts.push(local, entry.bytes);
+
+    const central = new Uint8Array(46 + nameBytes.length);
+    const cv = new DataView(central.buffer);
+    cv.setUint32(0, 0x02014b50, true);      // central directory signature
+    cv.setUint16(4, 20, true);              // version made by
+    cv.setUint16(6, 20, true);              // version needed
+    cv.setUint16(8, 0x0800, true);          // UTF-8 filename flag
+    cv.setUint16(10, 0, true);              // method 0 = stored
+    cv.setUint16(12, stamp.time, true);
+    cv.setUint16(14, stamp.date, true);
+    cv.setUint32(16, crc, true);
+    cv.setUint32(20, size, true);
+    cv.setUint32(24, size, true);
+    cv.setUint16(28, nameBytes.length, true);
+    cv.setUint16(30, 0, true);              // extra field length
+    cv.setUint16(32, 0, true);              // comment length
+    cv.setUint16(34, 0, true);              // disk number start
+    cv.setUint16(36, 0, true);              // internal attributes
+    cv.setUint32(38, 0, true);              // external attributes
+    cv.setUint32(42, offset, true);         // relative offset of local header
+    central.set(nameBytes, 46);
+    centrals.push(central);
+
+    offset += local.length + size;
+  }
+
+  const centralSize = centrals.reduce(function (sum, c) { return sum + c.length; }, 0);
+  const end = new Uint8Array(22);
+  const ev = new DataView(end.buffer);
+  ev.setUint32(0, 0x06054b50, true);        // end of central directory signature
+  ev.setUint16(4, 0, true);                 // this disk number
+  ev.setUint16(6, 0, true);                 // disk with central directory
+  ev.setUint16(8, entries.length, true);    // entries on this disk
+  ev.setUint16(10, entries.length, true);   // total entries
+  ev.setUint32(12, centralSize, true);
+  ev.setUint32(16, offset, true);           // central directory offset
+  ev.setUint16(20, 0, true);                // archive comment length
+
+  return new Blob(parts.concat(centrals, [end]), { type: 'application/zip' });
+}
+
+// A single output still downloads directly; two or more are zipped. zipName is
+// the archive filename (the token keeps each session's file distinct).
+async function downloadMany(items, btnId, zipName) {
+  const btn = document.getElementById(btnId);
+  if (!btn || items.length === 0) return;
+  if (items.length === 1) {
+    downloadUrl(items[0].url, items[0].name);
+    return;
+  }
+  const original = btn.textContent;
+  btn.disabled = true;
+  try {
+    const entries = [];
+    for (let i = 0; i < items.length; i++) {
+      btn.textContent = 'Packing ' + (i + 1) + ' / ' + items.length;
+      let response;
+      try {
+        response = await fetch(items[i].url);
+      } catch (error) {
+        continue;
+      }
+      if (!response.ok) continue;
+      entries.push({ name: items[i].name, bytes: new Uint8Array(await response.arrayBuffer()) });
+    }
+    if (entries.length === 0) {
+      setNote(ERR_DOWNLOAD, true);
       return;
     }
-    const original = btn.textContent;
-    btn.disabled = true;
-    try {
-      for (let i = 0; i < items.length; i++) {
-        if (i > 0) await sleep(400);
-        btn.textContent = 'Downloading ' + (i + 1) + ' / ' + items.length;
-        downloadUrl(items[i].url, items[i].name);
-      }
-    } finally {
-      btn.textContent = original;
-      btn.disabled = false;
-    }
+    btn.textContent = 'Building ZIP&hellip;';
+    const href = URL.createObjectURL(buildZip(entries));
+    downloadUrl(href, zipName);
+    // Give the browser time to start the download before dropping the blob.
+    setTimeout(function () { URL.revokeObjectURL(href); }, 60000);
+  } catch (error) {
+    setNote(ERR_DOWNLOAD, true);
+  } finally {
+    btn.textContent = original;
+    btn.disabled = false;
   }
+}
 
 function tileHtml(item, i) {
   return '<div class="tile" data-i="' + i + '" role="button" tabindex="0" aria-checked="false" aria-label="Select photo ' + (i + 1) + '">' +
@@ -259,7 +391,9 @@ function syncActions() {
   const cnt = document.getElementById('selCount');
   if (btnSel) {
     btnSel.classList.toggle('hidden', tiles.length === 0);
-    btnSel.textContent = 'Download selected (' + tiles.length + ')';
+    // More than one file is delivered as a single .zip rather than a burst of
+    // separate downloads, so say so on the button itself.
+    btnSel.textContent = 'Download selected (' + tiles.length + ')' + (tiles.length > 1 ? ' ZIP' : '');
   }
   if (btnAll) {
     const all = store.photos.length > 0 && tiles.length === store.photos.length;
@@ -287,12 +421,12 @@ function selectAllToggle() {
 }
 
   function downloadAllPhotos() {
-    downloadMany(store.photos, 'dlAllPhotos');
-  }
+  downloadMany(store.photos, 'dlAllPhotos', 'photos-' + TOKEN + '.zip');
+}
 
-  function downloadAllOutputs() {
-    downloadMany(store.files, 'dlAllOutputs');
-  }
+function downloadAllOutputs() {
+  downloadMany(store.files, 'dlAllOutputs', 'photo-booth-' + TOKEN + '.zip');
+}
 
 function downloadSelected() {
   const items = [];
@@ -300,7 +434,7 @@ function downloadSelected() {
     const item = store.photos[Number(t.dataset.i)];
     if (item) items.push(item);
   });
-  downloadMany(items, 'dlSelected');
+  downloadMany(items, 'dlSelected', 'selected-' + TOKEN + '.zip');
 }
 
 function closeViewer() {
@@ -430,7 +564,9 @@ function render(files) {
   });
 
   const note = pendingNote(files);
-  if (note === 'busy') {
+  if (noteError) {
+    noteBox.innerHTML = noteError;
+  } else if (note === 'busy') {
     noteBox.innerHTML =
       '<div class="note"><span class="spin"></span> Some outputs are still being generated &amp; uploaded &mdash; your photos are already here, more coming&hellip;</div>';
   } else if (note === 'error') {
@@ -465,8 +601,8 @@ function render(files) {
       '<div class="actions">' +
         '<button class="btn sm ghost" id="selAll" type="button">Select all</button>' +
         '<button class="btn sm hidden" id="dlSelected" type="button">Download selected</button>' +
-        '<button class="btn sm" id="dlAllPhotos" type="button">Download all photos</button>' +
-        '<button class="btn sm ghost" id="dlAllOutputs" type="button">Download all results</button>' +
+        '<button class="btn sm" id="dlAllPhotos" type="button">Download all photos (ZIP)</button>' +
+        '<button class="btn sm ghost" id="dlAllOutputs" type="button">Download all results (ZIP)</button>' +
         '<span class="count" id="selCount">0 / ' + store.photos.length + ' selected</span>' +
       '</div>' +
     '</div>';
