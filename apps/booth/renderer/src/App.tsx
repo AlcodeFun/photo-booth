@@ -41,7 +41,9 @@ const isAdminPath = (path: string, hash: string) => {
 /** Flow-2 arrange page: /organize/:token (path-based; the hosted web app serves it). */
 const getOrganizeToken = (path: string): string | null => {
   const segments = path.replace(/\/+$/, '').split('/').filter(Boolean);
-  return segments.length >= 2 && segments[0] === 'organize' ? decodeURIComponent(segments[1]) : null;
+  return segments.length >= 2 && segments[0] === 'organize'
+    ? decodeURIComponent(segments[1])
+    : null;
 };
 
 function App() {
@@ -60,7 +62,7 @@ function App() {
   const organizeToken = getOrganizeToken(route.path);
   // Admin-editable booth look. Only the customer-facing shell uses it, so the
   // dashboard and the hosted arrange page keep their own fixed styling.
-  const appearance = useBoothAppearance((state) => state.active);
+  const appearance = useBoothAppearance((state) => state.appearance);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -91,7 +93,14 @@ function App() {
     ) {
       startNewSession();
     }
-  }, [isFrameFitterRoute, isBoothSetupRoute, isAdminRoute, organizeToken, sessionId, startNewSession]);
+  }, [
+    isFrameFitterRoute,
+    isBoothSetupRoute,
+    isAdminRoute,
+    organizeToken,
+    sessionId,
+    startNewSession,
+  ]);
 
   const renderScreen = () => {
     switch (currentScreen) {
@@ -131,7 +140,7 @@ function App() {
 
   return (
     <div
-      className="min-h-screen w-screen px-4 py-6 md:px-8"
+      className="min-h-screen w-full px-4 py-6 md:px-8"
       style={{
         ...appearanceBackgroundStyle(appearance),
         color: appearance.theme.foreground,

@@ -25,7 +25,7 @@ export const BoothSetUpScreen: React.FC = () => {
   const [tab, setTab] = useState<SetupTab>('camera');
 
   return (
-    <div className="relative flex min-h-[calc(100vh-3rem)] select-none flex-col items-center justify-center">
+    <div className="relative flex min-h-[calc(100dvh-3rem)] select-none flex-col items-center justify-center">
       <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)]">
         <div className="rounded-[14px] bg-white p-4 md:p-6">
           <div className="mb-5 flex items-center justify-between gap-4">

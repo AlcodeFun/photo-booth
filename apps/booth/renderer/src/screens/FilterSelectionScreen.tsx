@@ -12,12 +12,12 @@ export const FilterSelectionScreen: React.FC = () => {
     selectFilter: state.selectFilter,
   }));
   const isTimedFlow = useBoothConfig((state) => state.flowMode === 'timed');
-  const active = useBoothAppearance((state) => state.active);
+  const active = useBoothAppearance((state) => state.appearance);
 
   const selectedPhotos = getSelectedPhotoUrls(photoSlots);
 
   return (
-    <div className="fixed inset-0 z-40 h-[100dvh] w-screen select-none">
+    <div className="fixed inset-0 z-40 h-[100dvh] w-full select-none">
       <FilterSelectionView
         copy={active.copy}
         theme={active.theme}

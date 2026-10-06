@@ -25,10 +25,10 @@
     --ring: 240 4.9% 83.9%;
     --radius: 0.75rem;
 
-    /* Booth appearance defaults.
-       Mirrors DEFAULT_BOOTH_APPEARANCE.theme so the customer-facing screens
-       paint correctly on the very first frame. The admin appearance editor
-       overrides these on :root at runtime (see store/appearanceStore.ts). */
+    /* Safety net only — the saved theme is applied to :root synchronously by
+       the appearance store before React mounts (see store/appearanceStore.ts),
+       so these values (the Default preset's palette) are only visible if the
+       renderer's JS never runs. */
     --pb-primary: #ff4bb5;
     --pb-primary-foreground: #ffffff;
     --pb-secondary: #a35ef6;

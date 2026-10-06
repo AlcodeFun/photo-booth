@@ -5,7 +5,7 @@ import CompleteView from '../components/booth/CompleteView';
 
 export const CompleteScreen: React.FC = () => {
   const resetSession = useSessionStore((state) => state.resetSession);
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
 
   // Auto reset session after 8 seconds
   useEffect(() => {
@@ -19,7 +19,7 @@ export const CompleteScreen: React.FC = () => {
   return (
     // Definite height so `CompleteView`'s `h-full` + `items-center` can
     // actually center (see TutorialScreen for the same note).
-    <div className="h-[calc(100vh-3rem)]">
+    <div className="h-[calc(100dvh-3rem)]">
       <CompleteView copy={copy} theme={theme} onDone={resetSession} />
     </div>
   );

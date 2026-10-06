@@ -1,25 +1,21 @@
 import { create } from 'zustand';
+import { BoothAppearance, DEFAULT_BOOTH_APPEARANCE } from '@photo-booth/types';
 import {
-  BoothAppearance,
-  BoothAppearanceSettings,
-  DEFAULT_BOOTH_APPEARANCE_SETTINGS,
-} from '@photo-booth/types';
-import {
-  cacheAppearanceSettings,
-  getBoothAppearanceSettings,
-  getCachedAppearanceSettings,
-  resolveActiveAppearance,
-  saveBoothAppearanceSettings,
+  cacheAppearance,
+  getBoothAppearance,
+  getCachedAppearance,
+  saveBoothAppearance,
   withAlpha,
 } from '../lib/appearance';
 
 /**
  * Booth appearance state for the customer-facing flow.
  *
- * The booth seeds from the localStorage cache so it paints the correct theme on
- * the first frame, then refreshes from Supabase in the background. Admin screens
- * write through `saveAppearance`, which persists to Supabase and updates the
- * cache so the booth picks the change up on its next mount.
+ * The booth seeds from the localStorage cache — the saved theme, never the
+ * shipped default — so it paints the operator's look on the first frame, then
+ * refreshes from Supabase in the background. Admin screens write through
+ * `saveAppearance`, which persists to Supabase and updates the cache so the
+ * booth picks the change up on its next mount.
  */
 
 /** `primaryForeground` -> `--pb-primary-foreground`. */
@@ -77,100 +73,58 @@ export const appearanceSurfaceStyle = (
 };
 
 export interface BoothAppearanceState {
-  mode: BoothAppearanceSettings['mode'];
-  /** The editable document (what the admin form edits and what gets saved). */
+  /** The saved document — what the admin form edits and the booth renders. */
   appearance: BoothAppearance;
-  /** What the booth actually renders — `DEFAULT_BOOTH_APPEARANCE` in default mode. */
-  active: BoothAppearance;
   /** True until the first Supabase read settles. */
   loading: boolean;
   /** Last error from a background refresh or a save. */
   error: string | null;
 
   loadAppearance: () => Promise<void>;
-  /** Applies settings locally + to the DOM without persisting (editor preview). */
-  previewAppearance: (settings: BoothAppearanceSettings) => void;
-  /** Persists settings to Supabase, then refreshes the local state. */
-  saveAppearance: (settings: BoothAppearanceSettings) => Promise<void>;
-  /** Switches the booth back to the appearance shipped in code. */
-  useDefaultAppearance: () => BoothAppearanceSettings;
+  /** Persists the appearance to Supabase, then refreshes the local state. */
+  saveAppearance: (appearance: BoothAppearance) => Promise<void>;
 }
 
-const initial = getCachedAppearanceSettings() ?? DEFAULT_BOOTH_APPEARANCE_SETTINGS;
+// Apply the saved appearance before React mounts so the booth never flashes the
+// shipped default (or the CSS defaults) on top of the operator's real theme.
+const initial = getCachedAppearance() ?? DEFAULT_BOOTH_APPEARANCE;
 
-// Apply the cached appearance before React mounts so the booth never flashes the
-// CSS defaults on top of the operator's real theme.
-applyAppearanceToDocument(resolveActiveAppearance(initial));
+applyAppearanceToDocument(initial);
 
 export const useBoothAppearance = create<BoothAppearanceState>((set) => ({
-  mode: initial.mode,
-  appearance: initial.appearance,
-  active: resolveActiveAppearance(initial),
+  appearance: initial,
   loading: true,
   error: null,
 
   loadAppearance: async () => {
     try {
-      const settings = await getBoothAppearanceSettings();
-      cacheAppearanceSettings(settings);
-      const active = resolveActiveAppearance(settings);
-      applyAppearanceToDocument(active);
-      set({
-        mode: settings.mode,
-        appearance: settings.appearance,
-        active,
-        loading: false,
-        error: null,
-      });
+      const appearance = await getBoothAppearance();
+      cacheAppearance(appearance);
+      applyAppearanceToDocument(appearance);
+      set({ appearance, loading: false, error: null });
     } catch (err) {
       // Offline / unconfigured Supabase: keep whatever the cache gave us so the
       // booth still runs with its last known appearance.
-      const fallback = getCachedAppearanceSettings() ?? DEFAULT_BOOTH_APPEARANCE_SETTINGS;
-      const active = resolveActiveAppearance(fallback);
-      applyAppearanceToDocument(active);
+      const fallback = getCachedAppearance() ?? DEFAULT_BOOTH_APPEARANCE;
+      applyAppearanceToDocument(fallback);
       set({
-        mode: fallback.mode,
-        appearance: fallback.appearance,
-        active,
+        appearance: fallback,
         loading: false,
         error: err instanceof Error ? err.message : 'Failed to load booth appearance',
       });
     }
   },
 
-  previewAppearance: (settings) => {
-    const active = resolveActiveAppearance(settings);
-    applyAppearanceToDocument(active);
-    set({ mode: settings.mode, appearance: settings.appearance, active });
-  },
-
-  saveAppearance: async (settings) => {
-    const saved = await saveBoothAppearanceSettings(settings);
-    cacheAppearanceSettings(saved);
-    const active = resolveActiveAppearance(saved);
-    applyAppearanceToDocument(active);
-    set({
-      mode: saved.mode,
-      appearance: saved.appearance,
-      active,
-      error: null,
-    });
-  },
-
-  useDefaultAppearance: () => {
-    const settings: BoothAppearanceSettings = {
-      mode: 'default',
-      appearance: DEFAULT_BOOTH_APPEARANCE_SETTINGS.appearance,
-    };
-    const active = resolveActiveAppearance(settings);
-    applyAppearanceToDocument(active);
-    set({ mode: settings.mode, appearance: settings.appearance, active });
-    return settings;
+  saveAppearance: async (appearance) => {
+    const saved = await saveBoothAppearance(appearance);
+    cacheAppearance(saved);
+    applyAppearanceToDocument(saved);
+    set({ appearance: saved, error: null });
   },
 }));
 
-/** Convenience selector for the resolved appearance the booth should render. */
-export const useActiveAppearance = (): BoothAppearance => useBoothAppearance((state) => state.active);
+/** Convenience selector for the appearance the booth renders. */
+export const useActiveAppearance = (): BoothAppearance => useBoothAppearance((state) => state.appearance);
 
 /** Convenience selector for the resolved copy map. */
-export const useBoothCopy = () => useBoothAppearance((state) => state.active.copy);
+export const useBoothCopy = () => useBoothAppearance((state) => state.appearance.copy);

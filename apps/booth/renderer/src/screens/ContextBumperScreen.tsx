@@ -75,7 +75,7 @@ const PHOTOS = [
 
 export const ContextBumperScreen: React.FC = () => {
   const confirmPayment = useSessionStore((state) => state.confirmPayment);
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
   // Which of the two bumper gradients is currently showing.
   const [flavor, setFlavor] = useState<Flavor>('pink');
   const [pinOpen, setPinOpen] = useState(false);

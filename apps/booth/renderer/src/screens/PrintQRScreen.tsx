@@ -27,7 +27,7 @@ export const PrintQRScreen: React.FC = () => {
   const flowMode = useBoothConfig((state) => state.flowMode);
   const printMode = useBoothConfig((state) => state.printer.printMode);
   const printerEnabled = useBoothConfig((state) => state.printer.enabled);
-  const active = useBoothAppearance((state) => state.active);
+  const active = useBoothAppearance((state) => state.appearance);
   const { copy, theme } = active;
   const isTimedFlow = flowMode === 'timed';
   // Manual mode queues the print for the operator; the customer never waits on

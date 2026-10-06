@@ -9,7 +9,7 @@ export const ReadyScreen: React.FC = () => {
     photoSlots: state.photoSlots,
     startCaptureFlow: state.startCaptureFlow,
   }));
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
 
   return (
     <div

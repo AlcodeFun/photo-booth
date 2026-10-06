@@ -9,20 +9,16 @@ import TutorialView from '../components/booth/TutorialView';
  */
 export const TutorialScreen: React.FC = () => {
   const setScreen = useSessionStore((state) => state.setScreen);
-  // `active` is a stable reference that only changes when the appearance does,
-  // so selecting it directly avoids re-render loops.
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  // `appearance` is a stable reference that only changes when the saved look
+  // does, so selecting it directly avoids re-render loops.
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
 
   return (
     // Definite height, not min-height: `TutorialView` centers with `h-full`,
     // and `height: 100%` against an auto-height parent resolves to auto, which
     // leaves no free space for the centering to distribute.
-    <div className="h-[calc(100vh-3rem)]">
-      <TutorialView
-        copy={copy}
-        theme={theme}
-        onStart={() => setScreen('SELECT_FRAME')}
-      />
+    <div className="h-[calc(100dvh-3rem)]">
+      <TutorialView copy={copy} theme={theme} onStart={() => setScreen('SELECT_FRAME')} />
     </div>
   );
 };

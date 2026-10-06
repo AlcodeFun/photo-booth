@@ -108,7 +108,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
     <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/65" />
     {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
 
-    <header className="absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-4 px-5 py-5 sm:px-8 sm:py-7">
+    <header className="absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-8 sm:py-7">
       <div className="rounded-[12px] bg-black/45 px-4 py-3 backdrop-blur-sm">
         <p className="text-xs font-black uppercase tracking-[0.14em] text-white/75">
           {isTimedFlow
@@ -134,7 +134,8 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
             {timedPhase === 'active' ? copy.captureTimeLeftLabel : copy.captureSessionLabel}
           </p>
           <p className="mt-1 text-2xl font-black tabular-nums">
-            {String(Math.floor(timedClock / 60)).padStart(2, '0')}:{String(timedClock % 60).padStart(2, '0')}
+            {String(Math.floor(timedClock / 60)).padStart(2, '0')}:
+            {String(timedClock % 60).padStart(2, '0')}
           </p>
         </div>
       )}
@@ -143,7 +144,11 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
         onClick={onToggleMirror}
         disabled={!onToggleMirror}
         className="shrink-0 rounded-[10px] border-[3px] px-3 py-2 text-xs font-black uppercase tracking-[0.12em] backdrop-blur-sm transition-all hover:-translate-y-0.5 active:translate-y-0"
-        style={{ borderColor: theme.secondary, backgroundColor: theme.card, color: theme.secondary }}
+        style={{
+          borderColor: theme.secondary,
+          backgroundColor: theme.card,
+          color: theme.secondary,
+        }}
         aria-pressed={isMirrored}
         title="Toggle mirrored preview"
       >
@@ -164,7 +169,11 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
           type="button"
           onClick={onRetry}
           className="rounded-[8px] border-[3px] px-5 py-3 text-sm font-black uppercase tracking-[0.12em] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0"
-          style={{ borderColor: theme.secondary, backgroundColor: theme.tertiary, color: theme.tertiaryForeground }}
+          style={{
+            borderColor: theme.secondary,
+            backgroundColor: theme.tertiary,
+            color: theme.tertiaryForeground,
+          }}
         >
           {copy.captureRetry}
         </button>
@@ -173,7 +182,9 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
 
     {isStarted && countdown > 0 && (
       <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center">
-        <div className="text-[clamp(6rem,22%,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">{countdown}</div>
+        <div className="text-[clamp(6rem,22%,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">
+          {countdown}
+        </div>
         <div className="mt-4 text-sm font-bold uppercase tracking-[0.18em] text-white/90">
           {isPreparing ? copy.capturePreparing : copy.captureHoldPose}
         </div>
@@ -187,24 +198,37 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
 
     {isTimedFlow && timedPhase === 'starting' && (
       <div className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/20">
-        <div className="text-[clamp(6rem,22%,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">{timedStartCountLeft}</div>
-        <div className="mt-4 text-sm font-bold uppercase tracking-[0.18em]">{copy.captureGetReady}</div>
+        <div className="text-[clamp(6rem,22%,14rem)] font-bold leading-none tabular-nums drop-shadow-lg">
+          {timedStartCountLeft}
+        </div>
+        <div className="mt-4 text-sm font-bold uppercase tracking-[0.18em]">
+          {copy.captureGetReady}
+        </div>
       </div>
     )}
 
-    {!isStarted && feedReady && !cameraError && (isTimedFlow && timedPhase === 'idle' ? (
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">{copy.captureTapToStart}</p>
-      </div>
-    ) : isTimedFlow && timedPhase === 'active' ? (
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">{copy.captureTapToCapture}</p>
-      </div>
-    ) : !isAutoFlow ? (
-      <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
-        <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">{copy.captureTapToCapture}</p>
-      </div>
-    ) : null)}
+    {!isStarted &&
+      feedReady &&
+      !cameraError &&
+      (isTimedFlow && timedPhase === 'idle' ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
+          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">
+            {copy.captureTapToStart}
+          </p>
+        </div>
+      ) : isTimedFlow && timedPhase === 'active' ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
+          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">
+            {copy.captureTapToCapture}
+          </p>
+        </div>
+      ) : !isAutoFlow ? (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
+          <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">
+            {copy.captureTapToCapture}
+          </p>
+        </div>
+      ) : null)}
 
     {isTimedFlow && latestPhoto && (
       <aside
@@ -285,7 +309,9 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
                       className="relative flex h-24 shrink-0 items-center justify-center border border-white/35 sm:h-32"
                       style={{ aspectRatio: photoAspectRatio }}
                     >
-                      <span className="px-2 text-center text-white/60">Photo slot {slot.slotNumber}</span>
+                      <span className="px-2 text-center text-white/60">
+                        Photo slot {slot.slotNumber}
+                      </span>
                     </span>
                   )}
                 </span>

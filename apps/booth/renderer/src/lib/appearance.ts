@@ -1,29 +1,27 @@
 import {
   BoothAppearance,
-  BoothAppearanceMode,
-  BoothAppearanceSettings,
   BoothBackground,
   BoothBackgroundFit,
   BoothBackgroundType,
   BoothCopywriting,
   BoothTheme,
   DEFAULT_BOOTH_APPEARANCE,
-  DEFAULT_BOOTH_APPEARANCE_SETTINGS,
 } from '@photo-booth/types';
 import { requireSupabase } from './supabase';
 
 /**
  * Booth appearance is stored in Supabase (source of truth) with localStorage as
- * an offline cache: the booth must render the right look instantly at start-up
- * and keep working when Supabase is unreachable. Images never live in either —
- * they go to the public `booth-appearance` storage bucket and only the URL is
- * persisted here.
+ * an offline cache: the booth must render the saved look instantly at start-up
+ * and keep working when Supabase is unreachable. There is no default mode — the
+ * booth always renders what is saved, and `DEFAULT_BOOTH_APPEARANCE` only fills
+ * keys a stored document has never set. Images never live in either — they go to
+ * the public `booth-appearance` storage bucket and only the URL is persisted
+ * here.
  */
 
 /** Row shape of the public.booth_appearance table. */
 export interface BoothAppearanceRow {
   id: string;
-  mode: BoothAppearanceMode | string;
   copy: Partial<BoothCopywriting> | null;
   theme: Partial<BoothTheme> | null;
   background: Partial<BoothBackground> | null;
@@ -63,24 +61,26 @@ export const withAlpha = (hex: string, alpha: number): string => {
 const BACKGROUND_FITS: BoothBackgroundFit[] = ['cover', 'contain', 'repeat'];
 const BACKGROUND_TYPES: BoothBackgroundType[] = ['color', 'image'];
 
-/** Resolves the appearance the booth actually renders for the given settings. */
-export const resolveActiveAppearance = (settings: BoothAppearanceSettings): BoothAppearance =>
-  settings.mode === 'default' ? DEFAULT_BOOTH_APPEARANCE : settings.appearance;
-
 /**
  * Merges a stored (possibly partial, possibly from an older schema) document
  * over the shipped defaults so a missing key never renders as `undefined`.
  */
-const mergeAppearance = (value: Partial<BoothAppearance> | null | undefined): BoothAppearance => ({
+const mergeAppearance = (
+  value: {
+    copy?: Partial<BoothCopywriting> | null;
+    theme?: Partial<BoothTheme> | null;
+    background?: Partial<BoothBackground> | null;
+  } | null,
+): BoothAppearance => ({
   copy: { ...DEFAULT_BOOTH_APPEARANCE.copy, ...(value?.copy ?? {}) },
   theme: { ...DEFAULT_BOOTH_APPEARANCE.theme, ...(value?.theme ?? {}) },
   background: { ...DEFAULT_BOOTH_APPEARANCE.background, ...(value?.background ?? {}) },
 });
 
-const normalizeSettings = (row: BoothAppearanceRow | null | undefined): BoothAppearanceSettings => {
-  if (!row) return DEFAULT_BOOTH_APPEARANCE_SETTINGS;
-  const mode: BoothAppearanceMode = row.mode === 'custom' ? 'custom' : 'default';
-  return { mode, appearance: mergeAppearance(row as Partial<BoothAppearance>) };
+/** Normalizes a stored row into the full document the booth renders. */
+const normalizeAppearance = (row: BoothAppearanceRow | null | undefined): BoothAppearance => {
+  if (!row) return DEFAULT_BOOTH_APPEARANCE;
+  return mergeAppearance({ copy: row.copy, theme: row.theme, background: row.background });
 };
 
 /**
@@ -98,12 +98,11 @@ const requireAuthClient = async () => {
   return client;
 };
 
-const mapSettingsToRow = (settings: BoothAppearanceSettings): BoothAppearanceRow => ({
+const mapAppearanceToRow = (appearance: BoothAppearance): BoothAppearanceRow => ({
   id: APPEARANCE_ROW_ID,
-  mode: settings.mode,
-  copy: settings.appearance.copy,
-  theme: settings.appearance.theme,
-  background: settings.appearance.background,
+  copy: appearance.copy,
+  theme: appearance.theme,
+  background: appearance.background,
 });
 
 /* ------------------------------------------------------------------ *
@@ -116,17 +115,9 @@ export interface AppearanceValidationResult {
 }
 
 /** Blocks saving so a typo can never persist a broken theme to every booth. */
-export const validateAppearance = (settings: BoothAppearanceSettings): AppearanceValidationResult => {
-  // In default mode nothing from the document is rendered — the booth uses the
-  // appearance shipped in code — so there is nothing meaningful to validate. The
-  // document is still persisted (that is where custom values are parked) but any
-  // problem in it surfaces the moment the operator switches back to custom.
-  if (settings.mode === 'default') {
-    return { ok: true, errors: [] };
-  }
-
+export const validateAppearance = (appearance: BoothAppearance): AppearanceValidationResult => {
   const errors: string[] = [];
-  const { copy, theme, background } = settings.appearance;
+  const { copy, theme, background } = appearance;
 
   for (const [key, value] of Object.entries(theme)) {
     if (!isHexColor(value)) {
@@ -175,26 +166,28 @@ const canUseLocalStorage = () =>
   typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 
 /**
- * Last known good settings. Read synchronously at boot so the booth paints the
- * correct theme before any network round-trip.
+ * Last known good appearance. Read synchronously at boot so the booth paints
+ * the saved theme before any network round-trip — never the shipped default.
  */
-export const getCachedAppearanceSettings = (): BoothAppearanceSettings | null => {
+export const getCachedAppearance = (): BoothAppearance | null => {
   if (!canUseLocalStorage()) return null;
   try {
     const raw = window.localStorage.getItem(CACHE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as Partial<BoothAppearanceSettings>;
-    const mode: BoothAppearanceMode = parsed?.mode === 'custom' ? 'custom' : 'default';
-    return { mode, appearance: mergeAppearance(parsed?.appearance) };
+    // Older caches were `{ mode, appearance }`; current ones are the document.
+    const parsed = JSON.parse(raw) as Partial<BoothAppearance> & {
+      appearance?: Partial<BoothAppearance>;
+    };
+    return mergeAppearance(parsed.appearance ?? parsed);
   } catch {
     return null;
   }
 };
 
-export const cacheAppearanceSettings = (settings: BoothAppearanceSettings): void => {
+export const cacheAppearance = (appearance: BoothAppearance): void => {
   if (!canUseLocalStorage()) return;
   try {
-    window.localStorage.setItem(CACHE_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(CACHE_KEY, JSON.stringify(appearance));
   } catch {
     // A full/blocked localStorage must never break the booth.
   }
@@ -205,7 +198,7 @@ export const cacheAppearanceSettings = (settings: BoothAppearanceSettings): void
  * ------------------------------------------------------------------ */
 
 /** Reads the stored appearance, normalizing it against the shipped defaults. */
-export const getBoothAppearanceSettings = async (): Promise<BoothAppearanceSettings> => {
+export const getBoothAppearance = async (): Promise<BoothAppearance> => {
   const client = requireSupabase();
   const { data, error } = await client
     .from('booth_appearance')
@@ -217,20 +210,18 @@ export const getBoothAppearanceSettings = async (): Promise<BoothAppearanceSetti
     throw new Error(error.message);
   }
 
-  return normalizeSettings(data as BoothAppearanceRow | null);
+  return normalizeAppearance(data as BoothAppearanceRow | null);
 };
 
 /** Upserts the single appearance row. Requires an authenticated admin session. */
-export const saveBoothAppearanceSettings = async (
-  settings: BoothAppearanceSettings,
-): Promise<BoothAppearanceSettings> => {
-  const validation = validateAppearance(settings);
+export const saveBoothAppearance = async (appearance: BoothAppearance): Promise<BoothAppearance> => {
+  const validation = validateAppearance(appearance);
   if (!validation.ok) {
     throw new Error(validation.errors.join(' '));
   }
 
   const client = await requireAuthClient();
-  const { error } = await client.from('booth_appearance').upsert(mapSettingsToRow(settings), {
+  const { error } = await client.from('booth_appearance').upsert(mapAppearanceToRow(appearance), {
     onConflict: 'id',
   });
 
@@ -238,8 +229,8 @@ export const saveBoothAppearanceSettings = async (
     throw new Error(error.message);
   }
 
-  cacheAppearanceSettings(settings);
-  return settings;
+  cacheAppearance(appearance);
+  return appearance;
 };
 
 /** Uploads a booth background into the public booth-appearance bucket. */

@@ -11,8 +11,11 @@ export const PhotoReviewScreen: React.FC = () => {
     usePhoto: state.usePhoto,
     retakePhoto: state.retakePhoto,
   }));
-  const maxAttempts = Math.max(1, useBoothConfig((state) => state.flow.maxAttempts));
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const maxAttempts = Math.max(
+    1,
+    useBoothConfig((state) => state.flow.maxAttempts)
+  );
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
 
   const currentSlot = photoSlots.find((s) => s.slotNumber === currentPhotoSlot);
 
@@ -22,7 +25,7 @@ export const PhotoReviewScreen: React.FC = () => {
   const attemptCount = attempts.length;
 
   return (
-    <div className="fixed inset-0 z-50 h-[100dvh] w-screen select-none overflow-hidden">
+    <div className="fixed inset-0 z-50 h-[100dvh] w-full select-none overflow-hidden">
       <ReviewView
         copy={copy}
         theme={theme}

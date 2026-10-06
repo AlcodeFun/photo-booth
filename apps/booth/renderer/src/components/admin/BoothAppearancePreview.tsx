@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import type { BoothAppearance } from '@photo-booth/types';
 import { CAPTURE_FLOW_LABELS } from '../../store/boothConfigStore';
-import { appearanceSurfaceStyle } from '../../store/appearanceStore';
+import { appearanceBackgroundStyle, appearanceSurfaceStyle } from '../../store/appearanceStore';
 import { MOCK_FRAMES } from '../../data/mockData';
 import { withAlpha } from '../../lib/appearance';
 import { getCanvasFilter } from '../../utils/filters';
@@ -139,7 +139,9 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
             cameraFeed={
               <div
                 className="absolute inset-0 flex items-center justify-center"
-                style={{ background: `linear-gradient(140deg, ${theme.deep}, ${withAlpha(theme.deep, 0.75)})` }}
+                style={{
+                  background: `linear-gradient(140deg, ${theme.deep}, ${withAlpha(theme.deep, 0.75)})`,
+                }}
               >
                 <span className="text-sm font-bold uppercase tracking-[0.18em] text-white/70">
                   {copy.captureStarting}
@@ -260,7 +262,9 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
               onFlowChange?.(flow);
             }}
             className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-colors ${
-              flow === flowMode ? 'bg-white text-slate-900' : 'bg-white/10 text-white/70 hover:bg-white/20'
+              flow === flowMode
+                ? 'bg-white text-slate-900'
+                : 'bg-white/10 text-white/70 hover:bg-white/20'
             }`}
           >
             {CAPTURE_FLOW_LABELS[flow]}
@@ -270,7 +274,10 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
 
       <BoothPreviewStage
         className="w-full"
-        frameClassName="rounded-lg border border-white/15 bg-slate-950"
+        frameClassName="rounded-lg border border-white/15"
+        // The configured booth background (color or image) paints the stage, so
+        // screens without their own background show it instead of bare black.
+        frameStyle={appearanceBackgroundStyle(appearance)}
       >
         {current.render()}
       </BoothPreviewStage>

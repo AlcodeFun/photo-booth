@@ -9,7 +9,7 @@ import FrameSelectionView from '../components/booth/FrameSelectionView';
 
 export const FrameSelectionScreen: React.FC = () => {
   const selectFrame = useSessionStore((state) => state.selectFrame);
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
   const [frames, setFrames] = useState<FrameConfig[]>(MOCK_FRAMES);
   const [isLoading, setIsLoading] = useState(true);
   const framesWithDrafts = useFramesWithDrafts(frames, 3);
@@ -43,7 +43,7 @@ export const FrameSelectionScreen: React.FC = () => {
   };
 
   return (
-    <div className="relative h-[calc(100vh-3rem)]">
+    <div className="relative h-[calc(100dvh-3rem)]">
       <FrameSelectionView
         copy={copy}
         theme={theme}

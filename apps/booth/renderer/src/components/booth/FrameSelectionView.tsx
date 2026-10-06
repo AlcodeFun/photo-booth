@@ -16,9 +16,10 @@ export interface FrameSelectionViewProps {
 }
 
 /**
- * Presentational core of the frame selection screen: a three-column grid of
- * frame previews plus the full-screen confirm modal. Shared with the admin
- * appearance preview; the screen owns the frame fetch.
+ * Presentational core of the frame selection screen: a responsive grid of frame
+ * previews (two-up on phones, three-up on booth displays) plus the full-screen
+ * confirm modal. Shared with the admin appearance preview; the screen owns the
+ * frame fetch.
  */
 export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
   copy,
@@ -68,7 +69,9 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
             </h1>
           </div>
 
-          <div className="grid grid-cols-3 place-items-center gap-2 sm:gap-3">
+          {/* Two columns on narrow screens so each frame stays legible; three
+              from `sm` up (booth displays and the admin preview). */}
+          <div className="grid grid-cols-2 place-items-center gap-2 sm:grid-cols-3 sm:gap-3">
             {isLoading
               ? Array.from({ length: 9 }, (_, index) => (
                   <div
@@ -109,7 +112,7 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
                       className="mb-2 w-full rounded-[12px] border-[3px] sm:mb-3"
                       style={{ borderColor: theme.secondary, backgroundColor: theme.card }}
                     />
-                    <h3 className="shrink-0 px-1 text-center text-sm font-black uppercase tracking-[0.08em] sm:text-base">
+                    <h3 className="line-clamp-2 shrink-0 px-1 text-center text-xs font-black uppercase tracking-[0.08em] sm:text-sm md:text-base">
                       {frame.name}
                     </h3>
                   </div>
@@ -157,7 +160,7 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
             &#10005;
           </button>
 
-          <div className="absolute inset-x-0 bottom-0 flex items-center gap-4 px-6 pb-8 pt-16">
+          <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-3 px-4 pb-8 pt-16 sm:gap-4 sm:px-6">
             <span
               className="mr-auto max-w-[52%] truncate text-[0.82rem] font-black uppercase tracking-[0.08em] text-white sm:text-[0.9rem]"
               style={{ color: theme.primaryForeground }}
@@ -167,7 +170,11 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
             <button
               onClick={onConfirm}
               className="rounded-[12px] border-[3px] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
-              style={{ borderColor: theme.secondary, backgroundColor: theme.card, color: theme.secondary }}
+              style={{
+                borderColor: theme.secondary,
+                backgroundColor: theme.card,
+                color: theme.secondary,
+              }}
             >
               {copy.frameConfirmButton}
             </button>

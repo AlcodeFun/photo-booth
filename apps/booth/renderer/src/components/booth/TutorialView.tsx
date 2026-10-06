@@ -24,17 +24,21 @@ export const TutorialView: React.FC<TutorialViewProps> = ({ copy, theme, onStart
   ];
 
   return (
-    <div
-      className="flex h-full w-full items-center justify-center select-none"
-    >
+    <div className="flex h-full w-full items-center justify-center select-none">
       <div
         className="w-full max-w-[1180px] rounded-[18px] border-[4px] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] md:p-6"
-        style={{ borderColor: theme.primary, backgroundColor: theme.surface, color: theme.surfaceForeground }}
+        style={{
+          borderColor: theme.primary,
+          backgroundColor: theme.surface,
+          color: theme.surfaceForeground,
+        }}
       >
         <div className="rounded-[14px] p-3 md:p-5">
           <div className="mb-6 text-center">
-            <p className="text-[0.9rem] font-black uppercase tracking-[0.28em]">{copy.tutorialEyebrow}</p>
-            <h1 className="mt-3 text-[2.2rem] font-black uppercase tracking-[-0.08em] md:text-[4rem]">
+            <p className="text-[0.9rem] font-black uppercase tracking-[0.28em]">
+              {copy.tutorialEyebrow}
+            </p>
+            <h1 className="mt-3 text-[1.6rem] font-black uppercase tracking-[-0.08em] sm:text-[2.2rem] md:text-[4rem]">
               {copy.tutorialTitle}
             </h1>
           </div>
@@ -56,7 +60,9 @@ export const TutorialView: React.FC<TutorialViewProps> = ({ copy, theme, onStart
                 >
                   {card.step}
                 </div>
-                <h3 className="text-[1.5rem] font-black uppercase tracking-[-0.05em]">{card.title}</h3>
+                <h3 className="text-[1.15rem] font-black uppercase tracking-[-0.05em] sm:text-[1.5rem]">
+                  {card.title}
+                </h3>
                 <p className="mt-2 text-sm leading-relaxed opacity-85">{card.body}</p>
               </div>
             ))}

@@ -92,9 +92,6 @@ export interface FrameConfig {
  * an operator can reskin the booth without touching the tools they work in.
  */
 
-/** `default` renders the appearance shipped in code; `custom` renders the saved config. */
-export type BoothAppearanceMode = 'default' | 'custom';
-
 export type BoothBackgroundType = 'color' | 'image';
 
 export type BoothBackgroundFit = 'cover' | 'contain' | 'repeat';
@@ -245,16 +242,11 @@ export interface BoothAppearance {
   background: BoothBackground;
 }
 
-/** The row persisted in `public.booth_appearance`. */
-export interface BoothAppearanceSettings {
-  mode: BoothAppearanceMode;
-  appearance: BoothAppearance;
-}
-
 /**
- * The appearance shipped with the app. Selecting `default` mode renders this,
- * so an operator can always fall back to the look the booth launched with even
- * if the custom config is saved, broken, or later removed.
+ * The appearance shipped with the app. There is no "default mode": the booth
+ * always renders whatever is saved. This value is the merge base for partial
+ * stored documents and is exposed to the editor as the `Default` theme preset,
+ * so an operator can always return to the look the booth launched with.
  */
 export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
   copy: {
@@ -381,11 +373,6 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     fit: 'cover',
     position: 'center',
   },
-};
-
-export const DEFAULT_BOOTH_APPEARANCE_SETTINGS: BoothAppearanceSettings = {
-  mode: 'default',
-  appearance: DEFAULT_BOOTH_APPEARANCE,
 };
 
 export interface BoothCopyField {
@@ -543,6 +530,9 @@ export interface BoothThemeField {
  * A named, ready-to-apply colorway. The four brand colors are the anchors; the
  * remaining tokens are tints/shades of those anchors so a palette stays
  * internally consistent instead of mixing in unrelated hues.
+ *
+ * The shipped look is a preset like any other (`Default`), not a separate
+ * rendering mode — applying it just writes its colors into the saved document.
  */
 export interface BoothThemePreset {
   id: string;
@@ -559,11 +549,23 @@ export interface BoothThemePreset {
  * single brand gold.
  *
  * NOTE: the cream was supplied as `#FSF0E6`, which is not a valid hex value
- * (`S` is not a hex digit). It is read here as `#FDF0E6`. Correct
- * `BOOTH_THEME_PRESETS[0].swatches[3]` and `.backgroundColor` if a different
- * cream was meant.
+ * (`S` is not a hex digit). It is read here as `#FDF0E6`. Correct the earthy
+ * preset's `swatches[3]` and `backgroundColor` if a different cream was meant.
  */
 export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
+  {
+    id: 'default',
+    label: 'Default',
+    swatches: [
+      DEFAULT_BOOTH_APPEARANCE.theme.primary,
+      DEFAULT_BOOTH_APPEARANCE.theme.secondary,
+      DEFAULT_BOOTH_APPEARANCE.theme.tertiary,
+      DEFAULT_BOOTH_APPEARANCE.theme.accent,
+      DEFAULT_BOOTH_APPEARANCE.theme.deep,
+    ],
+    backgroundColor: DEFAULT_BOOTH_APPEARANCE.background.color,
+    theme: DEFAULT_BOOTH_APPEARANCE.theme,
+  },
   {
     id: 'earthy',
     label: 'Earthy',
@@ -620,7 +622,7 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
   },
 ];
 
-export const DEFAULT_BOOTH_THEME_PRESET_ID = BOOTH_THEME_PRESETS[0].id;
+export const DEFAULT_BOOTH_THEME_PRESET_ID = 'default';
 
 export interface BoothThemeGroup {
   id: BoothThemeGroupId;

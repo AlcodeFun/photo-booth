@@ -13,6 +13,8 @@ export interface BoothPreviewStageProps {
   className?: string;
   /** Extra classes for the scaled 16:9 box (border, rounding, background). */
   frameClassName?: string;
+  /** Inline styles for the scaled 16:9 box — the booth background lives here. */
+  frameStyle?: React.CSSProperties;
 }
 
 /**
@@ -34,6 +36,7 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
   children,
   className,
   frameClassName,
+  frameStyle,
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -80,12 +83,10 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
           aspectRatio: `${BASE_WIDTH} / ${BASE_HEIGHT}`,
           maxWidth: 'calc(72vh * 16 / 9)',
           contain: 'layout paint',
+          ...frameStyle,
         }}
       >
-        <div
-          ref={contentRef}
-          style={{ width: BASE_WIDTH, height: BASE_HEIGHT }}
-        >
+        <div ref={contentRef} style={{ width: BASE_WIDTH, height: BASE_HEIGHT }}>
           {children}
         </div>
       </div>

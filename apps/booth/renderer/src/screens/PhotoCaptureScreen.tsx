@@ -18,7 +18,7 @@ export const PhotoCaptureScreen: React.FC = () => {
     }));
   const flowMode = useBoothConfig((state) => state.flowMode);
   const flowSettings = useBoothConfig((state) => state.flow);
-  const { copy, theme } = useBoothAppearance((state) => state.active);
+  const { copy, theme } = useBoothAppearance((state) => state.appearance);
   const isAutoFlow = flowMode === 'auto';
   const isTimedFlow = flowMode === 'timed';
   const currentSlot = photoSlots.find((slot) => slot.slotNumber === currentPhotoSlot);
@@ -70,7 +70,9 @@ export const PhotoCaptureScreen: React.FC = () => {
     if (!carousel) return;
     setShowPhotoSlotArrows(carousel.scrollWidth > carousel.clientWidth + 1);
     setCanScrollPhotoSlotsLeft(carousel.scrollLeft > 1);
-    setCanScrollPhotoSlotsRight(carousel.scrollLeft + carousel.clientWidth < carousel.scrollWidth - 1);
+    setCanScrollPhotoSlotsRight(
+      carousel.scrollLeft + carousel.clientWidth < carousel.scrollWidth - 1
+    );
   }, []);
 
   const scrollPhotoSlotsLeft = useCallback(() => {
@@ -95,13 +97,21 @@ export const PhotoCaptureScreen: React.FC = () => {
     const resizeObserver = new ResizeObserver(updatePhotoSlotCarousel);
     resizeObserver.observe(carousel);
     updatePhotoSlotCarousel();
-    activePhotoSlotRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    activePhotoSlotRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+      inline: 'center',
+    });
     return () => resizeObserver.disconnect();
   }, [currentPhotoSlot, photoSlots.length, updatePhotoSlotCarousel]);
 
   // Auto-start Canon live view when available and it isn't already running.
   useEffect(() => {
-    if (canon.available && !isStarted && (canon.status === 'DISCONNECTED' || canon.status === 'READY')) {
+    if (
+      canon.available &&
+      !isStarted &&
+      (canon.status === 'DISCONNECTED' || canon.status === 'READY')
+    ) {
       void canon.start();
     }
     // `canon.start` is a stable callback; primitives + isStarted drive re-runs.
@@ -206,7 +216,7 @@ export const PhotoCaptureScreen: React.FC = () => {
       }
       addPhotoAttempt(dataUrl, flow === 'timed', liveFrames);
     },
-    [addPhotoAttempt, setIsStarted, usePhoto],
+    [addPhotoAttempt, setIsStarted, usePhoto]
   );
   const commitCaptureRef = useRef(commitCapture);
   commitCaptureRef.current = commitCapture;
@@ -508,10 +518,7 @@ export const PhotoCaptureScreen: React.FC = () => {
   }, [canon.retry, flowSettings.shotCountdown]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 h-[100dvh] w-screen"
-      onClick={handleLiveViewClick}
-    >
+    <div className="fixed inset-0 z-50 h-[100dvh] w-full" onClick={handleLiveViewClick}>
       <CaptureView
         copy={copy}
         theme={theme}
