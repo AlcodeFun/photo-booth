@@ -271,38 +271,37 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   startPrinting: () => {
-    set({
-      currentScreen: 'PRINT_QR',
-      printStatus: 'PRINTING',
-      uploadStatus: 'UPLOADING',
-      printManagedByQueue: false,
-      printJobId: null,
-    });
-
+    const { printer, outputs, flowMode } = useBoothConfig.getState();
+    const api = window.electronAPI?.printer;
     // Flow 2 (timed) has no booth-side print: the customer arranges the frame
     // on the /organize/:token page and the booth LISTENER regenerates + uploads
-    // the framed outputs; the admin queues framed.png from the Print Queue.
-    if (useBoothConfig.getState().flowMode === 'timed') {
-      return;
-    }
-
-    const { printer, outputs } = useBoothConfig.getState();
-    const api = window.electronAPI?.printer;
+    // the framed outputs; the auto-queue sweep then enqueues framed.png.
     const queueReady =
+      flowMode !== 'timed' &&
       printer.enabled &&
       Boolean(printer.queueName) &&
       Boolean(GALLERY_URL) &&
       outputs.framed &&
       typeof api?.enqueue === 'function';
 
+    // printManagedByQueue must be decided in THIS set: switching uploadStatus to
+    // UPLOADING synchronously starts the upload job (store subscriber), which
+    // publishes the session token before its first await. setSessionToken only
+    // enqueues when the queue already owns the print, so setting it afterwards
+    // would leave the session never enqueued.
+    set({
+      currentScreen: 'PRINT_QR',
+      printStatus: queueReady && printer.printMode === 'manual' ? 'QUEUED' : 'PRINTING',
+      uploadStatus: 'UPLOADING',
+      printManagedByQueue: queueReady,
+      printJobId: null,
+    });
+
+    if (flowMode === 'timed') {
+      return;
+    }
+
     if (queueReady) {
-      // The session token is generated later (during upload), so the real
-      // enqueue happens in setSessionToken once the token exists. Mark the
-      // queue as owner now so the store never clobbers the queue's status.
-      set({
-        printManagedByQueue: true,
-        printStatus: printer.printMode === 'manual' ? 'QUEUED' : 'PRINTING',
-      });
       get()._syncSessionRow();
       return;
     }
