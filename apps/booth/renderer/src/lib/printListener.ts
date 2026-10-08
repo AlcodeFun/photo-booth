@@ -9,9 +9,10 @@
  * mapping), and uploads them to the gallery so the customer's /p/:token page
  * and the admin dashboard both see the finished outputs.
  *
- * It never prints: the admin prints the already-generated framed.png manually
- * from the dashboard, which is what flips print_status to success/error. Until
- * then the session stays 'ready_to_print'.
+ * It never prints: the booth auto-queues the already-generated framed.png
+ * (startAutoQueueSync in printQueueSync.ts) once it is ready, and the admin
+ * prints from the queue — which is what flips print_status to success/error.
+ * Until then the session stays 'ready_to_print'.
  *
  * The requests are carried by tiny JSON files on the gallery (see organize.ts)
  * so the whole channel reuses the existing Worker storage. Tokens are tracked
@@ -42,6 +43,7 @@ import { cacheUploadBlob, sessionFileUrl, updateSessionRecord } from './sessions
 
 const TOKENS_KEY = 'photo-booth.print-tokens';
 const HANDLED_KEY = 'photo-booth.generated-requests';
+const READY_TOKENS_KEY = 'photo-booth.ready-tokens';
 const POLL_INTERVAL = 4000;
 const MAX_TRACKED_TOKENS = 12;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -81,15 +83,51 @@ const handledHas = (requestId: string): boolean => readStringArray(HANDLED_KEY).
 let processing = false;
 
 /**
+ * Sessions whose approved arrangement has been generated (framed.png cached to
+ * IndexedDB). Persisted in localStorage so it survives renderer reloads; the
+ * auto-queue sweep (printQueueSync.ts) consumes it instead of an anon Supabase
+ * read — the booth kiosk has no authenticated session, so listing ready sessions
+ * through listSessions() returns nothing under RLS.
+ */
+const writeReadyTokens = (tokens: string[]): void => {
+  try {
+    localStorage.setItem(READY_TOKENS_KEY, JSON.stringify(tokens.slice(-40)));
+  } catch {
+    // Non-fatal — the sweep just misses this token.
+  }
+};
+
+// Always read through localStorage (never an in-memory copy): the sweep runs in
+// both the booth and admin windows, and a per-window cache would go stale and
+// clobber the other window's registrations on write.
+export const registerReadySession = (token: string): void => {
+  const tokens = readStringArray(READY_TOKENS_KEY);
+  if (!token || tokens.includes(token)) {
+    return;
+  }
+  writeReadyTokens([...tokens, token]);
+};
+
+/** Removes a token once its job is in the queue, so it is never auto-enqueued twice. */
+export const dropReadySession = (token: string): void => {
+  const tokens = readStringArray(READY_TOKENS_KEY);
+  if (tokens.includes(token)) {
+    writeReadyTokens(tokens.filter((t) => t !== token));
+  }
+};
+
+export const readySessionsSnapshot = (): string[] => readStringArray(READY_TOKENS_KEY);
+
+/**
  * Rebuilds the arranged framed sheet and the optional GIF/live outputs from a
  * gallery-originated request, then uploads them back to the session so the
  * customer's page and the admin dashboard both show the finished outputs.
  *
  * Unlike the old auto-print listener this never talks to a printer and never
  * flips print_status: the arrange page already set it to 'ready_to_print' and
- * only the admin's manual Print action (dashboard) moves it to success/error.
- * Writes the print result back so the arrange page can confirm delivery; marks
- * the request handled either way (never re-generates a request).
+ * only the booth's auto-queue sweep then the queue moves it to queued/success/
+ * error. Writes the print result back so the arrange page can confirm delivery;
+ * marks the request handled either way (never re-generates a request).
  */
 const handleRequest = async (token: string, request: PrintRequestFile): Promise<void> => {
   const endpoint = GALLERY_URL;
@@ -217,8 +255,8 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...request, status: 'handled' });
 
     // Keep the session record's file list in sync so the admin dashboard shows
-    // the generated outputs (used by the manual Print action). print_status
-    // stays 'ready_to_print' — the admin flips it when they actually print.
+    // the generated outputs (used by the auto-queue's framed.png gate).
+    // print_status stays 'ready_to_print' — the booth auto-queues the job.
     if (ok) {
       const files = uploads.map((file) => ({
         name: file.name,
@@ -227,6 +265,8 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
         url: sessionFileUrl(token, file.name) ?? undefined,
       }));
       updateSessionRecord(token, { files });
+      // frames are cached + uploaded; hand the session to the auto-queue sweep.
+      registerReadySession(token);
     }
     handledAdd(request.requestId);
   } catch (error) {

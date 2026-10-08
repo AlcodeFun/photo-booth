@@ -13,8 +13,9 @@ import { GALLERY_URL } from '../config';
 
 export type SessionUploadStatus = 'uploading' | 'success' | 'error';
 /** `queued` means the session has a print job waiting in the booth's print
- *  queue; `ready_to_print` is set by the flow-2 organize page when the customer
- *  approves the arrangement and the admin has not queued it yet. The queue owns
+ *  queue; `ready_to_print` is transient — set by the flow-2 organize page when
+ *  the customer approves the arrangement, until the booth's auto-queue sweep
+ *  enqueues the job (which flips it to `queued`). The queue owns
  *  `queued`/`printing`/`success`/`error` from then on. */
 export type SessionPrintStatus = 'printing' | 'ready_to_print' | 'queued' | 'success' | 'error';
 

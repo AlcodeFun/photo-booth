@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { startUploadWatcher } from './lib/uploadJob';
 import { startPrintListener } from './lib/printListener';
-import { startPrintQueueSync } from './lib/printQueueSync';
+import { startPrintQueueSync, startAutoQueueSync } from './lib/printQueueSync';
 import { useBoothAppearance } from './store/appearanceStore';
 import './index.css';
 
@@ -27,11 +27,20 @@ if (!isOrganizePath && !isAdminWindow) {
   startUploadWatcher();
   // Listens for arrangement requests the gallery customer makes after arranging
   // their timed-flow photos onto the frame slots, then generates + uploads the
-  // framed outputs (the admin queues framed.png from the Print Queue).
+  // framed outputs (the booth auto-queues framed.png from the Print Queue).
   startPrintListener();
   // Owns the main-process print queue bridge: resolves framed images for jobs
   // just-in-time and mirrors job state onto each session's print_status.
   startPrintQueueSync();
+}
+
+// Auto-queues ready_to_print sessions once their framed sheet exists — no
+// manual "Add to queue" staging. Runs in BOTH the booth window and the admin
+// window so the queue fills even when the operator only has the dashboard
+// open; the main-process PrintQueue dedupes by token, so concurrent sweeps in
+// both windows can never double-enqueue a session.
+if (!isOrganizePath) {
+  startAutoQueueSync();
 }
 
 // Booth appearance (admin-editable theme/copy/background). The cached copy is

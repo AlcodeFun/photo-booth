@@ -132,6 +132,22 @@ export class PrintQueue {
   }
 
   async enqueue(input: PrintEnqueueInput): Promise<PrintJob> {
+    // Idempotent per session: a token that already has a live/queued job is
+    // returned as-is. The booth and admin windows both auto-enqueue, and the
+    // booth flow enqueues on token publish — this keeps concurrent or repeated
+    // sweeps from stacking duplicate jobs for one session. Retried (failed/
+    // canceled/completed) sessions can still be enqueued again for reprints.
+    const existing = input.token
+      ? this.jobs.find(
+          (job) =>
+            job.token === input.token &&
+            (job.state === 'pending' || job.state === 'submitted' || job.state === 'processing'),
+        )
+      : undefined;
+    if (existing) {
+      return { ...existing };
+    }
+
     const now = Date.now();
     const job: PrintJob = {
       id: `job_${now.toString(36)}_${Math.random().toString(36).slice(2, 8)}`,

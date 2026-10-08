@@ -1,5 +1,15 @@
-import { getUploadedBlob, sessionFileUrl, updateSessionRecord, SessionPrintStatus } from './sessions';
-import { BoothPrintStatus } from './sessions';
+import {
+  BoothPrintStatus,
+  SessionPrintStatus,
+  getUploadedBlob,
+  sessionFileUrl,
+  updateSessionRecord,
+} from './sessions';
+import {
+  dropReadySession,
+  readySessionsSnapshot,
+} from './printListener';
+import { useBoothConfig } from '../store/boothConfigStore';
 import { useSessionStore } from '../store/sessionStore';
 import { IElectronAPIPrintJobState, IElectronAPIPrintQueueSnapshot } from '../global';
 
@@ -124,4 +134,99 @@ export const startPrintQueueSync = () => {
       }
     }
   });
+};
+
+// --- Automatic ready-to-print → queue bridge ---------------------------------
+
+const AUTO_QUEUE_INTERVAL_MS = 8000;
+
+let autoQueueInitialized = false;
+let autoQueueRunning = false;
+
+/** Framed sheet already exists locally (printListener caches it before upload). */
+const hasFramedBlob = async (token: string): Promise<boolean> =>
+  (await getUploadedBlob(token, 'framed.png')) !== null;
+
+/**
+ * Replaces the admin's manual "Add to queue" staging step for arranged
+ * (ready_to_print) sessions. Once the customer approves their frame and the
+ * print listener has generated framed.png, this sweep enqueues the session
+ * automatically — the queue owns print_status from there on, so the admin only
+ * has to select sessions and hit Print (manual mode) or nothing at all (auto
+ * mode, where the batch starts immediately).
+ *
+ * Runs in both the booth and admin windows; PrintQueue.enqueue dedupes by token.
+ */
+export const startAutoQueueSync = () => {
+  if (autoQueueInitialized) {
+    return;
+  }
+  autoQueueInitialized = true;
+
+  const sweep = async () => {
+    if (autoQueueRunning) {
+      return;
+    }
+    const api = window.electronAPI?.printer;
+    const printer = useBoothConfig.getState().printer;
+    if (!api?.enqueue || !printer.enabled || !printer.queueName) {
+      return;
+    }
+
+    autoQueueRunning = true;
+    try {
+      const snapshot = await api.queue();
+      const queuedTokens = new Set(
+        snapshot.jobs
+          .filter((job) => job.state !== 'canceled')
+          .map((job) => job.token)
+          .filter(Boolean),
+      );
+
+      const autoStart: string[] = [];
+      // Ready sessions come from the local registry (printListener registers a
+      // session as soon as its approved arrangement is generated + cached), not
+      // from an anon Supabase read — RLS keeps SELECT on public.sessions behind
+      // an authenticated user, which the kiosk never is.
+      for (const token of readySessionsSnapshot()) {
+        if (queuedTokens.has(token)) {
+          continue;
+        }
+        if (!(await hasFramedBlob(token))) {
+          // framed.png is not generated yet — the next sweep picks it up.
+          continue;
+        }
+        try {
+          const job = await api.enqueue({
+            token,
+            fileName: 'framed.png',
+            queueName: printer.queueName,
+            copies: printer.copies,
+            paperSize: printer.paperSize,
+            mediaType: printer.mediaType,
+            quality: printer.quality,
+            colorMode: printer.colorMode,
+          });
+          queuedTokens.add(token);
+          dropReadySession(token);
+          if (printer.printMode === 'auto') {
+            autoStart.push(job.id);
+          }
+        } catch {
+          // Transient (queue hiccup) — the next sweep retries.
+        }
+      }
+
+      if (autoStart.length > 0 && api.startBatch) {
+        await api.startBatch(autoStart);
+      }
+    } catch {
+      // Queue unavailable — nothing to do this round.
+    } finally {
+      autoQueueRunning = false;
+    }
+  };
+
+  void sweep();
+  setInterval(() => void sweep(), AUTO_QUEUE_INTERVAL_MS);
 };
