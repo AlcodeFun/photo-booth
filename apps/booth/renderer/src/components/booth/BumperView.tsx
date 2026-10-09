@@ -1,4 +1,5 @@
 import React from 'react';
+import { KELANA_NAVY, KelanaLogo } from '../brand/KelanaLogo';
 import type { BoothCopywriting, BoothTheme } from '@photo-booth/types';
 
 export type BumperFlavor = 'pink' | 'lime';
@@ -68,9 +69,13 @@ export const BumperView: React.FC<BumperViewProps> = ({
           className="text-5xl leading-[0.8] text-white sm:text-6xl lg:text-7xl"
           style={{ fontFamily: "'Galada', cursive", animation: 'pb-fade 0.7s ease-out 0.6s both' }}
         >
-          <span className="text-transparent" style={{ WebkitTextStroke: '1.5px rgba(255,255,255,0.9)' }}>
-            {copy.bumperBrand}
-          </span>
+          <KelanaLogo
+            title={copy.bumperBrand}
+            className="h-14 w-auto sm:h-16 lg:h-20"
+            ink="#ffffff"
+            light={KELANA_NAVY}
+            style={{ filter: 'drop-shadow(0 4px 14px rgba(0,0,0,0.25))' }}
+          />
         </h2>
       </div>
 

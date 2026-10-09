@@ -1,9 +1,8 @@
 import React from 'react';
+import { KELANA_CREAM, KELANA_NAVY, KelanaLogo } from '../../brand/KelanaLogo';
 import type { BoothCopywriting, BoothTheme } from '@photo-booth/types';
 import { withAlpha } from '../../../lib/appearance';
 import {
-  BrandMark,
-  DISPLAY_FONT,
   HAND_FONT,
   SetupGearButton,
   StartCta,
@@ -154,20 +153,15 @@ export const CameraOverlayView: React.FC<CameraOverlayViewProps> = ({
         style={{ background: `linear-gradient(to top, ${withAlpha(theme.deep, 0.8)}, transparent)` }}
       />
       <div className="absolute bottom-[11cqh] left-[5cqw] z-20 max-w-[60cqw]">
-        <div className="flex items-end gap-[2cqmin]">
-          <div
-            className="rounded-full p-[1cqmin]"
-            style={{ backgroundColor: withAlpha(theme.card, 0.95) }}
-          >
-            <BrandMark theme={theme} ink={theme.deep} className="h-[10cqmin] w-[10cqmin]" />
-          </div>
-          <h1
-            className="text-[11cqmin] leading-[0.9]"
-            style={{ fontFamily: DISPLAY_FONT, color: theme.card, textShadow: '0 0.6cqmin 2cqmin rgba(0,0,0,0.45)' }}
-          >
-            {copy.bumperBrand}
-          </h1>
-        </div>
+        <h1>
+          <KelanaLogo
+            title={copy.bumperBrand}
+            className="h-[15cqmin] w-auto max-w-full"
+            ink={KELANA_CREAM}
+            light={KELANA_NAVY}
+            style={{ filter: 'drop-shadow(0 0.6cqmin 2cqmin rgba(0,0,0,0.45))' }}
+          />
+        </h1>
         <p
           className="mt-[1.6cqmin] text-[3cqmin] font-bold uppercase tracking-[0.2em]"
           style={{ color: withAlpha(theme.card, 0.85) }}

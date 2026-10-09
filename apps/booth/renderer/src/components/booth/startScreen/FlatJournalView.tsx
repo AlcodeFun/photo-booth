@@ -1,9 +1,8 @@
 import React from 'react';
+import { KelanaLogo } from '../../brand/KelanaLogo';
 import type { BoothCopywriting, BoothTheme } from '@photo-booth/types';
 import { withAlpha } from '../../../lib/appearance';
 import {
-  BrandMark,
-  DISPLAY_FONT,
   HAND_FONT,
   SetupGearButton,
   StartCta,
@@ -154,7 +153,6 @@ export const FlatJournalView: React.FC<FlatJournalViewProps> = ({ copy, theme, p
       {/* Brand block */}
       <div className="absolute left-[7cqw] top-[16cqh] z-20 max-w-[50cqw]">
         <div className="flex items-center gap-[2cqmin]">
-          <BrandMark theme={theme} className="h-[13cqmin] w-[13cqmin] shrink-0" />
           <span
             className="-rotate-[4deg] text-[3.6cqmin] leading-none"
             style={{ fontFamily: HAND_FONT, color: theme.primary }}
@@ -162,11 +160,13 @@ export const FlatJournalView: React.FC<FlatJournalViewProps> = ({ copy, theme, p
             {copy.bumperCaption1} ↓
           </span>
         </div>
-        <h1
-          className="mt-[1.5cqmin] break-words text-[13cqmin] leading-[0.95]"
-          style={{ fontFamily: DISPLAY_FONT, color: theme.foreground }}
-        >
-          {copy.bumperBrand}
+        <h1 className="mt-[1.5cqmin]">
+          <KelanaLogo
+            title={copy.bumperBrand}
+            className="h-[17cqmin] w-auto max-w-full"
+            ink={theme.foreground}
+            light={theme.background}
+          />
         </h1>
         <p
           className="mt-[2cqmin] inline-block -rotate-1 px-[1.4cqmin] py-[0.6cqmin] text-[3.2cqmin] font-black uppercase tracking-[0.18em]"
