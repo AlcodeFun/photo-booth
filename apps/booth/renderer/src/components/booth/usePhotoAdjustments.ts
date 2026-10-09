@@ -8,6 +8,10 @@ import { resolveFrameTemplate, resolveObjectPosition } from '../../utils/frameCo
  *  - scale 1: x/y pan the cover crop (object-position, 0..1)
  *  - scale > 1: offsetX/offsetY translate the zoomed photo (1 - scale..0)
  *
+ * One slot is selected at a time. Touching a photo selects it; after that the
+ * gestures work anywhere on the surface (the element the `surface` handlers
+ * are attached to), so small slots stay easy to drag and pinch on phones.
+ *
  * `adjustedFrame` carries the result in the frame's own template, so every
  * downstream renderer (screen, print, GIFs, upload) honors it unchanged.
  */
@@ -18,6 +22,14 @@ export interface PhotoAdjustment {
   scale: number;
   offsetX: number;
   offsetY: number;
+}
+
+export interface SlotRect {
+  left: string;
+  top: string;
+  width: string;
+  height: string;
+  transform?: string;
 }
 
 const MAX_SCALE = 3;
@@ -35,6 +47,17 @@ const initialFor = (slot: FramePhotoPlacement): PhotoAdjustment => {
   };
 };
 
+/**
+ * Zoom anchor in slot-relative units: the pointer when it is over the slot,
+ * otherwise the slot center (gestures may start anywhere on the surface).
+ */
+const anchorIn = (rect: DOMRect, clientX: number, clientY: number) => {
+  const x = (clientX - rect.left) / rect.width;
+  const y = (clientY - rect.top) / rect.height;
+  const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
+  return { midX: inside ? x : 0.5, midY: inside ? y : 0.5 };
+};
+
 interface Gesture {
   index: number;
   rect: DOMRect;
@@ -45,7 +68,7 @@ interface Gesture {
   originX: number;
   originY: number;
   /** Pinch baseline (two pointers). */
-  pinch?: { dist: number; midX: number; midY: number };
+  pinch?: { dist: number; midX: number; midY: number; clientX: number; clientY: number };
 }
 
 export const usePhotoAdjustments = (
@@ -64,6 +87,22 @@ export const usePhotoAdjustments = (
   adjustmentsRef.current = adjustments;
 
   useEffect(() => setAdjustments(initial), [initial]);
+
+  /** Slot indexes that actually hold a photo (only those can be adjusted). */
+  const photoIndexes = useMemo(
+    () =>
+      template.photoSlots.flatMap((slot, i) =>
+        photoUrls[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1] ? [i] : [],
+      ),
+    [template, photoUrls],
+  );
+
+  const [selectedIndex, setSelectedIndex] = useState(photoIndexes[0] ?? -1);
+  const selectedRef = useRef(selectedIndex);
+  selectedRef.current = selectedIndex;
+  useEffect(() => {
+    setSelectedIndex((current) => (photoIndexes.includes(current) ? current : (photoIndexes[0] ?? -1)));
+  }, [photoIndexes]);
 
   const displayTemplate = useMemo<FrameTemplateConfig>(
     () => ({
@@ -114,18 +153,22 @@ export const usePhotoAdjustments = (
     onFirstInteraction?.();
   };
 
-  const slotIndex = (slotNumber: number) => template.photoSlots.findIndex((s) => s.slotNumber === slotNumber);
-
-  const hasPhoto = (index: number) => {
-    const slot = template.photoSlots[index];
-    return Boolean(slot && photoUrls[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1]);
-  };
-
   const update = (index: number, next: Partial<PhotoAdjustment>) =>
     setAdjustments((all) => all.map((a, i) => (i === index ? { ...a, ...next } : a)));
 
+  /** The rendered slot element (FrameCanvas tags each with data-slot-number). */
+  const slotElement = (surface: HTMLElement, index: number) => {
+    const slot = template.photoSlots[index];
+    return slot ? surface.querySelector<HTMLElement>(`[data-slot-number="${slot.slotNumber}"]`) : null;
+  };
+
   /** (Re)starts a gesture from the pointers currently down, at the latest state. */
-  const begin = (index: number, el: HTMLElement) => {
+  const begin = (index: number, surface: HTMLElement) => {
+    const el = slotElement(surface, index);
+    if (!el) {
+      gesture.current = null;
+      return;
+    }
     const rect = el.getBoundingClientRect();
     const image = el.querySelector('img');
     const placement = template.photoSlots[index];
@@ -148,17 +191,38 @@ export const usePhotoAdjustments = (
       const [p1, p2] = points;
       g.pinch = {
         dist: Math.max(1, Math.hypot(p2.x - p1.x, p2.y - p1.y)),
-        midX: ((p1.x + p2.x) / 2 - rect.left) / rect.width,
-        midY: ((p1.y + p2.y) / 2 - rect.top) / rect.height,
+        ...anchorIn(rect, (p1.x + p2.x) / 2, (p1.y + p2.y) / 2),
+        clientX: (p1.x + p2.x) / 2,
+        clientY: (p1.y + p2.y) / 2,
       };
     }
     gesture.current = g;
   };
 
-  const onSlotPointerDown = (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
-    const index = slotIndex(slotNumber);
-    if (index < 0 || !hasPhoto(index)) return;
-    if (gesture.current && gesture.current.index !== index) return;
+  /** Slot index under the pointer, if it is a photo slot. */
+  const photoIndexAt = (target: EventTarget | null) => {
+    const el = (target as Element | null)?.closest?.('[data-slot-number]');
+    if (!el) return -1;
+    const slotNumber = Number(el.getAttribute('data-slot-number'));
+    const index = template.photoSlots.findIndex((s) => s.slotNumber === slotNumber);
+    return photoIndexes.includes(index) ? index : -1;
+  };
+
+  const onPointerDown = (event: PointerEvent<HTMLElement>) => {
+    // Buttons on the surface (reset, guide card) keep their own clicks.
+    if ((event.target as Element).closest('button')) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+
+    let index = gesture.current?.index ?? -1;
+    if (index < 0) {
+      // First finger: touching a photo selects it; anywhere else drives the
+      // photo that is already selected.
+      const hit = photoIndexAt(event.target);
+      index = hit >= 0 ? hit : selectedRef.current;
+      if (hit >= 0 && hit !== selectedRef.current) setSelectedIndex(hit);
+    }
+    if (index < 0) return;
+
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -166,7 +230,7 @@ export const usePhotoAdjustments = (
     begin(index, event.currentTarget);
   };
 
-  const onSlotPointerMove = (_slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
+  const onPointerMove = (event: PointerEvent<HTMLElement>) => {
     const g = gesture.current;
     if (!g || !pointers.current.has(event.pointerId)) return;
     pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -175,8 +239,10 @@ export const usePhotoAdjustments = (
     if (g.pinch && points.length >= 2) {
       const [p1, p2] = points;
       const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-      const midX = ((p1.x + p2.x) / 2 - g.rect.left) / g.rect.width;
-      const midY = ((p1.y + p2.y) / 2 - g.rect.top) / g.rect.height;
+      // The anchor follows the fingers from where the pinch started, so it
+      // never jumps when they cross the slot edge.
+      const midX = g.pinch.midX + ((p1.x + p2.x) / 2 - g.pinch.clientX) / g.rect.width;
+      const midY = g.pinch.midY + ((p1.y + p2.y) / 2 - g.pinch.clientY) / g.rect.height;
       const scale = clamp(g.start.scale * (dist / g.pinch.dist), 1, MAX_SCALE);
       const factor = scale / g.start.scale;
       // Keep the content under the fingers' midpoint pinned while it moves.
@@ -203,7 +269,7 @@ export const usePhotoAdjustments = (
     }
   };
 
-  const onSlotPointerUp = (_slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
+  const onPointerUp = (event: PointerEvent<HTMLElement>) => {
     if (!pointers.current.delete(event.pointerId)) return;
     const g = gesture.current;
     if (pointers.current.size === 0 || !g) {
@@ -214,13 +280,16 @@ export const usePhotoAdjustments = (
     begin(g.index, event.currentTarget);
   };
 
-  const onSlotWheel = (slotNumber: number, event: WheelEvent<HTMLButtonElement>) => {
-    const index = slotIndex(slotNumber);
-    if (index < 0 || !hasPhoto(index) || event.deltaY === 0) return;
+  const onWheel = (event: WheelEvent<HTMLElement>) => {
+    if (event.deltaY === 0) return;
+    const hit = photoIndexAt(event.target);
+    const index = hit >= 0 ? hit : selectedRef.current;
+    const el = index >= 0 ? slotElement(event.currentTarget, index) : null;
+    if (!el) return;
+    if (hit >= 0 && hit !== selectedRef.current) setSelectedIndex(hit);
     markInteraction();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const px = clamp((event.clientX - rect.left) / rect.width, 0, 1);
-    const py = clamp((event.clientY - rect.top) / rect.height, 0, 1);
+    const rect = el.getBoundingClientRect();
+    const { midX: px, midY: py } = anchorIn(rect, event.clientX, event.clientY);
     const current = adjustmentsRef.current[index] ?? initial[index];
     const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), 1, MAX_SCALE);
     const factor = scale / current.scale;
@@ -231,20 +300,17 @@ export const usePhotoAdjustments = (
     });
   };
 
-  /** First slot that holds a photo, as a percent box for the guide overlay. */
-  const guideRect = useMemo(() => {
-    const index = template.photoSlots.findIndex((_, i) => hasPhoto(i));
-    const slot = template.photoSlots[index >= 0 ? index : 0];
-    if (!slot) return null;
+  /** Percent box of a slot within the frame canvas, for overlays. */
+  const slotRects = useMemo<SlotRect[]>(() => {
     const pct = (v: number, total: number) => `${(v / total) * 100}%`;
-    return {
+    return template.photoSlots.map((slot) => ({
       left: pct(slot.x, template.width),
       top: pct(slot.y, template.height),
       width: pct(slot.width, template.width),
       height: pct(slot.height, template.height),
-    };
-    // hasPhoto reads photoUrls/template only.
-  }, [template, photoUrls]);
+      transform: slot.rotation ? `rotate(${slot.rotation}deg)` : undefined,
+    }));
+  }, [template]);
 
   return {
     template,
@@ -252,7 +318,17 @@ export const usePhotoAdjustments = (
     adjustedFrame,
     isDirty,
     reset,
-    guideRect,
-    handlers: { onSlotPointerDown, onSlotPointerMove, onSlotPointerUp, onSlotWheel },
+    photoIndexes,
+    selectedIndex,
+    selectedRect: selectedIndex >= 0 ? slotRects[selectedIndex] : null,
+    slotRects,
+    /** Attach to the element that should take gestures (the whole preview area). */
+    surfaceHandlers: {
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel: onPointerUp,
+      onWheel,
+    },
   };
 };

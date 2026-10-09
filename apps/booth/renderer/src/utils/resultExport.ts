@@ -86,11 +86,11 @@ const drawSlotImage = async (
 
   if (slot.objectFit === 'contain') {
     if (imgRatio > boxRatio) {
-      drawWidth = height * imgRatio;
-      drawHeight = height;
-    } else {
       drawWidth = width;
       drawHeight = width / imgRatio;
+    } else {
+      drawWidth = height * imgRatio;
+      drawHeight = height;
     }
   } else if (imgRatio > boxRatio) {
     drawWidth = height * imgRatio;
@@ -107,8 +107,9 @@ const drawSlotImage = async (
   const photoOffsetX = slot.photoOffsetX ?? 0;
   const photoOffsetY = slot.photoOffsetY ?? 0;
   if (photoScale !== 1 || photoOffsetX !== 0 || photoOffsetY !== 0) {
+    // Mirrors FrameCanvas' CSS `translate(offset%) scale(s)` with origin at
+    // the slot's top-left: p' = slot + offset * size + s * (p - slot).
     ctx.translate(x + photoOffsetX * width, y + photoOffsetY * height);
-    ctx.translate(x, y);
     ctx.scale(photoScale, photoScale);
     ctx.translate(-x, -y);
   }

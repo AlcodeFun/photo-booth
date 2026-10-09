@@ -154,6 +154,7 @@ export const FrameCanvas = ({
               onWheel={onSlotWheel ? (event) => onSlotWheel(slot.slotNumber, event) : undefined}
               className={slotClassName}
               style={slotStyle}
+              data-slot-number={slot.slotNumber}
               aria-label={`Area foto ${slot.slotNumber}, foto sumber ${sourcePhotoSlot}`}
             >
               {content}
@@ -166,6 +167,7 @@ export const FrameCanvas = ({
             key={slot.slotNumber}
             className={slotClassName}
             style={slotStyle}
+            data-slot-number={slot.slotNumber}
             aria-label={`Area foto ${slot.slotNumber}, foto sumber ${sourcePhotoSlot}`}
           >
             {content}

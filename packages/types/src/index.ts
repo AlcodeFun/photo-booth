@@ -175,6 +175,7 @@ export interface BoothCopywriting {
   filterGuideZoom: string;
   filterGuideHint: string;
   filterReset: string;
+  filterSelectHint: string;
 
   resultsTitle: string;
   resultsSubtitle: string;
@@ -364,6 +365,7 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     filterGuideZoom: 'Cubit atau scroll buat zoom',
     filterGuideHint: 'Tap di mana saja untuk mulai',
     filterReset: 'Reset posisi',
+    filterSelectHint: 'Tap foto lain buat pilih',
 
     resultsTitle: 'Yeay, fotomu jadi!',
     resultsSubtitle: 'Scan QR buat simpan semua foto, live photo & GIF-nya.',
@@ -546,6 +548,7 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'filterGuideZoom', label: 'Guide: zoom' },
       { key: 'filterGuideHint', label: 'Guide: dismiss hint' },
       { key: 'filterReset', label: 'Reset adjustments button' },
+      { key: 'filterSelectHint', label: 'Hint: pick another photo' },
     ],
   },
   {

@@ -4,7 +4,7 @@ import type { FrameConfig } from '@photo-booth/types';
 import FrameCanvas from '../FrameCanvas';
 import { FILTERS, getFilterById } from '../../utils/filters';
 import { usePhotoAdjustments } from './usePhotoAdjustments';
-import { GestureGuideCard, GestureSlotHint, useGuideMode } from './PhotoGestureGuide';
+import { GestureGuideCard, SlotSelectionLayer, useGuideMode } from './PhotoGestureGuide';
 
 export interface FilterSelectionViewProps {
   copy: BoothCopywriting;
@@ -146,7 +146,13 @@ export const FilterSelectionView: React.FC<FilterSelectionViewProps> = ({
         </>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <section className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden p-3 sm:p-5 lg:p-8">
+          {/* The whole preview area takes the gestures for the selected photo,
+              so small slots stay easy to drag and pinch on phones. */}
+          <section
+            className="relative flex min-h-0 min-w-0 flex-1 cursor-grab overflow-hidden p-3 active:cursor-grabbing sm:p-5 lg:p-8"
+            style={{ touchAction: 'none' }}
+            {...adjust.surfaceHandlers}
+          >
             <div
               className="flex min-h-0 min-w-0 flex-1 items-center justify-center"
               style={{ containerType: 'size' }}
@@ -168,12 +174,15 @@ export const FilterSelectionView: React.FC<FilterSelectionViewProps> = ({
                   filter={filterStyle}
                   className="h-full w-full border-2 bg-white shadow-[0_18px_48px_rgba(0,0,0,0.22)]"
                   style={{ borderColor: theme.primary }}
-                  onSlotSelect={() => undefined}
-                  {...adjust.handlers}
                 />
-                {showGuide && adjust.guideRect && (
-                  <GestureSlotHint theme={theme} mode={guideMode} rect={adjust.guideRect} />
-                )}
+                <SlotSelectionLayer
+                  theme={theme}
+                  slotRects={adjust.slotRects}
+                  photoIndexes={adjust.photoIndexes}
+                  selectedIndex={adjust.selectedIndex}
+                  showDemo={showGuide}
+                  mode={guideMode}
+                />
               </div>
             </div>
 
@@ -187,11 +196,20 @@ export const FilterSelectionView: React.FC<FilterSelectionViewProps> = ({
               />
             )}
 
+            {adjust.photoIndexes.length > 1 && (
+              <span
+                className="pointer-events-none absolute left-3 top-3 z-[70] rounded-full px-3 py-1 text-[0.65rem] font-black uppercase tracking-[0.08em] shadow-[0_3px_0_rgba(0,0,0,0.2)] sm:left-4 sm:top-4 sm:text-xs"
+                style={{ backgroundColor: theme.deep, color: '#ffffff' }}
+              >
+                ☝ {copy.filterSelectHint}
+              </span>
+            )}
+
             {adjust.isDirty && (
               <button
                 type="button"
                 onClick={adjust.reset}
-                className="absolute right-4 top-4 z-[70] rounded-full border-2 px-4 py-2 text-xs font-black uppercase tracking-[0.1em] shadow-[0_3px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5"
+                className="absolute right-3 top-3 z-[70] rounded-full border-2 px-3 py-1.5 text-[0.65rem] sm:right-4 sm:top-4 sm:px-4 sm:py-2 sm:text-xs font-black uppercase tracking-[0.1em] shadow-[0_3px_0_rgba(0,0,0,0.2)] transition-transform hover:-translate-y-0.5"
                 style={{
                   borderColor: theme.deep,
                   backgroundColor: theme.card,
