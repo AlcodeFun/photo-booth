@@ -171,6 +171,10 @@ export interface BoothCopywriting {
   filterTitle: string;
   filterEffectsLabel: string;
   filterApplyButton: string;
+  filterGuideMove: string;
+  filterGuideZoom: string;
+  filterGuideHint: string;
+  filterReset: string;
 
   resultsTitle: string;
   resultsSubtitle: string;
@@ -356,6 +360,10 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     filterTitle: 'Pilih Filter yang Kamu Suka',
     filterEffectsLabel: 'Efek foto',
     filterApplyButton: 'Gunakan Filter',
+    filterGuideMove: 'Geser foto buat atur posisi',
+    filterGuideZoom: 'Cubit atau scroll buat zoom',
+    filterGuideHint: 'Tap di mana saja untuk mulai',
+    filterReset: 'Reset posisi',
 
     resultsTitle: 'Yeay, fotomu jadi!',
     resultsSubtitle: 'Scan QR buat simpan semua foto, live photo & GIF-nya.',
@@ -370,7 +378,7 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     resultsNoFramed: 'No framed photo',
     resultsViewAllPhotos: 'Semua foto ({count})',
     resultsQrDownload: 'Scan QR to download your photos',
-    resultsQrArrange: 'Scan QR, arrange your frame & print',
+    resultsQrArrange: 'Scan QR ya buat atur semua fotomu',
     resultsGeneratingQr: 'Generating QR...',
     resultsFinishButton: 'Finish Session',
     resultsFinishDone: '✓ Selesai 🎉',
@@ -534,6 +542,10 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'filterTitle', label: 'Title' },
       { key: 'filterEffectsLabel', label: 'Effects label' },
       { key: 'filterApplyButton', label: 'Apply button' },
+      { key: 'filterGuideMove', label: 'Guide: move' },
+      { key: 'filterGuideZoom', label: 'Guide: zoom' },
+      { key: 'filterGuideHint', label: 'Guide: dismiss hint' },
+      { key: 'filterReset', label: 'Reset adjustments button' },
     ],
   },
   {

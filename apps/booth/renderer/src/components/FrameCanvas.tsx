@@ -91,6 +91,8 @@ export const FrameCanvas = ({
           transform: slot.rotation ? `rotate(${slot.rotation}deg)` : undefined,
           zIndex: slot.zIndex ?? 10,
           containerType: 'inline-size' as CSSProperties['containerType'],
+          // Draggable photos own their touches (no page scroll / browser zoom).
+          touchAction: photoUrl && onSlotPointerDown ? 'none' : undefined,
         };
 
         const slotClassName = `absolute flex items-center justify-center overflow-hidden bg-black text-[10px] font-semibold uppercase tracking-wider text-white/50 transition-all ${

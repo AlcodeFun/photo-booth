@@ -6,10 +6,11 @@ import { getSelectedPhotoUrls } from '../utils/photoSlots';
 import FilterSelectionView from '../components/booth/FilterSelectionView';
 
 export const FilterSelectionScreen: React.FC = () => {
-  const { photoSlots, frame, selectFilter } = useSessionStore((state) => ({
+  const { photoSlots, frame, selectFilter, updateFrameLayout } = useSessionStore((state) => ({
     photoSlots: state.photoSlots,
     frame: state.frame,
     selectFilter: state.selectFilter,
+    updateFrameLayout: state.updateFrameLayout,
   }));
   const isTimedFlow = useBoothConfig((state) => state.flowMode === 'timed');
   const active = useBoothAppearance((state) => state.appearance);
@@ -26,7 +27,12 @@ export const FilterSelectionScreen: React.FC = () => {
         photoUrls={selectedPhotos}
         photoSlotCount={photoSlots.length}
         surfaceStyle={appearanceSurfaceStyle(active, active.theme.background)}
-        onApply={selectFilter}
+        onApply={(filterId, adjustedFrame) => {
+          // Save the guest's move/zoom first: printing and the upload job read
+          // the frame from the store as soon as the filter is applied.
+          if (adjustedFrame) updateFrameLayout(adjustedFrame);
+          selectFilter(filterId);
+        }}
       />
     </div>
   );

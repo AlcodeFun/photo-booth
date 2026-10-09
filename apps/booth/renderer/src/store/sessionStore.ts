@@ -56,6 +56,8 @@ export interface SessionStore {
   confirmPayment: () => void;
   selectFrame: (frame: FrameConfig) => void;
   selectFilter: (filterId: string) => void;
+  /** Replaces the frame with one carrying the guest's photo move/zoom edits. */
+  updateFrameLayout: (frame: FrameConfig) => void;
   startCaptureFlow: () => void;
   
   // Capture & Review Actions
@@ -159,6 +161,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       currentScreen: 'PHOTO_CAPTURE',
     });
   },
+
+  updateFrameLayout: (frame) => set({ frame }),
 
   selectFilter: (filterId) => {
     set({ filterId });
