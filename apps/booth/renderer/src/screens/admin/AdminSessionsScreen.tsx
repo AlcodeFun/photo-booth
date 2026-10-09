@@ -181,6 +181,170 @@ interface SessionCardProps {
   onReupload: () => void;
 }
 
+type SessionsView = 'gallery' | 'list';
+const SESSIONS_VIEW_KEY = 'pb-admin-sessions-view';
+
+const readSessionsView = (): SessionsView => {
+  try {
+    return localStorage.getItem(SESSIONS_VIEW_KEY) === 'list' ? 'list' : 'gallery';
+  } catch {
+    return 'gallery';
+  }
+};
+
+/** Compact table row for the list view: same data and actions as the card. */
+const SessionRow: React.FC<SessionCardProps> = ({
+  session,
+  event,
+  selected,
+  uploadBusy,
+  onToggle,
+  onOpen,
+  onReupload,
+}) => {
+  const preview = sessionPreviewUrl(session);
+  const isFramed = session.files.some((file) => file.name === 'framed.png' && file.uploaded);
+  const photoCount = session.files.filter((file) => file.name.startsWith('photo-')).length;
+  return (
+    <tr
+      className={`border-b border-white/5 transition last:border-0 ${
+        selected ? 'bg-pbx-ui-hi/10' : 'hover:bg-white/[0.03]'
+      }`}
+    >
+      <td className="w-10 px-3 py-2">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          className="h-4 w-4 accent-pbx-ui-hi"
+          aria-label={`Select ${session.token}`}
+        />
+      </td>
+      <td className="w-16 py-2">
+        <button
+          onClick={onOpen}
+          title="View results"
+          className="block h-14 w-11 overflow-hidden rounded-md bg-black/30 ring-1 ring-white/10 transition hover:ring-pbx-ui-hi/60"
+        >
+          {preview ? (
+            <img
+              src={preview}
+              alt=""
+              loading="lazy"
+              className={`h-full w-full ${isFramed ? 'object-contain p-0.5' : 'object-cover'}`}
+            />
+          ) : (
+            <span className="grid h-full place-items-center text-white/25">
+              <IconImage className="h-5 w-5" />
+            </span>
+          )}
+        </button>
+      </td>
+      <td className="px-3 py-2">
+        <p className="truncate text-sm font-semibold text-white" title={event?.name ?? 'Unassigned'}>
+          {event ? event.name : <span className="text-white/45">Unassigned</span>}
+        </p>
+        <p className="truncate font-mono text-xs text-white/45" title={session.token}>
+          {session.token.slice(0, 8)}
+        </p>
+      </td>
+      <td className="whitespace-nowrap px-3 py-2 text-xs text-white/60">{formatTimestamp(session.created_at)}</td>
+      <td className="whitespace-nowrap px-3 py-2 text-xs text-white/60">
+        {photoCount} photo{photoCount === 1 ? '' : 's'}
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex flex-wrap gap-1.5">
+          <UploadBadge status={session.upload_status} />
+          <PrintBadge status={session.print_status} />
+        </div>
+      </td>
+      <td className="px-3 py-2">
+        <div className="flex items-center justify-end gap-1.5">
+          {session.upload_status === 'error' && (
+            <button
+              onClick={onReupload}
+              disabled={uploadBusy}
+              title="Re-upload failed files"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-60"
+            >
+              {uploadBusy ? (
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <IconUpload className="h-4 w-4" />
+              )}
+            </button>
+          )}
+          {galleryUrl(session.token) && (
+            <a
+              href={galleryUrl(session.token)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open gallery"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+            >
+              <IconQr className="h-4 w-4" />
+            </a>
+          )}
+          <button
+            onClick={onOpen}
+            title="View results"
+            className="grid h-8 w-8 place-items-center rounded-full bg-pbx-ui-hi text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong"
+          >
+            <IconEye className="h-4 w-4" />
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+};
+
+/** Gallery / list switch (two icon buttons). */
+const ViewToggle: React.FC<{ view: SessionsView; onChange: (view: SessionsView) => void }> = ({ view, onChange }) => (
+  <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-0.5" role="group" aria-label="Sessions view">
+    {(
+      [
+        {
+          id: 'gallery',
+          label: 'Gallery view',
+          icon: (
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+              <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="2" />
+              <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="2" />
+              <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="2" />
+              <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" stroke="currentColor" strokeWidth="2" />
+            </svg>
+          ),
+        },
+        {
+          id: 'list',
+          label: 'List view',
+          icon: (
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" aria-hidden="true">
+              <path d="M9 6h12M9 12h12M9 18h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+              <rect x="3" y="4.5" width="3" height="3" rx="0.8" fill="currentColor" />
+              <rect x="3" y="10.5" width="3" height="3" rx="0.8" fill="currentColor" />
+              <rect x="3" y="16.5" width="3" height="3" rx="0.8" fill="currentColor" />
+            </svg>
+          ),
+        },
+      ] as const
+    ).map((option) => (
+      <button
+        key={option.id}
+        onClick={() => onChange(option.id)}
+        title={option.label}
+        aria-label={option.label}
+        aria-pressed={view === option.id}
+        className={`grid h-8 w-9 place-items-center rounded-full transition ${
+          view === option.id ? 'bg-pbx-ui-hi text-pbx-ui-hi-fg' : 'text-white/60 hover:bg-white/10 hover:text-white'
+        }`}
+      >
+        {option.icon}
+      </button>
+    ))}
+  </div>
+);
+
 /** Grid card mirroring the Frames screen: framed result + session info. */
 const SessionCard: React.FC<SessionCardProps> = ({
   session,
@@ -304,6 +468,15 @@ export const AdminSessionsScreen: React.FC = () => {
   const [eventFilter, setEventFilter] = useState<EventFilter>('all');
   const [eventsOpen, setEventsOpen] = useState(false);
   const [moveBusy, setMoveBusy] = useState(false);
+  const [view, setView] = useState<SessionsView>(readSessionsView);
+  const changeView = (next: SessionsView) => {
+    setView(next);
+    try {
+      localStorage.setItem(SESSIONS_VIEW_KEY, next);
+    } catch {
+      // Private mode: the choice just isn't remembered.
+    }
+  };
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -817,21 +990,56 @@ export const AdminSessionsScreen: React.FC = () => {
               id="sessions-select-all"
             />
             <label htmlFor="sessions-select-all">Select all {filteredSessions.length} shown</label>
+            <div className="ml-auto">
+              <ViewToggle view={view} onChange={changeView} />
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {filteredSessions.map((session) => (
-              <SessionCard
-                key={session.token}
-                session={session}
-                event={session.event_id ? eventsById.get(session.event_id) ?? null : null}
-                selected={selected.has(session.token)}
-                uploadBusy={busy === `upload:${session.token}`}
-                onToggle={() => toggleOne(session.token)}
-                onOpen={() => setResultsToken(session.token)}
-                onReupload={() => handleReupload(session)}
-              />
-            ))}
-          </div>
+          {view === 'gallery' ? (
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {filteredSessions.map((session) => (
+                <SessionCard
+                  key={session.token}
+                  session={session}
+                  event={session.event_id ? eventsById.get(session.event_id) ?? null : null}
+                  selected={selected.has(session.token)}
+                  uploadBusy={busy === `upload:${session.token}`}
+                  onToggle={() => toggleOne(session.token)}
+                  onOpen={() => setResultsToken(session.token)}
+                  onReupload={() => handleReupload(session)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-white/10 bg-pbx-ui-raised">
+              <table className="w-full min-w-[720px] text-left">
+                <thead className="border-b border-white/10 text-xs uppercase tracking-wider text-white/45">
+                  <tr>
+                    <th className="w-10 px-3 py-2.5" />
+                    <th className="w-16 py-2.5">Result</th>
+                    <th className="px-3 py-2.5">Event / session</th>
+                    <th className="px-3 py-2.5">Created</th>
+                    <th className="px-3 py-2.5">Photos</th>
+                    <th className="px-3 py-2.5">Status</th>
+                    <th className="px-3 py-2.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredSessions.map((session) => (
+                    <SessionRow
+                      key={session.token}
+                      session={session}
+                      event={session.event_id ? eventsById.get(session.event_id) ?? null : null}
+                      selected={selected.has(session.token)}
+                      uploadBusy={busy === `upload:${session.token}`}
+                      onToggle={() => toggleOne(session.token)}
+                      onOpen={() => setResultsToken(session.token)}
+                      onReupload={() => handleReupload(session)}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       )}
 

@@ -15,6 +15,7 @@ import {
   type VoucherStatus,
 } from '../../lib/vouchers';
 import { generateQrDataUrl } from '../../utils/qr';
+import { downloadVoucherCard, downloadVoucherCardsZip } from '../../lib/voucherCard';
 import { useBoothAppearance } from '../../store/appearanceStore';
 import { Modal, ConfirmModal } from '../../components/admin/Modal';
 import { Snackbar, type SnackbarVariant } from '../../components/admin/Snackbar';
@@ -172,6 +173,30 @@ export const AdminVouchersScreen: React.FC = () => {
     };
   }, [printSheet]);
 
+  const eventNameOf = (voucher: Voucher) => (voucher.event_id ? (eventsById.get(voucher.event_id)?.name ?? null) : null);
+
+  /** One active voucher -> PNG card; several -> ZIP of PNG cards. */
+  const downloadCards = async (list: Voucher[]) => {
+    const active = list.filter((v) => voucherStatus(v) === 'active');
+    if (active.length === 0) {
+      setSnackbar({ message: 'Only active vouchers can be downloaded', variant: 'error' });
+      return;
+    }
+    setBusy(true);
+    try {
+      if (active.length === 1) await downloadVoucherCard(active[0], eventNameOf(active[0]));
+      else await downloadVoucherCardsZip(active, eventNameOf, `vouchers-${new Date().toISOString().slice(0, 10)}.zip`);
+      setSnackbar({
+        message: active.length === 1 ? 'Voucher card downloaded' : `Downloaded ${active.length} voucher cards (ZIP)`,
+        variant: 'success',
+      });
+    } catch (err) {
+      setSnackbar({ message: err instanceof Error ? err.message : 'Download failed', variant: 'error' });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const exportCsv = (list: Voucher[]) => {
     const header = ['code', 'status', 'batch', 'event', 'expires_at', 'redeemed_at', 'session_token', 'note'];
     const escape = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
@@ -223,6 +248,14 @@ export const AdminVouchersScreen: React.FC = () => {
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 disabled:opacity-50"
           >
             🖨 Print {selectedVouchers.length > 0 ? `${selectedVouchers.length} selected` : 'shown'}
+          </button>
+          <button
+            onClick={() => void downloadCards(targetList)}
+            disabled={busy || targetList.length === 0}
+            title="PNG card with QR for each active voucher (ZIP when more than one)"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 disabled:opacity-50"
+          >
+            ⤓ QR {selectedVouchers.length > 0 ? `(${selectedVouchers.length})` : ''}
           </button>
           <button
             onClick={() => exportCsv(targetList)}
@@ -331,18 +364,19 @@ export const AdminVouchersScreen: React.FC = () => {
               <th className="px-3 py-2.5">Expires</th>
               <th className="px-3 py-2.5">Used</th>
               <th className="px-3 py-2.5">Session</th>
+              <th className="w-12 px-3 py-2.5" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-white/45">
+                <td colSpan={8} className="px-3 py-10 text-center text-white/45">
                   Loading vouchers…
                 </td>
               </tr>
             ) : visible.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-10 text-center text-white/45">
+                <td colSpan={8} className="px-3 py-10 text-center text-white/45">
                   {vouchers.length === 0 ? 'No vouchers yet. Click Generate to create a batch.' : 'No vouchers match this filter.'}
                 </td>
               </tr>
@@ -387,6 +421,19 @@ export const AdminVouchersScreen: React.FC = () => {
                         </a>
                       ) : (
                         <span className="text-white/30">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {status === 'active' && (
+                        <button
+                          onClick={() => void downloadCards([voucher])}
+                          disabled={busy}
+                          title="Download QR card (PNG)"
+                          aria-label={`Download QR card ${voucher.code}`}
+                          className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-sm text-white transition hover:bg-white/20 disabled:opacity-50"
+                        >
+                          ⤓
+                        </button>
                       )}
                     </td>
                   </tr>

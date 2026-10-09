@@ -147,6 +147,8 @@ export interface BoothCopywriting {
   unlockErrorBusy: string;
   unlockErrorOffline: string;
   unlockNoCamera: string;
+  unlockPickButton: string;
+  unlockPickError: string;
 
   frameEyebrow: string;
   frameTitle: string;
@@ -351,6 +353,8 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     unlockErrorBusy: 'Terlalu banyak percobaan, tunggu sebentar ya',
     unlockErrorOffline: 'Booth sedang offline. Hubungi petugas ya',
     unlockNoCamera: 'Kamera scan tidak ditemukan. Ketik kodenya saja ya',
+    unlockPickButton: 'Pilih dari galeri',
+    unlockPickError: 'QR voucher tidak terbaca di gambar itu',
 
     frameEyebrow: 'Bingkai',
     frameTitle: 'Pilih gaya foto',
@@ -523,6 +527,8 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'unlockErrorBusy', label: 'Error: too many tries' },
       { key: 'unlockErrorOffline', label: 'Error: offline' },
       { key: 'unlockNoCamera', label: 'No scan camera' },
+      { key: 'unlockPickButton', label: 'Pick image button' },
+      { key: 'unlockPickError', label: 'Error: no QR in picked image' },
     ],
   },
   {

@@ -21,6 +21,43 @@ const FAIL_PAUSE_MS = 30_000;
 const SCAN_INTERVAL_MS = 160;
 
 /**
+ * Reads a QR from a picture (e.g. the voucher card saved on the guest's
+ * phone). Tries a few scales: big photos decode faster and more reliably
+ * downscaled, small screenshots need their full resolution.
+ */
+const decodeQrFromImage = async (file: File): Promise<string | null> => {
+  const { default: jsQR } = await import('jsqr');
+  const url = URL.createObjectURL(file);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('unreadable image'));
+      img.src = url;
+    });
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    const longest = Math.max(image.naturalWidth, image.naturalHeight);
+    for (const target of [1000, 1600, 600, longest]) {
+      const scale = Math.min(1, target / longest);
+      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const found = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, {
+        inversionAttempts: 'attemptBoth',
+      });
+      if (found?.data) return found.data;
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+};
+
+/**
  * Voucher gate in front of the session (Booth Setup -> Access -> Voucher).
  *
  * The guest holds their voucher QR up to the webcam, or types the code on the
@@ -184,6 +221,16 @@ export const UnlockScreen: React.FC = () => {
     };
   }, [mode, scannerDeviceId, submit, copy.unlockNoCamera, showMessage]);
 
+  // ---- Voucher picture picked from the device (gallery / files) ----
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const onImagePicked = async (file: File | undefined) => {
+    if (!file) return;
+    touch();
+    const data = await decodeQrFromImage(file);
+    if (data) void submit(data);
+    else showMessage(copy.unlockPickError);
+  };
+
   // ---- Physical keyboard / USB QR scanner (types the payload + Enter) ----
   const typedRef = useRef('');
   useEffect(() => {
@@ -243,6 +290,20 @@ export const UnlockScreen: React.FC = () => {
         onBackspace={() => setCode((c) => c.slice(0, -1))}
         onSubmit={() => void submit(code)}
         onBack={goBack}
+        // Only when the booth runs in a browser on the guest's phone/tablet:
+        // on the Electron kiosk a file dialog would expose the booth PC's files.
+        onPickImage={window.electronAPI ? undefined : () => fileInputRef.current?.click()}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => {
+          void onImagePicked(event.target.files?.[0]);
+          // Allow picking the same file again after an error.
+          event.target.value = '';
+        }}
       />
     </div>
   );

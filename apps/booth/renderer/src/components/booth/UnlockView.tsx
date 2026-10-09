@@ -24,6 +24,8 @@ export interface UnlockViewProps {
   onBackspace?: () => void;
   onSubmit?: () => void;
   onBack?: () => void;
+  /** Opens the device's image picker to read a voucher QR from a saved picture. */
+  onPickImage?: () => void;
 }
 
 const CHECK_LEN = 60;
@@ -49,6 +51,7 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
   onBackspace,
   onSubmit,
   onBack,
+  onPickImage,
 }) => {
   const busy = status === 'checking' || status === 'success';
   const showScan = mode === 'scan' && cameraAvailable;
@@ -225,6 +228,22 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
               >
                 {showScan ? `⌨ ${copy.unlockTypeButton}` : `▣ ${copy.unlockScanButton}`}
               </button>
+            )}
+            {onPickImage && (
+            <button
+              type="button"
+              onClick={onPickImage}
+              disabled={busy}
+              className="rounded-[1.6cqmin] border-[0.4cqmin] px-[3cqmin] py-[1.6cqmin] text-[2cqmin] font-black uppercase tracking-[0.12em] transition-transform enabled:hover:-translate-y-0.5 disabled:opacity-50"
+              style={{ borderColor: theme.deep, backgroundColor: theme.tertiary, color: theme.tertiaryForeground }}
+            >
+              <svg viewBox="0 0 24 24" className="mr-[0.8cqmin] inline-block h-[2.4cqmin] w-[2.4cqmin] -translate-y-[0.15cqmin]" fill="none" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="2.4" />
+                <circle cx="9" cy="10" r="1.8" fill="currentColor" />
+                <path d="M4 18l5.5-5.5 4 4 2.5-2.5L20 18" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+              </svg>
+              {copy.unlockPickButton}
+            </button>
             )}
             {!showScan && (
               <button
