@@ -805,3 +805,49 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ---- Flow polish: tutorial, frame select, review, complete ---- */
+/* Card enters from below with an overshoot; --pr sets its resting tilt. */
+@keyframes pb-rise-pop {
+  0% { transform: translateY(40px) scale(0.85) rotate(0deg); opacity: 0; }
+  65% { transform: translateY(-6px) scale(1.03) rotate(var(--pr, 0deg)); opacity: 1; }
+  100% { transform: translateY(0) scale(1) rotate(var(--pr, 0deg)); opacity: 1; }
+}
+
+@keyframes pb-icon-wiggle {
+  0%, 70%, 100% { transform: rotate(0deg) scale(1); }
+  76% { transform: rotate(-10deg) scale(1.08); }
+  84% { transform: rotate(8deg) scale(1.08); }
+  92% { transform: rotate(-4deg) scale(1.02); }
+}
+
+@keyframes pb-cta-breathe {
+  0%, 100% { transform: scale(1); box-shadow: 0 5px 0 rgba(0, 0, 0, 0.2), 0 0 0 0 var(--glow, rgba(0, 0, 0, 0.2)); }
+  50% { transform: scale(1.04); box-shadow: 0 5px 0 rgba(0, 0, 0, 0.2), 0 0 0 12px transparent; }
+}
+
+/* Self-drawing check mark (stroke-dasharray set to the path length). */
+@keyframes pb-draw {
+  from { stroke-dashoffset: var(--len, 100); }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Countdown ring: full circle to empty over --dur. */
+@keyframes pb-ring-drain {
+  from { stroke-dashoffset: 0; }
+  to { stroke-dashoffset: var(--len, 100); }
+}
+
+@keyframes pb-print-drop {
+  0% { transform: translateY(-30px) scale(0.92) rotate(0deg); opacity: 0; }
+  60% { transform: translateY(4px) scale(1.01) rotate(var(--pr, -2deg)); opacity: 1; }
+  100% { transform: translateY(0) scale(1) rotate(var(--pr, -2deg)); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-flow-anim,
+  .pb-flow-anim * {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

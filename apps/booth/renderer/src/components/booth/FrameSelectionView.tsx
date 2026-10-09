@@ -2,6 +2,7 @@ import React from 'react';
 import type { BoothCopywriting, BoothTheme, FrameConfig } from '@photo-booth/types';
 import FrameCanvas from '../FrameCanvas';
 import { resolveFrameTemplate } from '../../utils/frameConfig';
+import { withAlpha } from '../../lib/appearance';
 
 export interface FrameSelectionViewProps {
   copy: BoothCopywriting;
@@ -40,7 +41,7 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
 
   return (
     <div
-      className="relative flex h-full w-full items-center justify-center select-none overflow-hidden p-2 sm:p-4 md:p-6"
+      className="pb-flow-anim relative flex h-full w-full items-center justify-center select-none overflow-hidden p-2 sm:p-4 md:p-6"
       // Container query context so the modal preview below can size itself
       // against this view (cqh/cqw) instead of the window. The admin preview
       // stage reuses this component, so viewport units would be wrong there.
@@ -48,16 +49,24 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
     >
       <div
         className="flex h-full w-full max-w-[95vw] flex-col overflow-hidden rounded-[18px] border-[4px] p-1.5 shadow-[0_0_0_6px_rgba(255,255,255,0.08)] sm:p-2 md:p-2.5"
-        style={{ borderColor: theme.primary, backgroundColor: theme.surface }}
+        style={{
+          borderColor: theme.primary,
+          backgroundColor: theme.surface,
+          animation: 'pb-modal-zoom 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both',
+        }}
       >
         <div
           className="pb-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden rounded-[14px] p-1.5 sm:p-2 md:p-2.5"
-          style={{ backgroundColor: theme.surface }}
+          style={{
+            backgroundColor: theme.surface,
+            backgroundImage: `radial-gradient(${withAlpha(theme.surfaceForeground, 0.08)} 1.5px, transparent 1.8px)`,
+            backgroundSize: '22px 22px',
+          }}
         >
           <div className="mb-1 shrink-0 text-center md:mb-3">
             <p
-              className="text-[0.65rem] font-black uppercase tracking-[0.28em] sm:text-[0.75rem]"
-              style={{ color: theme.surfaceForeground }}
+              className="inline-block -rotate-2 rounded-full px-3 py-0.5 text-[0.65rem] font-black uppercase tracking-[0.24em] sm:text-[0.75rem]"
+              style={{ backgroundColor: theme.secondary, color: theme.secondaryForeground }}
             >
               {copy.frameEyebrow}
             </p>
@@ -89,32 +98,47 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
                     />
                   </div>
                 ))
-              : frames.map((frame) => (
+              : frames.map((frame, index) => (
+                  // Outer wrapper owns the entrance animation; the card itself
+                  // owns the hover lift (both animate transform).
                   <div
                     key={frame.id}
-                    onClick={() => onSelect(frame)}
-                    className="flex h-full w-full cursor-pointer flex-col rounded-[16px] border-[4px] p-2 transition-all duration-200 hover:border-[4px] sm:p-2.5"
-                    style={{
-                      borderColor: theme.secondary,
-                      backgroundColor: theme.card,
-                      color: theme.cardForeground,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = theme.accent;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = theme.secondary;
-                    }}
+                    className="h-full w-full"
+                    style={
+                      {
+                        '--pr': `${index % 2 === 0 ? -1 : 1}deg`,
+                        animation: `pb-rise-pop 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.2) ${0.15 + Math.min(index, 8) * 0.07}s both`,
+                      } as React.CSSProperties
+                    }
                   >
-                    <FrameCanvas
-                      frame={frame}
-                      photoSlotCount={frame.photoSlots ?? 3}
-                      className="mb-2 w-full rounded-[12px] border-[3px] sm:mb-3"
-                      style={{ borderColor: theme.secondary, backgroundColor: theme.card }}
-                    />
-                    <h3 className="line-clamp-2 shrink-0 px-1 text-center text-xs font-black uppercase tracking-[0.08em] sm:text-sm md:text-base">
-                      {frame.name}
-                    </h3>
+                    <div
+                      onClick={() => onSelect(frame)}
+                      className="flex h-full w-full cursor-pointer flex-col rounded-[16px] border-[4px] p-2 transition-all duration-200 hover:-translate-y-1.5 hover:rotate-[-1deg] sm:p-2.5"
+                      style={{
+                        borderColor: theme.deep,
+                        backgroundColor: theme.card,
+                        color: theme.cardForeground,
+                        boxShadow: `0 5px 0 ${theme.deep}`,
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = theme.primary;
+                        e.currentTarget.style.boxShadow = `0 9px 0 ${theme.primary}`;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = theme.deep;
+                        e.currentTarget.style.boxShadow = `0 5px 0 ${theme.deep}`;
+                      }}
+                    >
+                      <FrameCanvas
+                        frame={frame}
+                        photoSlotCount={frame.photoSlots ?? 3}
+                        className="mb-2 w-full rounded-[12px] border-[3px] sm:mb-3"
+                        style={{ borderColor: theme.secondary, backgroundColor: theme.card }}
+                      />
+                      <h3 className="line-clamp-2 shrink-0 px-1 text-center text-xs font-black uppercase tracking-[0.08em] sm:text-sm md:text-base">
+                        {frame.name}
+                      </h3>
+                    </div>
                   </div>
                 ))}
           </div>
@@ -163,20 +187,24 @@ export const FrameSelectionView: React.FC<FrameSelectionViewProps> = ({
           <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center gap-3 px-4 pb-8 pt-16 sm:gap-4 sm:px-6">
             <span
               className="mr-auto max-w-[52%] truncate text-[0.82rem] font-black uppercase tracking-[0.08em] text-white sm:text-[0.9rem]"
-              style={{ color: theme.primaryForeground }}
+              style={{ color: theme.card }}
             >
               {selected.name}
             </span>
             <button
               onClick={onConfirm}
               className="rounded-[12px] border-[3px] px-7 py-3 text-[0.78rem] font-black uppercase tracking-[0.14em] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
-              style={{
-                borderColor: theme.secondary,
-                backgroundColor: theme.card,
-                color: theme.secondary,
-              }}
+              style={
+                {
+                  borderColor: theme.deep,
+                  backgroundColor: theme.action,
+                  color: theme.actionForeground,
+                  '--glow': withAlpha(theme.action, 0.55),
+                  animation: 'pb-cta-breathe 2.2s ease-in-out 0.6s infinite',
+                } as React.CSSProperties
+              }
             >
-              {copy.frameConfirmButton}
+              {copy.frameConfirmButton} →
             </button>
           </div>
         </div>

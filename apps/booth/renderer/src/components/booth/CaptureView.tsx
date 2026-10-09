@@ -100,7 +100,8 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
 }) => (
   <div
     className={`relative h-full w-full select-none overflow-hidden bg-black text-white ${!isStarted ? 'cursor-pointer' : ''}`}
-    style={{ backgroundColor: theme.deep, color: theme.primaryForeground }}
+    // Always over a camera/photo scrim: white reads on any theme.
+    style={{ backgroundColor: theme.deep, color: '#ffffff' }}
     aria-label="Fullscreen camera live view"
   >
     {cameraFeed}
