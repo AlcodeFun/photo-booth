@@ -15,7 +15,9 @@ import { generateQrDataUrl } from '../../utils/qr';
 import { GALLERY_URL } from '../../config';
 import { dropPendingUploads } from '../../lib/uploadJob';
 import { ConfirmModal } from '../../components/admin/Modal';
-import { SkeletonTable } from '../../components/admin/Skeleton';
+import { SkeletonCard } from '../../components/admin/Skeleton';
+import { EventsManager } from '../../components/admin/EventsManager';
+import { assignSessionsToEvent, BoothEvent, listEvents } from '../../lib/events';
 import {
   formatTimestamp,
   PrintBadge,
@@ -34,6 +36,8 @@ import {
 
 type DatePreset = 'all' | 'today' | '7d' | '30d' | 'custom';
 type StatusFilter = 'all' | SessionUploadStatus | SessionPrintStatus;
+/** 'all', 'none' (unassigned) or an event id. */
+type EventFilter = 'all' | 'none' | string;
 
 /**
  * Worker gallery URL for a token. This is what every admin QR/link points at —
@@ -157,6 +161,127 @@ const reconcileFromGallery = async (rows: SessionRecord[]): Promise<SessionRecor
   return rows.map((row) => synced.get(row.token) ?? row);
 };
 
+/** Best available preview: the framed result, else the first photo. */
+const sessionPreviewUrl = (session: SessionRecord): string | null => {
+  const framed = session.files.find((file) => file.name === 'framed.png' && file.uploaded);
+  const photo = session.files
+    .filter((file) => file.name.startsWith('photo-') && file.uploaded)
+    .sort((a, b) => a.name.localeCompare(b.name))[0];
+  const file = framed ?? photo;
+  return file ? sessionFileUrl(session.token, file.name) : null;
+};
+
+interface SessionCardProps {
+  session: SessionRecord;
+  event: BoothEvent | null;
+  selected: boolean;
+  uploadBusy: boolean;
+  onToggle: () => void;
+  onOpen: () => void;
+  onReupload: () => void;
+}
+
+/** Grid card mirroring the Frames screen: framed result + session info. */
+const SessionCard: React.FC<SessionCardProps> = ({
+  session,
+  event,
+  selected,
+  uploadBusy,
+  onToggle,
+  onOpen,
+  onReupload,
+}) => {
+  const preview = sessionPreviewUrl(session);
+  const isFramed = session.files.some((file) => file.name === 'framed.png' && file.uploaded);
+  const photoCount = session.files.filter((file) => file.name.startsWith('photo-')).length;
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-xl border bg-pbx-ui-raised shadow-lg transition ${
+        selected ? 'border-pbx-ui-hi ring-2 ring-pbx-ui-hi/40' : 'border-white/10 hover:border-pbx-ui-brand/40'
+      }`}
+    >
+      <div className="relative aspect-[3/4] bg-black/30">
+        {preview ? (
+          <img
+            src={preview}
+            alt={`Session ${session.token}`}
+            loading="lazy"
+            className={`h-full w-full ${isFramed ? 'object-contain p-2' : 'object-cover'}`}
+          />
+        ) : (
+          <div className="grid h-full place-items-center text-white/25">
+            <IconImage className="h-10 w-10" />
+          </div>
+        )}
+
+        <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 bg-black/55 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
+          <button
+            onClick={onOpen}
+            title="View results"
+            className="grid h-10 w-10 place-items-center rounded-full bg-pbx-ui-hi text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong"
+          >
+            <IconEye />
+          </button>
+          {galleryUrl(session.token) && (
+            <a
+              href={galleryUrl(session.token)}
+              target="_blank"
+              rel="noreferrer"
+              title="Open gallery"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
+            >
+              <IconQr className="h-5 w-5" />
+            </a>
+          )}
+          {session.upload_status === 'error' && (
+            <button
+              onClick={onReupload}
+              disabled={uploadBusy}
+              title="Re-upload failed files"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30 disabled:opacity-60"
+            >
+              {uploadBusy ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              ) : (
+                <IconUpload className="h-5 w-5" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {/* Above the hover overlay so selecting never needs a hover first. */}
+        <label className="absolute left-2 top-2 z-20 grid h-8 w-8 cursor-pointer place-items-center rounded-full bg-black/55 backdrop-blur">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            className="h-4 w-4 accent-pbx-ui-hi"
+            aria-label={`Select ${session.token}`}
+          />
+        </label>
+      </div>
+
+      <div className="space-y-2 px-3 py-3">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-sm font-semibold text-white" title={event?.name ?? 'Unassigned'}>
+            {event ? event.name : <span className="text-white/45">Unassigned</span>}
+          </p>
+          <span className="shrink-0 text-xs text-white/40">
+            {photoCount} photo{photoCount === 1 ? '' : 's'}
+          </span>
+        </div>
+        <p className="truncate text-xs text-white/50" title={session.token}>
+          {formatTimestamp(session.created_at)} · <span className="font-mono">{session.token.slice(0, 8)}</span>
+        </p>
+        <div className="flex flex-wrap gap-1.5">
+          <UploadBadge status={session.upload_status} />
+          <PrintBadge status={session.print_status} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const AdminSessionsScreen: React.FC = () => {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -175,11 +300,20 @@ export const AdminSessionsScreen: React.FC = () => {
   const [customTo, setCustomTo] = useState('');
   const [uploadFilter, setUploadFilter] = useState<StatusFilter>('all');
   const [printFilter, setPrintFilter] = useState<StatusFilter>('all');
+  const [events, setEvents] = useState<BoothEvent[]>([]);
+  const [eventFilter, setEventFilter] = useState<EventFilter>('all');
+  const [eventsOpen, setEventsOpen] = useState(false);
+  const [moveBusy, setMoveBusy] = useState(false);
 
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const rows = await listSessions();
+      const [rows, eventRows] = await Promise.all([
+        listSessions(),
+        // Events are optional context: a failure here must not hide sessions.
+        listEvents().catch(() => null),
+      ]);
+      if (eventRows) setEvents(eventRows);
       setSessions(await reconcileFromGallery(rows));
       setError(null);
     } catch (err) {
@@ -195,6 +329,16 @@ export const AdminSessionsScreen: React.FC = () => {
     const timer = setInterval(() => refresh(true), 30000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  const eventsById = useMemo(() => new Map(events.map((event) => [event.id, event])), [events]);
+  const eventCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const session of sessions) {
+      if (session.event_id) counts.set(session.event_id, (counts.get(session.event_id) ?? 0) + 1);
+    }
+    return counts;
+  }, [sessions]);
+  const activeEvent = events.find((event) => event.is_active) ?? null;
 
   const filteredSessions = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
@@ -214,7 +358,12 @@ export const AdminSessionsScreen: React.FC = () => {
     }
 
     return sessions.filter((session) => {
-      if (query && !session.token.toLowerCase().includes(query)) return false;
+      if (eventFilter === 'none' && session.event_id) return false;
+      if (eventFilter !== 'all' && eventFilter !== 'none' && session.event_id !== eventFilter) return false;
+      if (query) {
+        const eventName = session.event_id ? eventsById.get(session.event_id)?.name ?? '' : '';
+        if (!session.token.toLowerCase().includes(query) && !eventName.toLowerCase().includes(query)) return false;
+      }
       if (uploadFilter !== 'all' && session.upload_status !== uploadFilter) return false;
       if (printFilter !== 'all' && session.print_status !== printFilter) return false;
       const created = new Date(session.created_at).getTime();
@@ -222,7 +371,7 @@ export const AdminSessionsScreen: React.FC = () => {
       if (to && created > to.getTime()) return false;
       return true;
     });
-  }, [sessions, searchQuery, datePreset, customFrom, customTo, uploadFilter, printFilter]);
+  }, [sessions, searchQuery, datePreset, customFrom, customTo, uploadFilter, printFilter, eventFilter, eventsById]);
 
   const allVisibleSelected = filteredSessions.length > 0 && filteredSessions.every((s) => selected.has(s.token));
 
@@ -279,6 +428,19 @@ export const AdminSessionsScreen: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Re-upload failed');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleMove = async (eventId: string | null) => {
+    setMoveBusy(true);
+    try {
+      await assignSessionsToEvent(Array.from(selected), eventId);
+      setSelected(new Set());
+      await refresh(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Moving sessions failed');
+    } finally {
+      setMoveBusy(false);
     }
   };
 
@@ -446,10 +608,44 @@ export const AdminSessionsScreen: React.FC = () => {
         <div>
           <h1 className="text-2xl font-bold text-white">Sessions</h1>
           <p className="mt-0.5 text-sm text-white/50">
-            {filteredSessions.length} of {sessions.length} record{sessions.length === 1 ? '' : 's'} — re-upload failed work, inspect results, queue prints in Print Queue
+            {filteredSessions.length} of {sessions.length} record{sessions.length === 1 ? '' : 's'}
+            {' · '}
+            {activeEvent ? (
+              <>
+                filing new sessions under <span className="font-semibold text-pbx-ui-hi">{activeEvent.name}</span>
+              </>
+            ) : (
+              'no active event, new sessions are unassigned'
+            )}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {selected.size > 0 && (
+            <select
+              value=""
+              disabled={moveBusy}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value) void handleMove(value === 'none' ? null : value);
+              }}
+              className="rounded-full border border-white/10 bg-pbx-ui-raised px-3 py-2 text-sm text-white focus:outline-none disabled:opacity-50"
+              aria-label="Move selected sessions to event"
+            >
+              <option value="">{moveBusy ? 'Moving…' : `Move ${selected.size} to…`}</option>
+              {events.map((event) => (
+                <option key={event.id} value={event.id}>
+                  {event.name}
+                </option>
+              ))}
+              <option value="none">Unassigned</option>
+            </select>
+          )}
+          <button
+            onClick={() => setEventsOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10"
+          >
+            Events
+          </button>
           {selected.size > 0 && (
             <button
               onClick={() => setDeleteOpen(true)}
@@ -469,6 +665,44 @@ export const AdminSessionsScreen: React.FC = () => {
         </div>
       )}
 
+      <div className="mb-3 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist" aria-label="Filter by event">
+        {(
+          [
+            { id: 'all', label: 'All events', count: sessions.length },
+            ...events.map((event) => ({
+              id: event.id,
+              label: event.name,
+              count: eventCounts.get(event.id) ?? 0,
+              active: event.is_active,
+            })),
+            {
+              id: 'none',
+              label: 'Unassigned',
+              count: sessions.filter((session) => !session.event_id).length,
+            },
+          ] as Array<{ id: EventFilter; label: string; count: number; active?: boolean }>
+        ).map((chip) => (
+          <button
+            key={chip.id}
+            role="tab"
+            aria-selected={eventFilter === chip.id}
+            onClick={() => {
+              setEventFilter(chip.id);
+              setSelected(new Set());
+            }}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm transition ${
+              eventFilter === chip.id
+                ? 'border-pbx-ui-hi/60 bg-pbx-ui-hi/15 font-semibold text-pbx-ui-hi'
+                : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
+            }`}
+          >
+            {chip.active && <span className="h-2 w-2 rounded-full bg-pbx-ui-hi" aria-label="Active event" />}
+            <span className="max-w-[14rem] truncate">{chip.label}</span>
+            <span className="text-xs opacity-60">{chip.count}</span>
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-pbx-ui-raised p-3 mb-3">
         <div className="flex min-w-[220px] flex-1 items-center gap-2">
           <IconSearch className="h-4 w-4 shrink-0 text-white/40" />
@@ -476,7 +710,7 @@ export const AdminSessionsScreen: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by session id…"
+            placeholder="Search by session id or event…"
             className="w-full bg-transparent text-sm text-white placeholder:text-white/35 focus:outline-none"
           />
           {searchQuery && (
@@ -558,116 +792,56 @@ export const AdminSessionsScreen: React.FC = () => {
       </div>
 
       {loading ? (
-        <SkeletonTable rows={7} />
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <SkeletonCard key={index} />
+          ))}
+        </div>
       ) : sessions.length === 0 ? (
         <div className="rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-16 text-center">
           <p className="text-lg font-semibold text-white">No sessions yet</p>
           <p className="mt-1 text-sm text-white/45">Finished booth rounds will appear here once a session is saved.</p>
         </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-pbx-ui-raised">
-          <table className="w-full min-w-[760px] text-left text-sm">
-            <thead>
-              <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-white/45">
-                <th className="w-12 px-4 py-3">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleAll}
-                    className="h-4 w-4 accent-pbx-ui-hi"
-                    aria-label="Select all"
-                  />
-                </th>
-                <th className="px-4 py-3">Session</th>
-                <th className="px-4 py-3">Upload</th>
-                <th className="px-4 py-3">Print</th>
-                <th className="px-4 py-3 text-right">Results</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-white/5">
-              {filteredSessions.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-sm text-white/40">
-                    No sessions match the current filters.
-                  </td>
-                </tr>
-              ) : (
-                filteredSessions.map((session) => {
-                const isSelected = selected.has(session.token);
-                const uploadBusy = busy === `upload:${session.token}`;
-                return (
-                  <tr key={session.token} className={`transition ${isSelected ? 'bg-white/5' : 'hover:bg-white/5'}`}>
-                    <td className="px-4 py-4">
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleOne(session.token)}
-                        className="h-4 w-4 accent-pbx-ui-hi"
-                        aria-label={`Select ${session.token}`}
-                      />
-                    </td>
-                    <td className="px-4 py-4">
-                      <div
-                        className="max-w-[16rem] truncate font-mono text-[0.8rem] leading-snug text-white/85"
-                        title={session.token}
-                      >
-                        {session.token}
-                      </div>
-                      <div className="mt-0.5 text-xs text-white/40">
-                        {formatTimestamp(session.created_at)}
-                        {galleryUrl(session.token) && (
-                          <a
-                            href={galleryUrl(session.token)}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="ml-2 text-pbx-ui-secondary hover:text-pbx-ui-secondary"
-                          >
-                            view gallery
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <div className="flex items-center gap-2">
-                        <UploadBadge status={session.upload_status} />
-                        {session.upload_status === 'error' && (
-                          <button
-                            onClick={() => handleReupload(session)}
-                            disabled={uploadBusy}
-                            title="Re-upload failed files"
-                            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-medium text-white/80 transition hover:bg-white/10 disabled:opacity-60"
-                          >
-                            {uploadBusy ? (
-                              <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                            ) : (
-                              <IconUpload className="h-3.5 w-3.5" />
-                            )}
-                            Re-upload
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4">
-                      <PrintBadge status={session.print_status} />
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <button
-                        onClick={() => setResultsToken(session.token)}
-                        title="View results"
-                        className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10 hover:text-white"
-                      >
-                        <IconEye className="h-4 w-4" />
-                        Results
-                      </button>
-                    </td>
-                  </tr>
-                );
-                })
-              )}
-            </tbody>
-          </table>
+      ) : filteredSessions.length === 0 ? (
+        <div className="rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-12 text-center">
+          <p className="text-sm text-white/45">No sessions match the current filters.</p>
         </div>
+      ) : (
+        <>
+          <div className="mb-3 flex items-center gap-2 px-1 text-xs text-white/50">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={toggleAll}
+              className="h-4 w-4 accent-pbx-ui-hi"
+              id="sessions-select-all"
+            />
+            <label htmlFor="sessions-select-all">Select all {filteredSessions.length} shown</label>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {filteredSessions.map((session) => (
+              <SessionCard
+                key={session.token}
+                session={session}
+                event={session.event_id ? eventsById.get(session.event_id) ?? null : null}
+                selected={selected.has(session.token)}
+                uploadBusy={busy === `upload:${session.token}`}
+                onToggle={() => toggleOne(session.token)}
+                onOpen={() => setResultsToken(session.token)}
+                onReupload={() => handleReupload(session)}
+              />
+            ))}
+          </div>
+        </>
       )}
+
+      <EventsManager
+        open={eventsOpen}
+        events={events}
+        counts={eventCounts}
+        onClose={() => setEventsOpen(false)}
+        onChanged={() => refresh(true)}
+      />
 
       <ConfirmModal
         open={deleteOpen}
@@ -711,7 +885,12 @@ export const AdminSessionsScreen: React.FC = () => {
               <div className="min-w-0">
                 <h3 className="text-lg font-bold text-white">Session results</h3>
                 <p className="truncate font-mono text-xs text-white/70">{resultsSession.token}</p>
-                <p className="text-xs text-white/40">{formatTimestamp(resultsSession.created_at)}</p>
+                <p className="text-xs text-white/40">
+                  {formatTimestamp(resultsSession.created_at)}
+                  {resultsSession.event_id && eventsById.get(resultsSession.event_id) && (
+                    <> · {eventsById.get(resultsSession.event_id)!.name}</>
+                  )}
+                </p>
               </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-3">
