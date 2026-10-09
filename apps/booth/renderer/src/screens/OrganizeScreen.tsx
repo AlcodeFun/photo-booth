@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { PointerEvent, WheelEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { FrameTemplateConfig } from '@photo-booth/types';
 import { GALLERY_URL } from '../config';
 import FrameCanvas from '../components/FrameCanvas';
+import { usePhotoGestures } from '../components/booth/usePhotoGestures';
 import {
   ORGANIZE_FILE,
   PRINT_REQUEST_FILE,
@@ -94,19 +94,6 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const gestureGuideTimerRef = useRef<number | null>(null);
-  const dragRef = useRef<{
-    index: number;
-    startX: number;
-    startY: number;
-    width: number;
-    height: number;
-    overflowX: number;
-    overflowY: number;
-    adjustment: OrganizePhotoAdjustment;
-    moved: boolean;
-  } | null>(null);
-  const zoomCursorTimerRef = useRef<number | null>(null);
-  const skipSlotClickRef = useRef(false);
   const [waiting, setWaiting] = useState<'busy' | 'done' | 'error' | null>(null);
   const waitStartedRef = useRef(false);
 
@@ -349,11 +336,28 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     [template, slots, fileUrl],
   );
 
+  // Drag / pinch / scroll the selected photo from anywhere on the canvas
+  // area (same engine as the booth's filter screen). Tapping a slot still
+  // goes through onPickSlot below.
+  const adjustmentsRef = useRef(adjustments);
+  adjustmentsRef.current = adjustments;
+  const { surfaceHandlers, wasDrag } = usePhotoGestures({
+    template: displayTemplate,
+    getAdjustment: (index) =>
+      adjustmentsRef.current[index] ?? (template ? initialAdjustment(template, index) : { x: 0.5, y: 0.5, scale: 1 }),
+    setAdjustment: (index, next) =>
+      setAdjustments((all) => all.map((adjustment, i) => (i === index ? { ...adjustment, ...next } : adjustment))),
+    isAdjustable: (index) => Boolean(slots[index]),
+    selectedIndex: pickSlot ?? -1,
+    onSelect: (index) => {
+      setPickSlot(index);
+      setPanelOpen(false);
+    },
+    onAdjust: () => hidePhotoGestureGuide(),
+  });
+
   const onPickSlot = (index: number) => {
-    if (skipSlotClickRef.current) {
-      skipSlotClickRef.current = false;
-      return;
-    }
+    if (wasDrag()) return;
     setPickSlot(index);
     setPanelOpen(slots[index] == null);
     if (slots[index] != null) revealPhotoGestureGuide();
@@ -420,109 +424,6 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     }
     setPickSlot(null);
     hidePhotoGestureGuide();
-  };
-
-  const zoomPhotoAtPointer = (slotNumber: number, event: WheelEvent<HTMLButtonElement>) => {
-    const index = displayTemplate?.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber) ?? -1;
-    if (index < 0 || !slots[index]) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setPickSlot(index);
-    setPanelOpen(false);
-    if (event.deltaY !== 0) hidePhotoGestureGuide();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const target = event.currentTarget;
-    target.style.cursor = 'zoom-in';
-    if (zoomCursorTimerRef.current != null) window.clearTimeout(zoomCursorTimerRef.current);
-    zoomCursorTimerRef.current = window.setTimeout(() => {
-      target.style.cursor = 'grab';
-      zoomCursorTimerRef.current = null;
-    }, 350);
-    const pointerX = clamp((event.clientX - rect.left) / rect.width, 0, 1);
-    const pointerY = clamp((event.clientY - rect.top) / rect.height, 0, 1);
-    const current = adjustments[index] ?? (template ? initialAdjustment(template, index) : { x: 0.5, y: 0.5, scale: 1 });
-    const scale = clamp(current.scale * Math.exp(-event.deltaY * 0.0015), 1, 3);
-    const factor = scale / current.scale;
-    setAdjustments((all) =>
-      all.map((adjustment, currentIndex) =>
-        currentIndex === index
-          ? {
-              ...adjustment,
-              scale,
-              offsetX: clamp(pointerX - factor * (pointerX - (current.offsetX ?? 0)), 1 - scale, 0),
-              offsetY: clamp(pointerY - factor * (pointerY - (current.offsetY ?? 0)), 1 - scale, 0),
-            }
-          : adjustment,
-      ),
-    );
-  };
-
-  const startPhotoDrag = (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
-    const index = displayTemplate?.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber) ?? -1;
-    const placement = displayTemplate?.photoSlots[index];
-    if (index < 0 || !placement || !slots[index] || !template) return;
-    const rect = event.currentTarget.getBoundingClientRect();
-    const image = event.currentTarget.querySelector('img');
-    const coverScale = image?.naturalWidth && image.naturalHeight
-      ? Math.max(rect.width / image.naturalWidth, rect.height / image.naturalHeight)
-      : 1;
-    const overflowX = (placement.objectFit ?? 'cover') === 'cover' && image?.naturalWidth
-      ? Math.max(0, image.naturalWidth * coverScale - rect.width)
-      : 0;
-    const overflowY = (placement.objectFit ?? 'cover') === 'cover' && image?.naturalHeight
-      ? Math.max(0, image.naturalHeight * coverScale - rect.height)
-      : 0;
-    event.preventDefault();
-    event.stopPropagation();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    setPickSlot(index);
-    setPanelOpen(false);
-    dragRef.current = {
-      index,
-      startX: event.clientX,
-      startY: event.clientY,
-      width: Math.max(1, rect.width),
-      height: Math.max(1, rect.height),
-      overflowX,
-      overflowY,
-      adjustment: adjustments[index] ?? initialAdjustment(template, index),
-      moved: false,
-    };
-  };
-
-  const movePhotoDrag = (slotNumber: number, event: PointerEvent<HTMLButtonElement>) => {
-    const drag = dragRef.current;
-    if (!drag || displayTemplate?.photoSlots[drag.index]?.slotNumber !== slotNumber) return;
-    const deltaX = event.clientX - drag.startX;
-    const deltaY = event.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(deltaX, deltaY) < 4) return;
-    drag.moved = true;
-    skipSlotClickRef.current = true;
-    hidePhotoGestureGuide();
-    setAdjustments((current) =>
-      current.map((adjustment, index) =>
-        index === drag.index
-          ? drag.adjustment.scale <= 1.001
-            ? {
-                ...adjustment,
-                x: drag.overflowX > 0 ? clamp(drag.adjustment.x - deltaX / drag.overflowX, 0, 1) : drag.adjustment.x,
-                y: drag.overflowY > 0 ? clamp(drag.adjustment.y - deltaY / drag.overflowY, 0, 1) : drag.adjustment.y,
-              }
-            : {
-                ...adjustment,
-                offsetX: clamp((drag.adjustment.offsetX ?? 0) + deltaX / drag.width, 1 - drag.adjustment.scale, 0),
-                offsetY: clamp((drag.adjustment.offsetY ?? 0) + deltaY / drag.height, 1 - drag.adjustment.scale, 0),
-              }
-          : adjustment,
-      ),
-    );
-  };
-
-  const finishPhotoDrag = (slotNumber: number) => {
-    const drag = dragRef.current;
-    if (!drag || displayTemplate?.photoSlots[drag.index]?.slotNumber !== slotNumber) return;
-    if (drag.moved) window.setTimeout(() => { skipSlotClickRef.current = false; }, 250);
-    dragRef.current = null;
   };
 
   const saveSlots = async (): Promise<boolean> => {
@@ -790,10 +691,11 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       <div className="flex min-h-0 flex-1">
         <div
           ref={areaRef}
-          className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 pb-20 lg:p-6 lg:pb-6"
+          className="relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden p-4 pb-20 lg:p-6 lg:pb-6"
           onClick={(event) => {
-            if (event.target === event.currentTarget) clearCanvasSelection();
+            if (event.target === event.currentTarget && !wasDrag()) clearCanvasSelection();
           }}
+          {...surfaceHandlers}
         >
           <div
             ref={frameRef}
@@ -812,10 +714,6 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 if (i >= 0) onPickSlot(i);
               }}
               onCanvasBackgroundClick={clearCanvasSelection}
-              onSlotPointerDown={startPhotoDrag}
-              onSlotPointerMove={movePhotoDrag}
-              onSlotPointerUp={finishPhotoDrag}
-              onSlotWheel={zoomPhotoAtPointer}
               activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
               activeGuideClassName="outline-pbx-brand"
               showGuides
