@@ -43,8 +43,8 @@ const setHash = (area: AdminArea) => {
 };
 
 const Splash = () => (
-  <div className="flex min-h-screen items-center justify-center bg-[#140b26]">
-    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-gradient-to-br from-[#ff4bb5] to-[#a35ef6] text-2xl font-black text-[#140b26]">
+  <div className="flex min-h-screen items-center justify-center bg-pbx-ui-bg">
+    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-gradient-to-br from-pbx-ui-brand to-pbx-ui-secondary text-2xl font-black text-pbx-ui-bg">
       PB
     </div>
   </div>

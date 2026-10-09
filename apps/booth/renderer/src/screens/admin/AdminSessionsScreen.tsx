@@ -426,7 +426,7 @@ export const AdminSessionsScreen: React.FC = () => {
         href={src}
         target="_blank"
         rel="noreferrer"
-        className="group relative block overflow-hidden rounded-xl border border-white/10 bg-[#2b1a4a]"
+        className="group relative block overflow-hidden rounded-xl border border-white/10 bg-pbx-ui-raised"
       >
         <img
           src={src}
@@ -469,7 +469,7 @@ export const AdminSessionsScreen: React.FC = () => {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-[#241341] p-3 mb-3">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-white/10 bg-pbx-ui-raised p-3 mb-3">
         <div className="flex min-w-[220px] flex-1 items-center gap-2">
           <IconSearch className="h-4 w-4 shrink-0 text-white/40" />
           <input
@@ -496,7 +496,7 @@ export const AdminSessionsScreen: React.FC = () => {
             <select
               value={datePreset}
               onChange={(e) => setDatePreset(e.target.value as DatePreset)}
-              className="rounded-lg border border-white/10 bg-[#1a0b2e] px-2.5 py-1.5 text-sm text-white focus:outline-none"
+              className="rounded-lg border border-white/10 bg-pbx-ui-panel px-2.5 py-1.5 text-sm text-white focus:outline-none"
             >
               <option value="all">All time</option>
               <option value="today">Today</option>
@@ -512,7 +512,7 @@ export const AdminSessionsScreen: React.FC = () => {
                 type="date"
                 value={customFrom}
                 onChange={(e) => setCustomFrom(e.target.value)}
-                className="rounded-lg border border-white/10 bg-[#1a0b2e] px-2 py-1.5 text-sm text-white focus:outline-none [color-scheme:dark]"
+                className="rounded-lg border border-white/10 bg-pbx-ui-panel px-2 py-1.5 text-sm text-white focus:outline-none [color-scheme:dark]"
                 aria-label="From date"
               />
               <span className="text-xs text-white/40">to</span>
@@ -520,7 +520,7 @@ export const AdminSessionsScreen: React.FC = () => {
                 type="date"
                 value={customTo}
                 onChange={(e) => setCustomTo(e.target.value)}
-                className="rounded-lg border border-white/10 bg-[#1a0b2e] px-2 py-1.5 text-sm text-white focus:outline-none [color-scheme:dark]"
+                className="rounded-lg border border-white/10 bg-pbx-ui-panel px-2 py-1.5 text-sm text-white focus:outline-none [color-scheme:dark]"
                 aria-label="To date"
               />
             </div>
@@ -531,7 +531,7 @@ export const AdminSessionsScreen: React.FC = () => {
             <select
               value={uploadFilter}
               onChange={(e) => setUploadFilter(e.target.value as StatusFilter)}
-              className="rounded-lg border border-white/10 bg-[#1a0b2e] px-2.5 py-1.5 text-sm text-white focus:outline-none"
+              className="rounded-lg border border-white/10 bg-pbx-ui-panel px-2.5 py-1.5 text-sm text-white focus:outline-none"
             >
               <option value="all">All</option>
               <option value="uploading">Uploading</option>
@@ -545,7 +545,7 @@ export const AdminSessionsScreen: React.FC = () => {
             <select
               value={printFilter}
               onChange={(e) => setPrintFilter(e.target.value as StatusFilter)}
-              className="rounded-lg border border-white/10 bg-[#1a0b2e] px-2.5 py-1.5 text-sm text-white focus:outline-none"
+              className="rounded-lg border border-white/10 bg-pbx-ui-panel px-2.5 py-1.5 text-sm text-white focus:outline-none"
             >
               <option value="all">All</option>
               <option value="printing">Printing</option>
@@ -560,12 +560,12 @@ export const AdminSessionsScreen: React.FC = () => {
       {loading ? (
         <SkeletonTable rows={7} />
       ) : sessions.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#241341] px-8 py-16 text-center">
+        <div className="rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-16 text-center">
           <p className="text-lg font-semibold text-white">No sessions yet</p>
           <p className="mt-1 text-sm text-white/45">Finished booth rounds will appear here once a session is saved.</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#241341]">
+        <div className="overflow-x-auto rounded-2xl border border-white/10 bg-pbx-ui-raised">
           <table className="w-full min-w-[760px] text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-white/45">
@@ -574,7 +574,7 @@ export const AdminSessionsScreen: React.FC = () => {
                     type="checkbox"
                     checked={allVisibleSelected}
                     onChange={toggleAll}
-                    className="h-4 w-4 accent-[#d9f85a]"
+                    className="h-4 w-4 accent-pbx-ui-hi"
                     aria-label="Select all"
                   />
                 </th>
@@ -602,7 +602,7 @@ export const AdminSessionsScreen: React.FC = () => {
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleOne(session.token)}
-                        className="h-4 w-4 accent-[#d9f85a]"
+                        className="h-4 w-4 accent-pbx-ui-hi"
                         aria-label={`Select ${session.token}`}
                       />
                     </td>
@@ -620,7 +620,7 @@ export const AdminSessionsScreen: React.FC = () => {
                             href={galleryUrl(session.token)}
                             target="_blank"
                             rel="noreferrer"
-                            className="ml-2 text-[#a35ef6] hover:text-[#b87dff]"
+                            className="ml-2 text-pbx-ui-secondary hover:text-pbx-ui-secondary"
                           >
                             view gallery
                           </a>
@@ -685,13 +685,13 @@ export const AdminSessionsScreen: React.FC = () => {
         <div
           className="fixed inset-0 z-[200] flex flex-col"
           style={{
-            background: 'rgba(10,5,25,0.96)',
+            background: 'rgb(var(--pbx-ui-bg-rgb)/0.96)',
             animation: 'pb-modal-fade 0.25s ease-out both',
           }}
           onMouseDown={() => setResultsToken(null)}
         >
           <header
-            className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-[#1a0b2e]/80 px-5 py-4 backdrop-blur"
+            className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-pbx-ui-panel/80 px-5 py-4 backdrop-blur"
             onMouseDown={(e) => e.stopPropagation()}
           >
             <div className="flex min-w-0 items-center gap-4">
@@ -720,7 +720,7 @@ export const AdminSessionsScreen: React.FC = () => {
                   href={galleryUrl(resultsSession.token)}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-[#d9f85a] transition hover:bg-white/10"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-pbx-ui-hi transition hover:bg-white/10"
                   onMouseDown={(e) => e.stopPropagation()}
                 >
                   <IconQr className="h-3.5 w-3.5" />
@@ -729,7 +729,7 @@ export const AdminSessionsScreen: React.FC = () => {
               )}
               <button
                 onClick={() => setResultsToken(null)}
-                className="grid h-9 w-9 place-items-center rounded-full bg-[#ff4bb5] text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95"
+                className="grid h-9 w-9 place-items-center rounded-full bg-pbx-ui-brand text-pbx-ui-brand-fg shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95"
                 aria-label="Close"
               >
                 &#10005;
@@ -746,7 +746,7 @@ export const AdminSessionsScreen: React.FC = () => {
                 <div className="space-y-8 lg:col-span-1">
                   <div>
                     <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
-                      <IconImage className="h-4 w-4 text-[#ff4bb5]" />
+                      <IconImage className="h-4 w-4 text-pbx-ui-brand" />
                       Framed photo
                     </h4>
                     <ResultLink
@@ -759,7 +759,7 @@ export const AdminSessionsScreen: React.FC = () => {
 
                   <div>
                     <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
-                      <IconGif className="h-4 w-4 text-[#a35ef6]" />
+                      <IconGif className="h-4 w-4 text-pbx-ui-secondary" />
                       Framed live photo
                     </h4>
                     <ResultLink
@@ -772,7 +772,7 @@ export const AdminSessionsScreen: React.FC = () => {
 
                   <div>
                     <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
-                      <IconGif className="h-4 w-4 text-[#ff4bb5]" />
+                      <IconGif className="h-4 w-4 text-pbx-ui-brand" />
                       Animated GIF
                     </h4>
                     <ResultLink
@@ -786,11 +786,11 @@ export const AdminSessionsScreen: React.FC = () => {
 
                 <div className="lg:col-span-2">
                   <h4 className="mb-3 flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-white/60">
-                    <IconImage className="h-4 w-4 text-[#d9f85a]" />
+                    <IconImage className="h-4 w-4 text-pbx-ui-hi" />
                     Photos ({photoFiles.length})
                   </h4>
                   {photoFiles.length === 0 ? (
-                    <p className="rounded-xl border border-white/10 bg-[#241341] px-4 py-8 text-center text-sm text-white/40">
+                    <p className="rounded-xl border border-white/10 bg-pbx-ui-raised px-4 py-8 text-center text-sm text-white/40">
                       No individual photos recorded.
                     </p>
                   ) : (
@@ -821,15 +821,15 @@ export const AdminSessionsScreen: React.FC = () => {
       {/* Enlarged QR — view and download */}
       {resultsQrFull && (
         <div
-          className="fixed inset-0 z-[210] flex items-center justify-center bg-[#1a0b2e]/95 p-4"
+          className="fixed inset-0 z-[210] flex items-center justify-center bg-pbx-ui-panel/95 p-4"
           style={{ animation: 'pb-modal-fade 0.25s ease-out both' }}
           onClick={() => setResultsQrFull(false)}
         >
           <div
-            className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[18px] border-[4px] border-[#ff4bb5] bg-white p-6"
+            className="flex w-full max-w-sm flex-col items-center gap-4 rounded-[18px] border-[4px] border-pbx-ui-brand bg-white p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-center text-[0.9rem] font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+            <h2 className="text-center text-[0.9rem] font-black uppercase tracking-[0.14em] text-pbx-ink">
               Scan untuk unduh
             </h2>
             {fullQr ? (
@@ -840,7 +840,7 @@ export const AdminSessionsScreen: React.FC = () => {
               </div>
             )}
             {resultsSession && galleryUrl(resultsSession.token) && (
-              <p className="max-w-full break-all text-center text-[0.6rem] font-bold text-[#4d2d85]">
+              <p className="max-w-full break-all text-center text-[0.6rem] font-bold text-pbx-ink">
                 {galleryUrl(resultsSession.token)}
               </p>
             )}
@@ -848,13 +848,13 @@ export const AdminSessionsScreen: React.FC = () => {
               <button
                 onClick={() => fullQr && downloadDataUrl(fullQr, 'gallery-qr.png')}
                 disabled={!fullQr}
-                className="rounded-full bg-[#ff4bb5] px-5 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
+                className="rounded-full bg-pbx-ui-brand px-5 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-pbx-ui-brand-fg shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
               >
                 Download QR
               </button>
               <button
                 onClick={() => setResultsQrFull(false)}
-                className="rounded-full bg-[#4d2d85] px-5 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
+                className="rounded-full bg-pbx-ink px-5 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-white shadow-[0_3px_0_rgba(0,0,0,0.15)]"
               >
                 Tutup
               </button>

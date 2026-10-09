@@ -9,7 +9,7 @@ export const SkeletonText: React.FC<{ className?: string }> = ({ className }) =>
 );
 
 export const SkeletonCard: React.FC = () => (
-  <div className="overflow-hidden rounded-xl border border-white/10 bg-[#241341] shadow-lg">
+  <div className="overflow-hidden rounded-xl border border-white/10 bg-pbx-ui-raised shadow-lg">
     <Skeleton className="aspect-[4/5] w-full rounded-none" />
     <div className="space-y-2 p-3">
       <SkeletonText className="w-3/4" />
@@ -21,7 +21,7 @@ export const SkeletonCard: React.FC = () => (
 export const SkeletonTable: React.FC<{ rows?: number }> = ({ rows = 6 }) => (
   <div className="space-y-2.5">
     {Array.from({ length: rows }).map((_, index) => (
-      <div key={index} className="flex items-center gap-4 rounded-lg bg-[#241341] px-4 py-4">
+      <div key={index} className="flex items-center gap-4 rounded-lg bg-pbx-ui-raised px-4 py-4">
         <Skeleton className="h-4 w-4 rounded-sm shrink-0" />
         <SkeletonText className="w-1/4" />
         <SkeletonText className="w-24" />

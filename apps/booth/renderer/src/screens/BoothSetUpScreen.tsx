@@ -26,18 +26,18 @@ export const BoothSetUpScreen: React.FC = () => {
 
   return (
     <div className="relative flex min-h-[calc(100dvh-3rem)] select-none flex-col items-center justify-center">
-      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-[#ff4bb5] bg-[#ff4bb5] p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)]">
+      <div className="w-full max-w-[1200px] rounded-[18px] border-[4px] border-pbx-brand bg-pbx-brand p-4 shadow-[0_0_0_6px_rgba(255,255,255,0.08)]">
         <div className="rounded-[14px] bg-white p-4 md:p-6">
           <div className="mb-5 flex items-center justify-between gap-4">
             <div>
-              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em] text-[#a35ef6]">
+              <div className="text-[0.7rem] font-black uppercase tracking-[0.24em] text-pbx-secondary">
                 Admin
               </div>
-              <h1 className="text-2xl font-black uppercase tracking-[-0.04em] text-[#4d2d85]">
+              <h1 className="text-2xl font-black uppercase tracking-[-0.04em] text-pbx-ink">
                 Booth Setup
               </h1>
             </div>
-            <div className="hidden max-w-[240px] text-right text-xs font-semibold text-[#4d2d85]/70 sm:block">
+            <div className="hidden max-w-[240px] text-right text-xs font-semibold text-pbx-ink/70 sm:block">
               {TAB_DESCRIPTIONS[tab]}
             </div>
           </div>
@@ -52,8 +52,8 @@ export const BoothSetUpScreen: React.FC = () => {
                   onClick={() => setTab(item.id)}
                   className={`flex shrink-0 items-center gap-2 rounded-[12px] border-[3px] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] lg:justify-start lg:gap-3 ${
                     tab === item.id
-                      ? 'border-[#4acaf1] bg-[#e3f6ff] text-[#1b6c8f]'
-                      : 'border-[#a35ef6] bg-[#fbf3ff] text-[#4d2d85] hover:border-[#4acaf1]'
+                      ? 'border-pbx-accent bg-pbx-accent-tint text-pbx-accent-strong'
+                      : 'border-pbx-secondary bg-pbx-paper text-pbx-ink hover:border-pbx-accent'
                   }`}
                 >
                   <span className="text-base">{item.icon}</span>
@@ -62,7 +62,7 @@ export const BoothSetUpScreen: React.FC = () => {
               ))}
             </nav>
 
-            <section className="min-w-0 rounded-[14px] border-[3px] border-[#efe8ff] bg-[#fdfbff] p-4 md:p-5">
+            <section className="min-w-0 rounded-[14px] border-[3px] border-pbx-tint bg-pbx-paper p-4 md:p-5">
               {tab === 'camera' && <CameraSetupPanel />}
               {tab === 'printer' && <PrinterSetupPanel />}
               {tab === 'flow' && <FlowSetupPanel />}
@@ -77,7 +77,7 @@ export const BoothSetUpScreen: React.FC = () => {
                 event.preventDefault();
                 navigateToBooth();
               }}
-              className="inline-block rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-6 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]"
+              className="inline-block rounded-[10px] border-[3px] border-pbx-secondary bg-pbx-tertiary px-6 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg"
             >
               Back to Booth
             </a>

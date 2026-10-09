@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { BoothAppearance, DEFAULT_BOOTH_APPEARANCE } from '@photo-booth/types';
+import { BoothAppearance, DEFAULT_BOOTH_APPEARANCE, themeTokenCssVars } from '@photo-booth/types';
 import {
   cacheAppearance,
   getBoothAppearance,
@@ -27,6 +27,10 @@ export const applyAppearanceToDocument = (appearance: BoothAppearance): void => 
   const root = document.documentElement;
   for (const [key, value] of Object.entries(appearance.theme)) {
     root.style.setProperty(cssVarName(key), value);
+  }
+  // Admin, set-up, organize: contrast-checked tokens derived from the theme.
+  for (const [name, value] of Object.entries(themeTokenCssVars(appearance.theme))) {
+    root.style.setProperty(name, value);
   }
 };
 

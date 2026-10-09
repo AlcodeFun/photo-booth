@@ -18,7 +18,7 @@ const chipClass = (active: boolean) =>
   `h-10 rounded-[10px] border-[3px] px-4 text-xs font-black uppercase tracking-[0.12em] transition-all ${
     active
       ? 'border-[#22c55e] bg-[#22c55e] text-white'
-      : 'border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]'
+      : 'border-pbx-line bg-white text-pbx-secondary-strong hover:bg-pbx-tint'
   }`;
 
 export const QrSlotsPanel = ({
@@ -31,9 +31,9 @@ export const QrSlotsPanel = ({
   onDeleteQrSlot,
   onUpdateActiveQrSlot,
 }: QrSlotsPanelProps) => (
-  <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+  <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
     <div className="mb-3 flex flex-wrap items-center gap-2">
-      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">QR Placeholders</h2>
+      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">QR Placeholders</h2>
       <span className="rounded-[8px] border-2 border-[#22c55e] bg-[#e7ffe7] px-2 py-0.5 text-xs font-black text-[#15803d]">
         {qrSlots.length}
       </span>
@@ -56,21 +56,21 @@ export const QrSlotsPanel = ({
       <button
         type="button"
         onClick={onAddQrSlot}
-        className="h-10 rounded-[10px] border-[3px] border-[#16a34a] bg-[#d9f85a] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition-all hover:-translate-y-0.5 hover:bg-[#e9ff9e] active:translate-y-0"
+        className="h-10 rounded-[10px] border-[3px] border-[#16a34a] bg-pbx-tertiary px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg transition-all hover:-translate-y-0.5 hover:bg-pbx-tertiary-soft active:translate-y-0"
       >
         + Add QR
       </button>
       <button
         type="button"
         onClick={onDuplicateQrSlot}
-        className="h-10 rounded-[10px] border-[3px] border-[#c9b8ff] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition-colors hover:bg-[#efe8ff]"
+        className="h-10 rounded-[10px] border-[3px] border-pbx-line bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-secondary-strong transition-colors hover:bg-pbx-tint"
       >
         Duplicate
       </button>
       <button
         type="button"
         onClick={onDeleteQrSlot}
-        className="h-10 rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#b3206e] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-10 rounded-[10px] border-[3px] border-pbx-brand-soft bg-pbx-brand-tint px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-brand-strong transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
       >
         Delete
       </button>

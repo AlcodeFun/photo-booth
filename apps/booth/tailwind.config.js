@@ -1,3 +1,18 @@
+/**
+ * Derived tool tokens (see packages/types/src/themeTokens.ts). Set on :root as
+ * `--pbx-<name>-rgb` channels at runtime, so `bg-pbx-ui-hi/60` keeps working.
+ */
+const PBX_TOKENS = [
+  'ui-bg', 'ui-panel', 'ui-raised', 'ui-raised-2', 'ui-hi', 'ui-hi-strong', 'ui-hi-fg',
+  'ui-brand', 'ui-brand-fg', 'ui-secondary', 'ui-accent',
+  'paper', 'tint', 'line', 'ink', 'ink-muted',
+  'brand', 'brand-fg', 'brand-soft', 'brand-tint', 'brand-strong',
+  'secondary', 'secondary-fg', 'secondary-strong',
+  'tertiary', 'tertiary-fg', 'tertiary-strong', 'tertiary-soft',
+  'accent', 'accent-fg', 'accent-strong', 'accent-tint',
+  'action', 'action-fg',
+];
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
@@ -23,9 +38,12 @@ module.exports = {
         /**
          * Customer-facing booth palette, driven by the admin appearance editor.
          * Values are set on :root as `--pb-*` at runtime by appearanceStore, so
-         * the booth can be reskinned without a rebuild. Scoped separately from
-         * the admin dashboard, which keeps its own fixed colors.
+         * the booth can be reskinned without a rebuild. The admin/tools use the
+         * derived `pbx` tokens below instead.
          */
+        pbx: Object.fromEntries(
+          PBX_TOKENS.map((name) => [name, `rgb(var(--pbx-${name}-rgb) / <alpha-value>)`])
+        ),
         pb: {
           primary: 'var(--pb-primary)',
           'primary-foreground': 'var(--pb-primary-foreground)',

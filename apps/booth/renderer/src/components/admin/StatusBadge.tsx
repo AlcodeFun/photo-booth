@@ -2,10 +2,10 @@ import React from 'react';
 import { SessionPrintStatus, SessionUploadStatus } from '../../lib/sessions';
 import { IconCheck, IconPrinter, IconRefresh, IconUpload } from './AdminIcons';
 
-const LIME = 'border-[#d9f85a]/30 bg-[#d9f85a]/10 text-[#d9f85a]';
+const LIME = 'border-pbx-ui-hi/30 bg-pbx-ui-hi/10 text-pbx-ui-hi';
 const ROSE = 'border-[#ff5e87]/30 bg-[#ff5e87]/10 text-[#ff8aa8]';
 const AMBER = 'border-amber-400/30 bg-amber-400/10 text-amber-300';
-const VIOLET = 'border-[#a35ef6]/40 bg-[#a35ef6]/10 text-[#d9b8ff]';
+const VIOLET = 'border-pbx-ui-secondary/40 bg-pbx-ui-secondary/10 text-pbx-line';
 
 export const UploadBadge: React.FC<{ status: SessionUploadStatus }> = ({ status }) => {
   if (status === 'success') {

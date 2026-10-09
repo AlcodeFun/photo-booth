@@ -83,11 +83,11 @@ const actionButtonClass = (extra: string) =>
   `h-9 rounded-[10px] border-[3px] px-3.5 text-xs font-black uppercase tracking-[0.12em] transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:cursor-not-allowed disabled:opacity-40 ${extra}`;
 
 const floatingButtonClass =
-  'grid h-10 w-10 place-items-center rounded-full bg-white/90 backdrop-blur border-2 border-[#c9b8ff] text-[#5b3aa8] shadow-md transition hover:bg-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40';
+  'grid h-10 w-10 place-items-center rounded-full bg-white/90 backdrop-blur border-2 border-pbx-line text-pbx-secondary-strong shadow-md transition hover:bg-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-40';
 
 const dockButtonClass = (active: boolean) =>
   `flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1 text-[0.6rem] font-black uppercase tracking-[0.08em] transition-colors ${
-    active ? 'bg-[#e9d7ff] text-[#4d2d85]' : 'text-[#7a4de3] hover:bg-[#f3ecff]'
+    active ? 'bg-pbx-line text-pbx-ink' : 'text-pbx-secondary-strong hover:bg-pbx-tint'
   }`;
 
 const IconUndo: React.FC<{ className?: string }> = ({ className }) => (
@@ -357,7 +357,7 @@ export const FrameCanvasEditor = ({
     return createPortal(
       <div className="fixed z-[200]" style={{ left: leftPx, top: flipBelow ? topPx : topPx + extraMenuH }}>
         <div
-          className={`flex gap-1 rounded-full border border-[#c9b8ff] bg-white/95 p-1 shadow-lg ${
+          className={`flex gap-1 rounded-full border border-pbx-line bg-white/95 p-1 shadow-lg ${
             flipBelow ? 'translate-y-0' : 'translate-y-[-110%]'
           }`}
         >
@@ -384,14 +384,14 @@ export const FrameCanvasEditor = ({
                   event.stopPropagation();
                   setSourceMenuFor((current) => (current === area.slotNumber ? null : area.slotNumber));
                 }}
-                className="grid h-8 w-8 place-items-center rounded-full border-2 border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] transition hover:bg-[#e9ff9e]"
+                className="grid h-8 w-8 place-items-center rounded-full border-2 border-pbx-secondary bg-pbx-tertiary text-pbx-tertiary-fg transition hover:bg-pbx-tertiary-soft"
               >
                 <IconPhoto className="h-4 w-4" />
               </button>
 
               {menuOpen && (
-                <div className="absolute bottom-11 right-0 z-[210] w-36 overflow-hidden rounded-[10px] border-2 border-[#c9b8ff] bg-white shadow-lg">
-                  <p className="border-b border-[#efe8ff] bg-[#fbf3ff] px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#7a4de3]">
+                <div className="absolute bottom-11 right-0 z-[210] w-36 overflow-hidden rounded-[10px] border-2 border-pbx-line bg-white shadow-lg">
+                  <p className="border-b border-pbx-tint bg-pbx-paper px-3 py-1.5 text-[0.65rem] font-black uppercase tracking-[0.16em] text-pbx-secondary-strong">
                     Source Photo
                   </p>
                   {Array.from({ length: photoSlotCount }, (_, index) => index + 1).map((source) => (
@@ -405,8 +405,8 @@ export const FrameCanvasEditor = ({
                       }}
                       className={`block w-full px-3 py-1.5 text-left text-xs font-bold ${
                         source === sourcePhotoSlot
-                          ? 'bg-[#d9f85a] text-[#4d2d85]'
-                          : 'text-[#4d2d85] hover:bg-[#efe8ff]'
+                          ? 'bg-pbx-tertiary text-pbx-tertiary-fg'
+                          : 'text-pbx-ink hover:bg-pbx-tint'
                       }`}
                     >
                       Photo {source}
@@ -419,7 +419,7 @@ export const FrameCanvasEditor = ({
                         event.stopPropagation();
                         onAddSourcePhoto();
                       }}
-                      className="block w-full border-t border-[#efe8ff] bg-[#fbf3ff] px-3 py-1.5 text-left text-xs font-black uppercase tracking-[0.08em] text-[#7a4de3] hover:bg-[#efe8ff]"
+                      className="block w-full border-t border-pbx-tint bg-pbx-paper px-3 py-1.5 text-left text-xs font-black uppercase tracking-[0.08em] text-pbx-secondary-strong hover:bg-pbx-tint"
                     >
                       + Add source
                     </button>
@@ -435,7 +435,7 @@ export const FrameCanvasEditor = ({
                 event.stopPropagation();
                 onDuplicateArea();
               }}
-              className="grid h-8 w-8 place-items-center rounded-full border-2 border-[#8f6fee] bg-[#efe8ff] text-[#4d2d85] transition hover:bg-white"
+              className="grid h-8 w-8 place-items-center rounded-full border-2 border-pbx-secondary bg-pbx-tint text-pbx-ink transition hover:bg-white"
             >
               <IconCopy className="h-4 w-4" />
             </button>
@@ -447,7 +447,7 @@ export const FrameCanvasEditor = ({
                 event.stopPropagation();
                 onDeleteArea();
               }}
-              className="grid h-8 w-8 place-items-center rounded-full border-2 border-[#ff9ecb] bg-[#ffe0ef] text-[#b3206e] transition hover:bg-white"
+              className="grid h-8 w-8 place-items-center rounded-full border-2 border-pbx-brand-soft bg-pbx-brand-tint text-pbx-brand-strong transition hover:bg-white"
             >
               <IconTrash className="h-4 w-4" />
             </button>
@@ -482,7 +482,7 @@ export const FrameCanvasEditor = ({
               event.stopPropagation();
               onDeleteQrSlot();
             }}
-            className="grid h-8 w-8 place-items-center rounded-full border-2 border-[#ff9ecb] bg-[#ffe0ef] text-[#b3206e] transition hover:bg-white"
+            className="grid h-8 w-8 place-items-center rounded-full border-2 border-pbx-brand-soft bg-pbx-brand-tint text-pbx-brand-strong transition hover:bg-white"
           >
             <IconTrash className="h-4 w-4" />
           </button>
@@ -498,8 +498,8 @@ export const FrameCanvasEditor = ({
         title="Draw mode: drag the canvas to create a photo area"
         className={actionButtonClass(
           drawMode
-            ? 'border-[#ff4bb5] bg-[#ff4bb5] text-white hover:bg-[#ff6cc0]'
-            : 'border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]',
+            ? 'border-pbx-ui-brand bg-pbx-ui-brand text-pbx-ui-brand-fg hover:bg-pbx-ui-brand'
+            : 'border-pbx-line bg-white text-pbx-secondary-strong hover:bg-pbx-tint',
         )}
       >
         {drawMode ? '✕ Exit Draw' : '✚ Draw'}
@@ -508,7 +508,7 @@ export const FrameCanvasEditor = ({
         type="button"
         onClick={onAddArea}
         title="Add a new photo area"
-        className={actionButtonClass('border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] hover:bg-[#e9ff9e]')}
+        className={actionButtonClass('border-pbx-secondary bg-pbx-tertiary text-pbx-tertiary-fg hover:bg-pbx-tertiary-soft')}
       >
         + Add Area
       </button>
@@ -524,7 +524,7 @@ export const FrameCanvasEditor = ({
   );
 
   return (
-    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#fbf3ff]">
+    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-pbx-paper">
       <div className={`flex min-h-0 flex-1 transition-opacity ${mobilePanelOpen ? 'opacity-60' : ''}`}>
         {/* Canvas area — fills the full width */}
         <div
@@ -559,7 +559,7 @@ export const FrameCanvasEditor = ({
 
           <div
             ref={canvasRef}
-            className="relative touch-none bg-white shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
+            className="relative touch-none bg-white shadow-[0_20px_50px_rgb(var(--pbx-ink-rgb)/0.35)]"
             style={{
               width: canvasSize ? `${canvasSize.width}px` : undefined,
               height: canvasSize ? `${canvasSize.height}px` : undefined,
@@ -572,7 +572,7 @@ export const FrameCanvasEditor = ({
                 photos={photos}
                 photoSlotCount={photoSlotCount}
                 template={template}
-                className="absolute inset-0 h-full w-full !border-0 !text-[#4d2d85]"
+                className="absolute inset-0 h-full w-full !border-0 !text-pbx-ink"
               />
             </div>
 
@@ -603,10 +603,10 @@ export const FrameCanvasEditor = ({
                       onPointerLeave={(event) => onAreaPointerLeave(event, area)}
                       className={`absolute flex items-start justify-start border-2 p-1 text-[10px] font-black text-white shadow-[0_0_0_1px_rgba(0,0,0,0.5)] transition-colors ${
                         isActive
-                          ? 'border-[#ff4bb5] bg-[#ff4bb5]/20'
+                          ? 'border-pbx-ui-brand bg-pbx-ui-brand/20'
                           : isSelected
-                            ? 'border-[#4acaf1] bg-[#4acaf1]/15 hover:border-[#4acaf1]'
-                            : 'border-white/80 bg-black/10 hover:border-[#4acaf1]'
+                            ? 'border-pbx-ui-accent bg-pbx-ui-accent/15 hover:border-pbx-ui-accent'
+                            : 'border-white/80 bg-black/10 hover:border-pbx-ui-accent'
                       }`}
                       style={getAreaStyle(area, template)}
                     >
@@ -623,7 +623,7 @@ export const FrameCanvasEditor = ({
                             onPointerMove={(event) => onResizePointerMove(event, area)}
                             onPointerUp={(event) => onResizePointerUp(event, area)}
                             onPointerLeave={(event) => onResizePointerLeave(event, area)}
-                            className={`absolute h-3 w-3 rounded-sm border border-white bg-[#a35ef6] shadow-md ${className} ${cursor}`}
+                            className={`absolute h-3 w-3 rounded-sm border border-white bg-pbx-ui-secondary shadow-md ${className} ${cursor}`}
                           />
                         ))}
                     </button>
@@ -672,7 +672,7 @@ export const FrameCanvasEditor = ({
 
               {drawingRectangle && (
                 <div
-                  className="absolute border-2 border-[#4acaf1] bg-[#4acaf1]/15"
+                  className="absolute border-2 border-pbx-ui-accent bg-pbx-ui-accent/15"
                   style={getAreaStyle(
                     {
                       slotNumber: 0,
@@ -688,7 +688,7 @@ export const FrameCanvasEditor = ({
 
               {selectionRectangle && (
                 <div
-                  className="absolute border-2 border-dashed border-[#ff4bb5] bg-[#ff4bb5]/10"
+                  className="absolute border-2 border-dashed border-pbx-ui-brand bg-pbx-ui-brand/10"
                   style={getAreaStyle(
                     {
                       slotNumber: 0,
@@ -710,7 +710,7 @@ export const FrameCanvasEditor = ({
               type="button"
               onClick={() => setSidebarOpen(true)}
               title="Show panels"
-              className="absolute right-3 top-1/2 z-[85] hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border-2 border-[#8f6fee] bg-white/95 text-[#4d2d85] shadow-lg transition hover:bg-white lg:grid"
+              className="absolute right-3 top-1/2 z-[85] hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border-2 border-pbx-secondary bg-white/95 text-pbx-ink shadow-lg transition hover:bg-white lg:grid"
             >
               <IconPanel className="h-5 w-5" />
             </button>
@@ -719,21 +719,21 @@ export const FrameCanvasEditor = ({
 
         {/* Desktop floating panel overlay */}
         <aside
-          className={`pointer-events-auto absolute right-3 top-1/2 z-[90] hidden max-h-[calc(100%-24px)] w-[380px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_16px_48px_rgba(77,45,133,0.35)] transition-all duration-200 lg:flex ${
+          className={`pointer-events-auto absolute right-3 top-1/2 z-[90] hidden max-h-[calc(100%-24px)] w-[380px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-pbx-secondary bg-pbx-paper shadow-[0_16px_48px_rgb(var(--pbx-ink-rgb)/0.35)] transition-all duration-200 lg:flex ${
             sidebarOpen
               ? 'translate-x-0 opacity-100'
               : 'pointer-events-none translate-x-[110%] opacity-0'
           }`}
         >
-          <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+          <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-pbx-line px-4 py-3">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Panels</h2>
+              <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Panels</h2>
             </div>
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
               title="Collapse panels"
-              className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-[#c9b8ff] bg-white text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+              className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-pbx-line bg-white text-pbx-secondary-strong transition hover:bg-pbx-tint"
             >
               <IconChevron className="h-4 w-4 rotate-180" />
             </button>
@@ -746,7 +746,7 @@ export const FrameCanvasEditor = ({
       </div>
 
       {/* Mobile bottom dock */}
-      <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-[#c9b8ff] bg-white/95 backdrop-blur lg:hidden">
+      <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-pbx-line bg-white/95 backdrop-blur lg:hidden">
         <div className="flex h-14 items-stretch gap-1 px-2 py-1">
           <button
             type="button"
@@ -809,18 +809,18 @@ export const FrameCanvasEditor = ({
 
       {/* Mobile bottom sheet */}
       <div
-        className={`absolute inset-x-0 bottom-14 z-[110] flex max-h-[68vh] flex-col overflow-hidden rounded-t-[18px] border-t-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_-12px_40px_rgba(77,45,133,0.25)] transition-transform duration-300 ease-out lg:hidden ${
+        className={`absolute inset-x-0 bottom-14 z-[110] flex max-h-[68vh] flex-col overflow-hidden rounded-t-[18px] border-t-[3px] border-pbx-secondary bg-pbx-paper shadow-[0_-12px_40px_rgb(var(--pbx-ink-rgb)/0.25)] transition-transform duration-300 ease-out lg:hidden ${
           mobilePanelOpen ? 'translate-y-0' : 'pointer-events-none translate-y-[calc(100%+3.5rem)]'
         }`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-2.5">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-pbx-line px-4 py-2.5">
           <div className="flex items-center gap-2">
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Panels</h2>
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Panels</h2>
           </div>
           <button
             type="button"
             onClick={() => setMobilePanelOpen(false)}
-            className="rounded-full border-2 border-[#c9b8ff] bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8]"
+            className="rounded-full border-2 border-pbx-line bg-white px-3 py-1 text-xs font-black uppercase tracking-[0.12em] text-pbx-secondary-strong"
           >
             Close
           </button>

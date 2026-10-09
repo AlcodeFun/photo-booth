@@ -1,3 +1,5 @@
+import { themeTokenCssVars, type BoothTheme } from '@photo-booth/types';
+
 /**
  * Self-contained gallery page served at GET /p/:token.
  * It fetches the session file list from the Worker and renders the framed
@@ -6,7 +8,16 @@
  * then framed outputs on the left and the photo grid on the right, with
  * download-all and per-photo selection. No external CDNs.
  */
-export const renderGallery = (params: { token: string; qr: string | null; createdAt: number | null }): string => {
+export const renderGallery = (params: {
+  token: string;
+  qr: string | null;
+  createdAt: number | null;
+  /** Booth theme (admin Appearance); the page derives its palette from it. */
+  theme: BoothTheme;
+}): string => {
+  const themeVars = Object.entries(themeTokenCssVars(params.theme))
+    .map(([name, value]) => `${name}:${value};`)
+    .join('');
   const tokenJson = JSON.stringify(params.token);
   const createdAtJson = JSON.stringify(params.createdAt);
   const qrJson = JSON.stringify(params.qr);
@@ -18,15 +29,15 @@ export const renderGallery = (params: { token: string; qr: string | null; create
 <meta name="robots" content="noindex"/>
 <title>Hasil Foto Mu</title>
 <style>
-  :root { --pink:#ff4bb5; --purple:#a35ef6; --dark:#1a0b2e; --lime:#d9f85a; --panel:#241341; --card:#2b1a4a; }
+  :root { ${themeVars} --pink:var(--pbx-ui-brand); --pink-fg:var(--pbx-ui-brand-fg); --purple:var(--pbx-ui-secondary); --dark:var(--pbx-ui-panel); --lime:var(--pbx-ui-hi); --panel:var(--pbx-ui-raised); --card:var(--pbx-ui-raised); }
   * { box-sizing:border-box; }
   html, body { margin:0; }
   body {
     min-height:100vh; color:#fff;
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
     background:
-      radial-gradient(1100px 520px at 50% -10%, rgba(163,94,246,.28), transparent 60%),
-      linear-gradient(180deg,#150b2c 0%, #1a0b2e 55%, #2b1055 100%);
+      radial-gradient(1100px 520px at 50% -10%, rgb(var(--pbx-ui-secondary-rgb) / .28), transparent 60%),
+      linear-gradient(180deg,var(--pbx-ui-bg) 0%, var(--pbx-ui-panel) 55%, var(--pbx-ui-raised-2) 100%);
   }
   .wrap { max-width:1152px; margin:0 auto; padding:0 18px 72px; }
 
@@ -65,7 +76,7 @@ export const renderGallery = (params: { token: string; qr: string | null; create
   /* Photos column. */
   .col-main { min-width:0; }
   .ph-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
-  .ph-head h4 { display:flex; align-items:center; gap:7px; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:rgba(217,248,90,.9); margin:0; }
+  .ph-head h4 { display:flex; align-items:center; gap:7px; font-size:.78rem; font-weight:700; text-transform:uppercase; letter-spacing:.12em; color:rgb(var(--pbx-ui-hi-rgb) / .9); margin:0; }
   .ph-head h4 svg { width:16px; height:16px; }
   .ph-head .hint { font-size:.72rem; color:rgba(255,255,255,.5); }
   .pgrid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
@@ -76,7 +87,7 @@ export const renderGallery = (params: { token: string; qr: string | null; create
   .tile:hover img { transform:scale(1.04); }
   .tile.sel { border-color:var(--pink); }
   .tile.sel img { opacity:.85; }
-  .tile .badge { position:absolute; top:8px; left:8px; width:24px; height:24px; border-radius:50%; background:var(--pink); color:#fff; display:none; align-items:center; justify-content:center; font-size:12px; font-weight:900; z-index:2; }
+  .tile .badge { position:absolute; top:8px; left:8px; width:24px; height:24px; border-radius:50%; background:var(--pink); color:var(--pink-fg); display:none; align-items:center; justify-content:center; font-size:12px; font-weight:900; z-index:2; }
   .tile.sel .badge { display:flex; }
   .eye { position:absolute; top:8px; right:8px; width:32px; height:32px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,.35); cursor:pointer; z-index:2; opacity:.85; transition:opacity .15s, transform .15s; }
   .eye:hover { transform:scale(1.1); opacity:1; }
@@ -84,16 +95,16 @@ export const renderGallery = (params: { token: string; qr: string | null; create
 
   .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; align-items:center; }
   .count { font-size:.78rem; font-weight:800; opacity:.9; margin-left:auto; }
-  .btn { display:inline-flex; align-items:center; justify-content:center; background:var(--pink); color:#fff; font-weight:900; padding:10px 20px; border-radius:999px; text-decoration:none; font-size:.86rem; border:none; cursor:pointer; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; background:var(--pink); color:var(--pink-fg); font-weight:900; padding:10px 20px; border-radius:999px; text-decoration:none; font-size:.86rem; border:none; cursor:pointer; }
   .btn.sm { padding:7px 14px; font-size:.76rem; }
   .btn.ghost { background:rgba(255,255,255,.14); }
   .btn:disabled { opacity:.55; cursor:not-allowed; }
   .hidden { display:none !important; }
 
   /* "Outputs still being generated/uploaded" indicator. */
-  .note { margin-top:26px; display:flex; gap:10px; align-items:center; justify-content:center; text-align:center; background:rgba(217,248,90,.12); border:2px solid rgba(217,248,90,.5); border-radius:14px; padding:12px 16px; font-size:.9rem; font-weight:800; color:#eaffc0; }
+  .note { margin-top:26px; display:flex; gap:10px; align-items:center; justify-content:center; text-align:center; background:rgb(var(--pbx-ui-hi-rgb) / .12); border:2px solid rgb(var(--pbx-ui-hi-rgb) / .5); border-radius:14px; padding:12px 16px; font-size:.9rem; font-weight:800; color:var(--lime); }
   .note.err { background:rgba(255,94,135,.12); border-color:rgba(255,94,135,.55); color:#ffd0e8; }
-  .note .spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(217,248,90,.4); border-top-color:#d9f85a; border-radius:50%; animation:spin 1s linear infinite; }
+  .note .spin { display:inline-block; width:14px; height:14px; border:2px solid rgb(var(--pbx-ui-hi-rgb) / .4); border-top-color:var(--lime); border-radius:50%; animation:spin 1s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
 
   .status { text-align:center; padding:70px 0; opacity:.85; }
@@ -102,22 +113,22 @@ export const renderGallery = (params: { token: string; qr: string | null; create
   .pulse { animation: pulse 1.2s ease-in-out infinite; }
 
   /* Fullscreen image viewer — keep the existing tap-to-enlarge modal. */
-  .viewer { position:fixed; inset:0; z-index:50; background:rgba(10,5,25,.96); display:flex; align-items:center; justify-content:center; padding:24px; }
+  .viewer { position:fixed; inset:0; z-index:50; background:rgb(var(--pbx-ui-bg-rgb) / .96); display:flex; align-items:center; justify-content:center; padding:24px; }
   .viewer img { max-width:92vw; max-height:78vh; width:auto; height:auto; border-radius:10px; background:#fff; box-shadow:0 12px 40px rgba(0,0,0,.55); }
   .viewer img.square { border-radius:0; }
-  .viewer-close { position:absolute; top:16px; right:16px; width:46px; height:46px; border-radius:50%; border:none; background:var(--pink); color:#fff; font-size:1.25rem; font-weight:900; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.35); }
+  .viewer-close { position:absolute; top:16px; right:16px; width:46px; height:46px; border-radius:50%; border:none; background:var(--pink); color:var(--pink-fg); font-size:1.25rem; font-weight:900; cursor:pointer; box-shadow:0 3px 10px rgba(0,0,0,.35); }
   .viewer-close:hover { transform:scale(1.08); }
-  .viewer-bar { position:absolute; left:0; right:0; bottom:0; padding:18px 24px 22px; display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(0deg, rgba(10,5,25,.9), transparent); }
+  .viewer-bar { position:absolute; left:0; right:0; bottom:0; padding:18px 24px 22px; display:flex; align-items:center; justify-content:center; gap:14px; background:linear-gradient(0deg, rgb(var(--pbx-ui-bg-rgb) / .9), transparent); }
   .viewer-bar .name { font-size:.82rem; font-weight:700; opacity:.9; max-width:50%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .viewer .btn { margin-top:0; }
 
   /* Enlarged QR modal. */
-  .qrmodal { position:fixed; inset:0; z-index:60; background:rgba(26,11,46,.95); display:none; align-items:center; justify-content:center; padding:20px; }
+  .qrmodal { position:fixed; inset:0; z-index:60; background:rgb(var(--pbx-ui-panel-rgb) / .95); display:none; align-items:center; justify-content:center; padding:20px; }
   .qrmodal.open { display:flex; }
   .qrmodal-box { width:min(360px,92vw); background:#fff; border:4px solid var(--pink); border-radius:18px; padding:22px; display:flex; flex-direction:column; align-items:center; gap:14px; animation:zoom .28s cubic-bezier(.2,.9,.3,1.2) both; }
-  .qrmodal-box h2 { margin:0; font-size:.82rem; font-weight:900; letter-spacing:.14em; text-transform:uppercase; color:#4d2d85; text-align:center; }
+  .qrmodal-box h2 { margin:0; font-size:.82rem; font-weight:900; letter-spacing:.14em; text-transform:uppercase; color:var(--pbx-ink); text-align:center; }
   .qrmodal-box img { width:min(280px,70vw); height:auto; border-radius:12px; }
-  .qrmodal-box p { margin:0; max-width:100%; overflow-wrap:anywhere; font-size:.62rem; font-weight:700; color:#4d2d85; text-align:center; }
+  .qrmodal-box p { margin:0; max-width:100%; overflow-wrap:anywhere; font-size:.62rem; font-weight:700; color:var(--pbx-ink); text-align:center; }
   .qrmodal-box .btn { margin-top:2px; }
   @keyframes zoom { from { transform:scale(.85); opacity:0; } to { transform:scale(1); opacity:1; } }
 

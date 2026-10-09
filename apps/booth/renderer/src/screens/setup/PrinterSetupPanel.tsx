@@ -138,7 +138,7 @@ export const PrinterSetupPanel: React.FC = () => {
 
   const statusBadge = (current: IElectronAPIPrinterStatusResult | null) => {
     if (!current) {
-      return <span className="font-bold text-[#7a4de3]/70">Unknown</span>;
+      return <span className="font-bold text-pbx-secondary-strong/70">Unknown</span>;
     }
     const palette: Record<string, string> = {
       idle: 'bg-emerald-100 text-emerald-700 border-emerald-300',
@@ -160,12 +160,12 @@ export const PrinterSetupPanel: React.FC = () => {
     options: { value: string; label: string }[];
     onChange: (value: string) => void;
   }> = ({ label, value, options, onChange }) => (
-    <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+    <label className="flex flex-col gap-1 text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">
       {label}
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-[8px] border-[3px] border-[#c9b8ff] bg-white px-3 py-2 text-sm font-bold text-[#4d2d85] outline-none focus:border-[#a35ef6]"
+        className="rounded-[8px] border-[3px] border-pbx-line bg-white px-3 py-2 text-sm font-bold text-pbx-ink outline-none focus:border-pbx-secondary"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -178,19 +178,19 @@ export const PrinterSetupPanel: React.FC = () => {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-[12px] border-[3px] border-[#c9b8ff] bg-[#faf7ff] p-4">
+      <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
         <label className="flex cursor-pointer items-center gap-3">
           <input
             type="checkbox"
             checked={printer.enabled}
             onChange={(e) => updatePrinter({ enabled: e.target.checked })}
-            className="h-5 w-5 accent-[#4acaf1]"
+            className="h-5 w-5 accent-pbx-accent"
           />
-          <span className="text-sm font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+          <span className="text-sm font-black uppercase tracking-[0.14em] text-pbx-ink">
             Enable physical printing
           </span>
         </label>
-        <p className="mt-2 text-xs font-semibold leading-relaxed text-[#4d2d85]/75">
+        <p className="mt-2 text-xs font-semibold leading-relaxed text-pbx-ink/75">
           Prints the framed photo through CUPS to the Canon Selphy CP1000 when a queue is detected
           and reachable ({' '}
           <span className="font-black">the booth device runs Ubuntu</span> ). When disabled or when
@@ -199,8 +199,8 @@ export const PrinterSetupPanel: React.FC = () => {
         </p>
 
         {printer.enabled && (
-          <div className="mt-4 border-t-2 border-[#c9b8ff]/60 pt-4">
-            <div className="text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+          <div className="mt-4 border-t-2 border-pbx-line/60 pt-4">
+            <div className="text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">
               Print release mode
             </div>
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -209,12 +209,12 @@ export const PrinterSetupPanel: React.FC = () => {
                 onClick={() => updatePrinter({ printMode: 'manual' })}
                 className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
                   printer.printMode === 'manual'
-                    ? 'border-[#a35ef6] bg-[#f3e9ff]'
-                    : 'border-[#c9b8ff] bg-white hover:border-[#a35ef6]'
+                    ? 'border-pbx-secondary bg-pbx-tint'
+                    : 'border-pbx-line bg-white hover:border-pbx-secondary'
                 }`}
               >
-                <div className="text-sm font-black text-[#4d2d85]">Manual (batch)</div>
-                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-[#4d2d85]/70">
+                <div className="text-sm font-black text-pbx-ink">Manual (batch)</div>
+                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-pbx-ink/70">
                   Sessions queue up; release them from Admin → Print Queue. Minimizes wasted sheets.
                 </div>
               </button>
@@ -223,12 +223,12 @@ export const PrinterSetupPanel: React.FC = () => {
                 onClick={() => updatePrinter({ printMode: 'auto' })}
                 className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
                   printer.printMode === 'auto'
-                    ? 'border-[#4acaf1] bg-[#e3f6ff]'
-                    : 'border-[#c9b8ff] bg-white hover:border-[#4acaf1]'
+                    ? 'border-pbx-accent bg-pbx-accent-tint'
+                    : 'border-pbx-line bg-white hover:border-pbx-accent'
                 }`}
               >
-                <div className="text-sm font-black text-[#4d2d85]">Automatic</div>
-                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-[#4d2d85]/70">
+                <div className="text-sm font-black text-pbx-ink">Automatic</div>
+                <div className="mt-0.5 text-[0.7rem] font-semibold leading-snug text-pbx-ink/70">
                   Prints as soon as the framed photo is ready. The customer waits for the print.
                 </div>
               </button>
@@ -239,16 +239,16 @@ export const PrinterSetupPanel: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div className="space-y-4">
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
                 Detected printers
               </div>
               <button
                 type="button"
                 onClick={() => void scanPrinters()}
                 disabled={busy}
-                className="rounded-[8px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-3 py-1.5 text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#4d2d85] disabled:opacity-50"
+                className="rounded-[8px] border-[3px] border-pbx-secondary bg-pbx-tertiary px-3 py-1.5 text-[0.7rem] font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg disabled:opacity-50"
               >
                 {busy ? 'Scanning…' : 'Refresh'}
               </button>
@@ -259,7 +259,7 @@ export const PrinterSetupPanel: React.FC = () => {
                 {scanError}
               </p>
             ) : printers.length === 0 ? (
-              <p className="text-xs font-bold text-[#4d2d85]/60">
+              <p className="text-xs font-bold text-pbx-ink/60">
                 No CUPS queues found. Install the Selphy (PPD) and run{' '}
                 <span className="font-mono">sudo lpadmin -p SELPHY_CP1000 -E -m selphycp1000.ppd</span>.
               </p>
@@ -270,8 +270,8 @@ export const PrinterSetupPanel: React.FC = () => {
                     key={name}
                     className={`flex cursor-pointer items-center gap-3 rounded-[8px] border-2 px-3 py-2 text-sm font-bold ${
                       printer.queueName === name
-                        ? 'border-[#4acaf1] bg-[#e3f6ff] text-[#1b6c8f]'
-                        : 'border-transparent bg-white text-[#4d2d85]'
+                        ? 'border-pbx-accent bg-pbx-accent-tint text-pbx-accent-strong'
+                        : 'border-transparent bg-white text-pbx-ink'
                     }`}
                   >
                     <input
@@ -279,21 +279,21 @@ export const PrinterSetupPanel: React.FC = () => {
                       name="printer-queue"
                       checked={printer.queueName === name}
                       onChange={() => updatePrinter({ queueName: name })}
-                      className="accent-[#4acaf1]"
+                      className="accent-pbx-accent"
                     />
                     {name}
                   </label>
                 ))}
-                <div className="pt-1 text-xs font-semibold text-[#4d2d85]/60">
+                <div className="pt-1 text-xs font-semibold text-pbx-ink/60">
                   Active CUPS jobs: <span className="font-black">{activeJobs}</span>
                 </div>
               </div>
             )}
           </div>
 
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
             <div className="mb-2 flex items-center justify-between gap-3">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Queue</div>
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Queue</div>
               {printer.queueName && statusBadge(status)}
             </div>
             <input
@@ -301,17 +301,17 @@ export const PrinterSetupPanel: React.FC = () => {
               value={printer.queueName}
               onChange={(e) => updatePrinter({ queueName: e.target.value })}
               placeholder="SELPHY_CP1000"
-              className="w-full rounded-[8px] border-[3px] border-[#c9b8ff] bg-white px-3 py-2 text-sm font-bold text-[#4d2d85] outline-none focus:border-[#a35ef6]"
+              className="w-full rounded-[8px] border-[3px] border-pbx-line bg-white px-3 py-2 text-sm font-bold text-pbx-ink outline-none focus:border-pbx-secondary"
             />
-            <p className="mt-2 text-xs font-semibold text-[#4d2d85]/60">
+            <p className="mt-2 text-xs font-semibold text-pbx-ink/60">
               Pick a queue above or type the queue name manually for other booths.
             </p>
           </div>
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
-            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
               Paper &amp; quality
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -358,15 +358,15 @@ export const PrinterSetupPanel: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
-            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
               Test print
             </div>
             <button
               type="button"
               onClick={() => void handleTestPrint()}
               disabled={busy}
-              className="w-full rounded-[10px] bg-[#ff4bb5] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-white disabled:opacity-50"
+              className="w-full rounded-[10px] bg-pbx-ui-brand px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-ui-brand-fg disabled:opacity-50"
             >
               {busy ? 'Sending…' : 'Send Test Print'}
             </button>

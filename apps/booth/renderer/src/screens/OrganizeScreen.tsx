@@ -575,7 +575,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   if (waiting) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#2b1055] p-6 text-center text-white">
+      <div className="flex min-h-screen items-center justify-center bg-pbx-ui-raised-2 p-6 text-center text-white">
         {waiting === 'error' ? (
           <div className="max-w-sm">
             <p className="text-lg font-black uppercase tracking-widest">
@@ -586,7 +586,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             </p>
             <div className="mt-6 flex flex-col gap-3">
               <button
-                className="rounded-full border-[3px] border-[#a35ef6] bg-[#d9f85a] px-6 py-3 text-sm font-black uppercase tracking-wide text-[#4d2d85]"
+                className="rounded-full border-[3px] border-pbx-secondary bg-pbx-tertiary px-6 py-3 text-sm font-black uppercase tracking-wide text-pbx-tertiary-fg"
                 onClick={() => {
                   waitStartedRef.current = false;
                   setWaiting(null);
@@ -605,7 +605,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           </div>
         ) : (
           <div>
-            <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-[#d9f85a]" />
+            <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-pbx-ui-hi" />
             <p className="text-lg font-black uppercase tracking-widest">
               {waiting === 'done' ? 'Foto Anda siap!' : 'Menyiapkan cetakan…'}
             </p>
@@ -622,7 +622,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   if (phase === 'missing') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#2b1055] p-6 text-center text-white">
+      <div className="flex min-h-screen items-center justify-center bg-pbx-ui-raised-2 p-6 text-center text-white">
         <p className="text-lg font-bold opacity-90">
           {error ?? 'Sesi tidak ditemukan atau mungkin sudah kedaluwarsa.'}
         </p>
@@ -632,7 +632,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   if (phase === 'loading' || !template || !displayTemplate) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#2b1055] text-white">
+      <div className="flex min-h-screen items-center justify-center bg-pbx-ui-raised-2 text-white">
         <p className="animate-pulse text-lg font-black uppercase tracking-widest opacity-80">
           Memuat foto Anda…
         </p>
@@ -647,8 +647,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const sendButtonClass =
     'rounded-full border-[3px] px-6 py-3 text-sm font-black uppercase tracking-wide transition-all ' +
     (sendReady
-      ? 'border-[#a35ef6] bg-[#d9f85a] text-[#4d2d85] shadow-[0_6px_18px_rgba(77,45,133,0.4)] hover:scale-[1.02] active:scale-[0.98]'
-      : 'cursor-not-allowed border-[#c9b8ff] bg-white opacity-50');
+      ? 'border-pbx-secondary bg-pbx-tertiary text-pbx-tertiary-fg shadow-[0_6px_18px_rgb(var(--pbx-ink-rgb)/0.4)] hover:scale-[1.02] active:scale-[0.98]'
+      : 'cursor-not-allowed border-pbx-line bg-white opacity-50');
 
   const photosPanel = (
     <div className="grid gap-4">
@@ -659,19 +659,19 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
               key={item.name}
               type="button"
               onClick={() => assignPhoto(item.name)}
-              className="group min-w-0 overflow-hidden rounded-[12px] border-2 border-[#c9b8ff] bg-white p-1.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#ff4bb5] hover:shadow-md"
+              className="group min-w-0 overflow-hidden rounded-[12px] border-2 border-pbx-line bg-white p-1.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-pbx-brand hover:shadow-md"
             >
-              <span className="block aspect-[4/3] w-full overflow-hidden rounded-md bg-[#efe8ff]">
+              <span className="block aspect-[4/3] w-full overflow-hidden rounded-md bg-pbx-tint">
                 <img src={item.url} alt={`Foto ${i + 1}`} loading="lazy" className="block h-full w-full object-contain" />
               </span>
-              <span className="block truncate px-1 py-2 text-center text-xs font-black text-[#4d2d85]">
+              <span className="block truncate px-1 py-2 text-center text-xs font-black text-pbx-ink">
                 Foto {i + 1}
               </span>
             </button>
           ))}
         </div>
       ) : (
-        <p className="text-sm font-bold text-[#5b3aa8]">Belum ada foto.</p>
+        <p className="text-sm font-bold text-pbx-secondary-strong">Belum ada foto.</p>
       )}
     </div>
   );
@@ -697,24 +697,24 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         : clamp(topAbove, 8, maxTop);
     return createPortal(
       <div className="fixed z-[200] flex flex-col items-center gap-1" style={{ left, top: pillTop }}>
-        <div className="flex items-center gap-1 rounded-full border border-[#c9b8ff] bg-white/95 p-1 shadow-lg">
+        <div className="flex items-center gap-1 rounded-full border border-pbx-line bg-white/95 p-1 shadow-lg">
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
-            className="rounded-full bg-[#d9f85a] px-3 py-2 text-xs font-black text-[#4d2d85]"
+            className="rounded-full bg-pbx-tertiary px-3 py-2 text-xs font-black text-pbx-tertiary-fg"
           >
             Ganti
           </button>
           <button
             type="button"
             onClick={deleteSelectedPhoto}
-            className="rounded-full bg-[#ffe0ef] px-3 py-2 text-xs font-black text-[#b3206e]"
+            className="rounded-full bg-pbx-brand-tint px-3 py-2 text-xs font-black text-pbx-brand-strong"
           >
             Hapus
           </button>
         </div>
         {showPhotoGestureGuide && (
-          <div className="flex items-center gap-3 rounded-full border border-white/80 bg-[#2b1055]/90 px-3 py-1.5 text-[0.65rem] font-black uppercase text-white shadow-lg">
+          <div className="flex items-center gap-3 rounded-full border border-white/80 bg-pbx-ui-raised-2/90 px-3 py-1.5 text-[0.65rem] font-black uppercase text-white shadow-lg">
             <span className="flex items-center gap-1">
               <span className="photo-guide-pan text-base leading-none" aria-hidden="true">↔</span>
               Geser
@@ -732,13 +732,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   })();
 
   return (
-    <section className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#fbf3ff] text-[#4d2d85]">
-      <header className="z-[60] flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] bg-[#fbf3ff] px-4 py-3">
+    <section className="relative flex h-[100dvh] flex-col overflow-hidden bg-pbx-paper text-pbx-ink">
+      <header className="z-[60] flex shrink-0 items-center justify-between gap-2 border-b-2 border-pbx-line bg-pbx-paper px-4 py-3">
         <div className="min-w-0">
-          <h1 className="truncate text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+          <h1 className="truncate text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
             Atur Bingkai
           </h1>
-          <p className="truncate text-xs font-bold text-[#7a4de3]">
+          <p className="truncate text-xs font-bold text-pbx-secondary-strong">
             {pickSlot != null
               ? `Slot ${pickSlot + 1} dipilih`
               : 'Pilih slot bingkai untuk menambahkan foto'}
@@ -749,7 +749,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             className={`rounded-full border-2 px-3 py-1 text-xs font-black ${
               allAssigned
                 ? 'border-[#16a34a] bg-[#e7ffe7] text-[#15803d]'
-                : 'border-[#c9b8ff] bg-white text-[#5b3aa8]'
+                : 'border-pbx-line bg-white text-pbx-secondary-strong'
             }`}
           >
             {filled}/{slotCount}
@@ -759,7 +759,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             onClick={unselectAllSlots}
             disabled={filled === 0}
             title="Batalkan Pilihan"
-            className="hidden rounded-full border-2 border-[#ff9ecb] bg-[#ffe0ef] px-3 py-2 text-xs font-black uppercase text-[#b3206e] disabled:opacity-40 lg:inline-flex"
+            className="hidden rounded-full border-2 border-pbx-brand-soft bg-pbx-brand-tint px-3 py-2 text-xs font-black uppercase text-pbx-brand-strong disabled:opacity-40 lg:inline-flex"
           >
             Batalkan Pilihan
           </button>
@@ -777,8 +777,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 status.kind === 'ok'
                   ? 'text-[#15803d]'
                   : status.kind === 'err'
-                    ? 'text-[#b3206e]'
-                    : 'text-[#7a4de3]'
+                    ? 'text-pbx-brand-strong'
+                    : 'text-pbx-secondary-strong'
               }`}
             >
               {status.text}
@@ -797,7 +797,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         >
           <div
             ref={frameRef}
-            className="relative touch-none bg-white shadow-[0_20px_50px_rgba(77,45,133,0.35)]"
+            className="relative touch-none bg-white shadow-[0_20px_50px_rgb(var(--pbx-ink-rgb)/0.35)]"
             style={{
               width: canvasSize ? `${canvasSize.width}px` : undefined,
               height: canvasSize ? `${canvasSize.height}px` : undefined,
@@ -817,10 +817,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
               onSlotPointerUp={finishPhotoDrag}
               onSlotWheel={zoomPhotoAtPointer}
               activeSlotNumber={pickSlot != null ? displayTemplate.photoSlots[pickSlot]?.slotNumber : undefined}
-              activeGuideClassName="outline-[#ff4bb5]"
+              activeGuideClassName="outline-pbx-brand"
               showGuides
               showGuideDimensions={false}
-              className="h-full w-full !border-0 !text-[#4d2d85]"
+              className="h-full w-full !border-0 !text-pbx-ink"
             />
           </div>
           {!panelOpen && (
@@ -829,7 +829,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
               onClick={() => setPanelOpen(true)}
               title="Semua Foto"
               aria-label="Buka panel semua foto"
-              className="absolute right-4 top-1/2 z-[85] hidden -translate-y-1/2 items-center gap-2 rounded-full border-2 border-[#a35ef6] bg-white/95 px-4 py-3 text-sm font-black uppercase text-[#4d2d85] shadow-lg transition hover:bg-[#efe8ff] lg:flex"
+              className="absolute right-4 top-1/2 z-[85] hidden -translate-y-1/2 items-center gap-2 rounded-full border-2 border-pbx-secondary bg-white/95 px-4 py-3 text-sm font-black uppercase text-pbx-ink shadow-lg transition hover:bg-pbx-tint lg:flex"
             >
               <span aria-hidden="true">▦</span> Semua Foto
             </button>
@@ -839,13 +839,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
       {selectionPill}
 
-      <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-[#c9b8ff] bg-white/95 backdrop-blur lg:hidden">
+      <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-pbx-line bg-white/95 backdrop-blur lg:hidden">
         <div className="mx-auto flex h-14 max-w-3xl items-stretch gap-2 px-3 py-1.5">
           <button
             type="button"
             onClick={() => setPanelOpen(true)}
             title="Semua Foto"
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-[#a35ef6] bg-white text-sm font-black uppercase text-[#4d2d85]"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-pbx-secondary bg-white text-sm font-black uppercase text-pbx-ink"
           >
             <span aria-hidden="true">▦</span> Semua Foto
           </button>
@@ -854,7 +854,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             onClick={unselectAllSlots}
             disabled={filled === 0}
             title="Batalkan Pilihan"
-            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-[#ff9ecb] bg-[#ffe0ef] text-sm font-black uppercase text-[#b3206e] disabled:opacity-40"
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-pbx-brand-soft bg-pbx-brand-tint text-sm font-black uppercase text-pbx-brand-strong disabled:opacity-40"
           >
             <span aria-hidden="true">☐</span> Batalkan Pilihan
           </button>
@@ -874,14 +874,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
       <section
         aria-hidden={!panelOpen}
-        className={`pointer-events-auto fixed right-3 top-1/2 z-[110] hidden max-h-[calc(100dvh-24px)] w-[420px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_16px_48px_rgba(77,45,133,0.35)] transition-all duration-300 ease-in-out lg:flex ${
+        className={`pointer-events-auto fixed right-3 top-1/2 z-[110] hidden max-h-[calc(100dvh-24px)] w-[420px] max-w-[calc(100%-24px)] -translate-y-1/2 flex-col overflow-hidden rounded-[14px] border-[3px] border-pbx-secondary bg-pbx-paper shadow-[0_16px_48px_rgb(var(--pbx-ink-rgb)/0.35)] transition-all duration-300 ease-in-out lg:flex ${
           panelOpen ? 'translate-x-0 opacity-100' : 'pointer-events-none translate-x-[110%] opacity-0'
         }`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-pbx-line px-4 py-3">
           <div>
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Semua Foto</h2>
-            <p className="text-xs font-bold text-[#7a4de3]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Semua Foto</h2>
+            <p className="text-xs font-bold text-pbx-secondary-strong">
               {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
             </p>
           </div>
@@ -890,7 +890,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             onClick={clearCanvasSelection}
             aria-label="Tutup pemilih foto"
             tabIndex={panelOpen ? 0 : -1}
-            className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-[#c9b8ff] bg-white text-lg font-black text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+            className="grid h-9 w-9 place-items-center rounded-[10px] border-[3px] border-pbx-line bg-white text-lg font-black text-pbx-secondary-strong transition hover:bg-pbx-tint"
           >
             ×
           </button>
@@ -900,14 +900,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
       <section
         aria-hidden={!panelOpen}
-        className={`pointer-events-auto fixed inset-x-3 bottom-[4.5rem] z-[110] mx-auto flex max-h-[58vh] max-w-5xl flex-col overflow-hidden rounded-t-[18px] border-[3px] border-[#a35ef6] bg-[#fbf3ff] shadow-[0_-12px_40px_rgba(77,45,133,0.25)] transition-transform duration-300 ease-in-out lg:hidden ${
+        className={`pointer-events-auto fixed inset-x-3 bottom-[4.5rem] z-[110] mx-auto flex max-h-[58vh] max-w-5xl flex-col overflow-hidden rounded-t-[18px] border-[3px] border-pbx-secondary bg-pbx-paper shadow-[0_-12px_40px_rgb(var(--pbx-ink-rgb)/0.25)] transition-transform duration-300 ease-in-out lg:hidden ${
           panelOpen ? 'translate-y-0' : 'pointer-events-none translate-y-[calc(100%+5rem)]'
         }`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-[#e5c9ff] px-4 py-3">
+        <header className="flex shrink-0 items-center justify-between gap-2 border-b-2 border-pbx-line px-4 py-3">
           <div>
-            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Semua Foto</h2>
-            <p className="text-xs font-bold text-[#7a4de3]">
+            <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Semua Foto</h2>
+            <p className="text-xs font-bold text-pbx-secondary-strong">
               {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
             </p>
           </div>
@@ -916,7 +916,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             onClick={clearCanvasSelection}
             aria-label="Tutup pemilih foto"
             tabIndex={panelOpen ? 0 : -1}
-            className="grid h-9 w-9 place-items-center rounded-full border-2 border-[#c9b8ff] bg-white text-lg font-black text-[#5b3aa8]"
+            className="grid h-9 w-9 place-items-center rounded-full border-2 border-pbx-line bg-white text-lg font-black text-pbx-secondary-strong"
           >
             ×
           </button>

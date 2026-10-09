@@ -42,7 +42,7 @@ export const OutputSetupPanel: React.FC = () => {
 
   return (
     <div>
-      <p className="mb-4 text-sm font-semibold text-[#4d2d85]/80">
+      <p className="mb-4 text-sm font-semibold text-pbx-ink/80">
         Choose which results the booth produces and uploads to the gallery. Unchecked outputs are
         skipped — they are neither generated locally nor sent to the hosted gallery.
       </p>
@@ -53,27 +53,27 @@ export const OutputSetupPanel: React.FC = () => {
             <label
               key={option.key}
               className={`flex cursor-pointer items-center gap-4 rounded-[12px] border-[3px] p-4 transition-colors ${
-                enabled ? 'border-[#4acaf1] bg-[#f7f5ff]' : 'border-[#e3d9f5] bg-white'
+                enabled ? 'border-pbx-accent bg-pbx-paper' : 'border-pbx-line bg-white'
               }`}
             >
               <input
                 type="checkbox"
                 checked={enabled}
                 onChange={(e) => updateOutputs({ [option.key]: e.target.checked })}
-                className="h-5 w-5 accent-[#4acaf1]"
+                className="h-5 w-5 accent-pbx-accent"
               />
               <div className="text-2xl">{option.icon}</div>
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]">
+                <div className="text-sm font-black uppercase tracking-[0.12em] text-pbx-ink">
                   {option.title}
                 </div>
-                <p className="mt-0.5 text-xs font-semibold leading-relaxed text-[#4d2d85]/75">
+                <p className="mt-0.5 text-xs font-semibold leading-relaxed text-pbx-ink/75">
                   {option.description}
                 </p>
               </div>
               <span
                 className={`rounded-full px-3 py-1 text-[0.6rem] font-black uppercase tracking-[0.14em] ${
-                  enabled ? 'bg-[#4acaf1] text-white' : 'bg-[#efe8ff] text-[#7a4de3]'
+                  enabled ? 'bg-pbx-accent text-pbx-accent-fg' : 'bg-pbx-tint text-pbx-secondary-strong'
                 }`}
               >
                 {enabled ? 'On' : 'Off'}

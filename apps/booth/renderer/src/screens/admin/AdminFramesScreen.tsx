@@ -83,7 +83,7 @@ export const AdminFramesScreen: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by frame name…"
-              className="w-full rounded-full border border-white/10 bg-[#241341] py-2 pl-9 pr-3 text-sm text-white placeholder:text-white/35 focus:border-[#ff4bb5]/60 focus:outline-none"
+              className="w-full rounded-full border border-white/10 bg-pbx-ui-raised py-2 pl-9 pr-3 text-sm text-white placeholder:text-white/35 focus:border-pbx-ui-brand/60 focus:outline-none"
             />
             {searchQuery && (
               <button
@@ -99,7 +99,7 @@ export const AdminFramesScreen: React.FC = () => {
           <RefreshIcon onClick={() => { setRefreshing(true); refresh(true); }} spinning={refreshing} />
              <button
             onClick={() => goEdit(null, true)}
-            className="inline-flex items-center gap-2 rounded-full bg-[#d9f85a] px-4 py-2 text-sm font-bold text-[#140b26] transition hover:bg-[#bae32f]"
+            className="inline-flex items-center gap-2 rounded-full bg-pbx-ui-hi px-4 py-2 text-sm font-bold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong"
           >
             <IconPlus className="h-4 w-4" />
             New frame
@@ -120,12 +120,12 @@ export const AdminFramesScreen: React.FC = () => {
           ))}
         </div>
       ) : templates.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#241341] px-8 py-16 text-center">
+        <div className="rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-16 text-center">
           <p className="text-lg font-semibold text-white">No frames yet</p>
           <p className="mt-1 text-sm text-white/45">Create your first frame to get started.</p>
           <button
             onClick={() => goEdit(null, true)}
-            className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#d9f85a] px-5 py-2 text-sm font-bold text-[#140b26] transition hover:bg-[#bae32f]"
+            className="mt-4 inline-flex items-center gap-2 rounded-full bg-pbx-ui-hi px-5 py-2 text-sm font-bold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong"
           >
             <IconPlus className="h-4 w-4" />
             New frame
@@ -134,7 +134,7 @@ export const AdminFramesScreen: React.FC = () => {
       ) : (
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {filteredTemplates.length === 0 ? (
-            <div className="col-span-full rounded-2xl border border-white/10 bg-[#241341] px-8 py-12 text-center">
+            <div className="col-span-full rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-12 text-center">
               <p className="text-sm text-white/45">No frames match "{searchQuery}".</p>
             </div>
           ) : (
@@ -143,7 +143,7 @@ export const AdminFramesScreen: React.FC = () => {
             return (
               <div
                 key={template.id}
-                className="group relative overflow-hidden rounded-xl border border-white/10 bg-[#241341] shadow-lg transition hover:border-[#ff4bb5]/40"
+                className="group relative overflow-hidden rounded-xl border border-white/10 bg-pbx-ui-raised shadow-lg transition hover:border-pbx-ui-brand/40"
               >
                 <div className="relative">
                   <div className="relative z-0 flex">
@@ -165,7 +165,7 @@ export const AdminFramesScreen: React.FC = () => {
                     <button
                       onClick={() => goEdit(template.id, false)}
                       title="Edit"
-                      className="grid h-10 w-10 place-items-center rounded-full bg-[#d9f85a] text-[#140b26] transition hover:bg-[#bae32f]"
+                      className="grid h-10 w-10 place-items-center rounded-full bg-pbx-ui-hi text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong"
                     >
                       <IconPencil />
                     </button>
@@ -197,7 +197,7 @@ export const AdminFramesScreen: React.FC = () => {
             <div
               className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden"
               style={{
-                background: 'rgba(10,5,25,.96)',
+                background: 'rgb(var(--pbx-ui-bg-rgb)/.96)',
                 animation: 'pb-modal-fade 0.25s ease-out both',
               }}
               onClick={() => setViewing(null)}
@@ -211,7 +211,7 @@ export const AdminFramesScreen: React.FC = () => {
                   frame={viewing}
                   photos={placeholderPhotos(viewing.photoSlots ?? 3)}
                   photoSlotCount={viewing.photoSlots ?? 3}
-                  className="rounded-[14px] border-[3px] border-[#4acaf1] shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
+                  className="rounded-[14px] border-[3px] border-pbx-ui-accent shadow-[0_12px_40px_rgba(0,0,0,0.55)]"
                   style={{
                     width: `min(${ratio * 80}vh, 92vw)`,
                     aspectRatio: `${resolved.width} / ${resolved.height}`,
@@ -221,7 +221,7 @@ export const AdminFramesScreen: React.FC = () => {
 
               <button
                 onClick={() => setViewing(null)}
-                className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full bg-[#ff4bb5] text-white shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95 sm:h-9 sm:w-9"
+                className="absolute right-6 top-6 flex h-8 w-8 items-center justify-center rounded-full bg-pbx-ui-brand text-pbx-ui-brand-fg shadow-[0_4px_12px_rgba(0,0,0,0.45)] transition-transform hover:scale-110 active:scale-95 sm:h-9 sm:w-9"
                 aria-label="Close"
               >
                 &#10005;
@@ -240,7 +240,7 @@ export const AdminFramesScreen: React.FC = () => {
                       href={viewing.previewUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="mt-0.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#4acaf1] hover:text-[#6fd9f7]"
+                      className="mt-0.5 inline-flex items-center gap-1.5 text-xs font-medium text-pbx-ui-accent hover:text-pbx-ui-accent"
                       onClick={(e) => e.stopPropagation()}
                     >
                       Open preview image
@@ -249,7 +249,7 @@ export const AdminFramesScreen: React.FC = () => {
                 </div>
                 <button
                   onClick={() => goEdit(viewing.id, false)}
-                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#d9f85a] px-6 py-3 text-[0.78rem] font-black uppercase tracking-[0.1em] text-[#140b26] shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
+                  className="inline-flex shrink-0 items-center gap-2 rounded-full bg-pbx-ui-hi px-6 py-3 text-[0.78rem] font-black uppercase tracking-[0.1em] text-pbx-ui-hi-fg shadow-[0_4px_0_rgba(0,0,0,0.25)] transition-all hover:-translate-y-0.5 active:translate-y-0 sm:text-[0.85rem]"
                 >
                   <IconPencil className="h-4 w-4" />
                   Edit frame

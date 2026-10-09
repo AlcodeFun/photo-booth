@@ -1,3 +1,4 @@
+import { DEFAULT_BOOTH_APPEARANCE, type BoothTheme } from '@photo-booth/types';
 import { renderGallery } from './gallery';
 import { qrSvgDataUrl } from './qr';
 
@@ -288,6 +289,28 @@ async function handleMarkReady(env: Env, token: string): Promise<Response> {
 }
 
 /**
+ * Booth theme from the admin Appearance row, so the gallery page matches the
+ * booth. Any failure falls back to the shipped default: the page must render.
+ */
+async function fetchBoothTheme(env: Env): Promise<BoothTheme> {
+  const url = `${env.SUPABASE_URL.replace(/\/+$/, '')}/rest/v1/booth_appearance?id=eq.default&select=theme`;
+  try {
+    const response = await fetch(url, {
+      headers: {
+        apikey: env.SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${env.SUPABASE_PUBLISHABLE_KEY}`,
+      },
+      cf: { cacheTtl: 60, cacheEverything: true },
+    });
+    if (!response.ok) return DEFAULT_BOOTH_APPEARANCE.theme;
+    const rows = (await response.json()) as Array<{ theme?: Partial<BoothTheme> | null }>;
+    return { ...DEFAULT_BOOTH_APPEARANCE.theme, ...(rows[0]?.theme ?? {}) };
+  } catch {
+    return DEFAULT_BOOTH_APPEARANCE.theme;
+  }
+}
+
+/**
  * Frame-template proxy: serves a single frame_templates row from Supabase by
  * id so the /organize/:token page can resolve the selected frame's template
  * without exposing any Supabase credentials to the browser. Reads go through
@@ -380,8 +403,9 @@ export default {
         // meta unreadable — the header simply omits the timestamp.
       }
       const qr = qrSvgDataUrl(`${origin}/p/${token}`);
+      const theme = await fetchBoothTheme(env);
       return new Response(
-        renderGallery({ token, qr, createdAt }),
+        renderGallery({ token, qr, createdAt, theme }),
         { headers: { 'content-type': 'text/html; charset=utf-8' } },
       );
     }

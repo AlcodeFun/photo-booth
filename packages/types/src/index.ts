@@ -85,11 +85,12 @@ export interface FrameConfig {
 }
 
 /**
- * Booth appearance (customer-facing only).
+ * Booth appearance.
  *
- * The admin dashboard theme is intentionally NOT part of this: everything here
- * styles the guest journey (start screen -> tutorial -> capture -> results), so
- * an operator can reskin the booth without touching the tools they work in.
+ * Copy and background style the guest journey (start screen -> tutorial ->
+ * capture -> results). The theme also drives the admin dashboard, booth set-up,
+ * organize screen and gallery, via contrast-checked tokens derived from it in
+ * `themeTokens.ts`.
  */
 
 export type BoothBackgroundType = 'color' | 'image';
@@ -804,3 +805,5 @@ export interface CameraAutoConfigResult {
   autoConnect: boolean;
   pollIntervalSeconds: number;
 }
+
+export * from './themeTokens';

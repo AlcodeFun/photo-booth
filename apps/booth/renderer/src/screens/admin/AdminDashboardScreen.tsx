@@ -14,7 +14,7 @@ const StatCard: React.FC<{ label: string; value: number; accent: string; pulse?:
   accent,
   pulse,
 }) => (
-  <div className="relative overflow-hidden rounded-xl border border-white/10 bg-[#241341] p-5">
+  <div className="relative overflow-hidden rounded-xl border border-white/10 bg-pbx-ui-raised p-5">
     <span className={`absolute inset-x-0 top-0 h-1 ${accent}`} />
     <p className="text-sm text-white/50">{label}</p>
     <p className={`mt-2 text-3xl font-bold tabular-nums ${pulse ? 'animate-pulse' : 'text-white'}`}>{value}</p>
@@ -68,18 +68,18 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onNa
       )}
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Total sessions" value={sessions.length} accent="bg-[#a35ef6]" />
-        <StatCard label="Synced" value={synced} accent="bg-[#d9f85a]" />
+        <StatCard label="Total sessions" value={sessions.length} accent="bg-pbx-ui-secondary" />
+        <StatCard label="Synced" value={synced} accent="bg-pbx-ui-hi" />
         <StatCard label="Upload failed" value={failedUploads} accent="bg-[#ff5e87]" />
         <StatCard label="Print failed" value={failedPrints} accent={failedPrints > 0 ? 'bg-[#ff5e87]' : 'bg-white/20'} />
       </div>
 
-      <section className="rounded-2xl border border-white/10 bg-[#241341]">
+      <section className="rounded-2xl border border-white/10 bg-pbx-ui-raised">
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <h2 className="font-semibold text-white">Recent sessions</h2>
           <button
             onClick={() => onNavigate('sesi')}
-            className="text-sm font-medium text-[#d9f85a] transition hover:text-[#bae32f]"
+            className="text-sm font-medium text-pbx-ui-hi transition hover:text-pbx-ui-hi-strong"
           >
             View all →
           </button>

@@ -31,13 +31,13 @@ export const Snackbar: React.FC<SnackbarProps> = ({ variant, message, duration =
           leaving ? 'pb-snackbar-out' : 'pb-snackbar-in'
         } ${
           variant === 'success'
-            ? 'border-[#d9f85a] bg-[#140b26] text-[#d9f85a]'
-            : 'border-[#ff5e87] bg-[#140b26] text-[#ff5e87]'
+            ? 'border-pbx-ui-hi bg-pbx-ui-bg text-pbx-ui-hi'
+            : 'border-[#ff5e87] bg-pbx-ui-bg text-[#ff5e87]'
         }`}
       >
         <span
           className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-            variant === 'success' ? 'bg-[#d9f85a]' : 'bg-[#ff5e87]'
+            variant === 'success' ? 'bg-pbx-ui-hi' : 'bg-[#ff5e87]'
           }`}
         />
         {message}

@@ -45,7 +45,7 @@ const Section: React.FC<{ title: string; description?: string; children: React.R
   description,
   children,
 }) => (
-  <section className="rounded-2xl border border-white/10 bg-[#241341]">
+  <section className="rounded-2xl border border-white/10 bg-pbx-ui-raised">
     <header className="border-b border-white/10 px-5 py-4">
       <h2 className="font-semibold text-white">{title}</h2>
       {description && <p className="mt-0.5 text-sm text-white/45">{description}</p>}
@@ -68,14 +68,14 @@ const TextField: React.FC<{
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
-        className="w-full resize-y rounded-lg border border-white/10 bg-[#1a0b2e] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#ff4bb5]/60 focus:outline-none"
+        className="w-full resize-y rounded-lg border border-white/10 bg-pbx-ui-panel px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-pbx-ui-brand/60 focus:outline-none"
       />
     ) : (
       <input
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-white/10 bg-[#1a0b2e] px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-[#ff4bb5]/60 focus:outline-none"
+        className="w-full rounded-lg border border-white/10 bg-pbx-ui-panel px-3 py-2 text-sm text-white placeholder:text-white/30 focus:border-pbx-ui-brand/60 focus:outline-none"
       />
     )}
     {hint && <span className="mt-1 block text-[11px] text-white/35">{hint}</span>}
@@ -106,8 +106,8 @@ const ColorField: React.FC<{
           value={value}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
-          className={`w-full rounded-lg border bg-[#1a0b2e] px-3 py-2 font-mono text-xs uppercase text-white focus:outline-none ${
-            valid ? 'border-white/10 focus:border-[#ff4bb5]/60' : 'border-[#ff5e87]'
+          className={`w-full rounded-lg border bg-pbx-ui-panel px-3 py-2 font-mono text-xs uppercase text-white focus:outline-none ${
+            valid ? 'border-white/10 focus:border-pbx-ui-brand/60' : 'border-[#ff5e87]'
           }`}
         />
       </div>
@@ -245,7 +245,7 @@ export const AdminAppearanceScreen: React.FC = () => {
             onClick={handleSave}
             disabled={saving || !dirty || !validation.ok}
             title={validation.ok ? undefined : validation.errors.join(' ')}
-            className="inline-flex items-center gap-2 rounded-full bg-[#d9f85a] px-5 py-2 text-sm font-bold text-[#140b26] transition hover:bg-[#bae32f] disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex items-center gap-2 rounded-full bg-pbx-ui-hi px-5 py-2 text-sm font-bold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong disabled:cursor-not-allowed disabled:opacity-40"
           >
             {saving ? 'Saving…' : 'Save appearance'}
           </button>
@@ -373,7 +373,7 @@ export const AdminAppearanceScreen: React.FC = () => {
                   aria-pressed={draft.background.type === type}
                   className={`rounded-full px-4 py-2 text-sm font-medium capitalize transition ${
                     draft.background.type === type
-                      ? 'bg-[#d9f85a] text-[#140b26]'
+                      ? 'bg-pbx-ui-hi text-pbx-ui-hi-fg'
                       : 'bg-white/10 text-white/70 hover:bg-white/15 hover:text-white'
                   }`}
                 >
@@ -398,7 +398,7 @@ export const AdminAppearanceScreen: React.FC = () => {
                       onChange={(e) =>
                         updateBackground({ fit: e.target.value as BoothBackgroundFit })
                       }
-                      className="w-full rounded-lg border border-white/10 bg-[#1a0b2e] px-3 py-2 text-sm text-white focus:border-[#ff4bb5]/60 focus:outline-none"
+                      className="w-full rounded-lg border border-white/10 bg-pbx-ui-panel px-3 py-2 text-sm text-white focus:border-pbx-ui-brand/60 focus:outline-none"
                     >
                       {BACKDROP_FITS.map((fit) => (
                         <option key={fit} value={fit}>
@@ -415,7 +415,7 @@ export const AdminAppearanceScreen: React.FC = () => {
                     <select
                       value={draft.background.position}
                       onChange={(e) => updateBackground({ position: e.target.value })}
-                      className="w-full rounded-lg border border-white/10 bg-[#1a0b2e] px-3 py-2 text-sm text-white focus:border-[#ff4bb5]/60 focus:outline-none"
+                      className="w-full rounded-lg border border-white/10 bg-pbx-ui-panel px-3 py-2 text-sm text-white focus:border-pbx-ui-brand/60 focus:outline-none"
                     >
                       {BACKDROP_POSITIONS.map((position) => (
                         <option key={position.value} value={position.value}>
@@ -441,7 +441,7 @@ export const AdminAppearanceScreen: React.FC = () => {
                   <button
                     onClick={() => fileRef.current?.click()}
                     disabled={uploading}
-                    className="inline-flex items-center gap-2 rounded-full bg-[#ff4bb5] px-4 py-2 text-sm font-bold text-[#140b26] transition hover:bg-[#ff6ec4] disabled:opacity-50"
+                    className="inline-flex items-center gap-2 rounded-full bg-pbx-ui-brand px-4 py-2 text-sm font-bold text-pbx-ui-brand-fg transition hover:bg-pbx-ui-brand disabled:opacity-50"
                   >
                     <IconUpload className="h-4 w-4" />
                     {uploading ? 'Uploading…' : 'Upload image'}
@@ -461,7 +461,7 @@ export const AdminAppearanceScreen: React.FC = () => {
                 </div>
 
                 {draft.background.imageUrl && (
-                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#1a0b2e] p-3">
+                  <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-pbx-ui-panel p-3">
                     <img
                       src={draft.background.imageUrl}
                       alt="Uploaded booth background"
@@ -498,7 +498,7 @@ export const AdminAppearanceScreen: React.FC = () => {
             <button
               onClick={handleSave}
               disabled={saving || !dirty || !validation.ok}
-              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-[#d9f85a] px-4 py-2 text-sm font-bold text-[#140b26] transition hover:bg-[#bae32f] disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-full bg-pbx-ui-hi px-4 py-2 text-sm font-bold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong disabled:cursor-not-allowed disabled:opacity-40"
             >
               {saving ? 'Saving…' : 'Save appearance'}
             </button>

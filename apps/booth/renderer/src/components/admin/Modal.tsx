@@ -24,7 +24,7 @@ export const Modal: React.FC<ModalProps> = ({ open, title, onClose, children, wi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={onClose}>
       <div
-        className="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-[#1f1140] shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
+        className="max-h-[90vh] w-full overflow-y-auto rounded-2xl border border-white/10 bg-pbx-ui-panel shadow-[0_24px_60px_rgba(0,0,0,0.5)]"
         style={{ maxWidth: width ?? '640px' }}
         onMouseDown={(e) => e.stopPropagation()}
       >
@@ -83,7 +83,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         className={`rounded-full px-5 py-2 text-sm font-semibold transition disabled:opacity-60 ${
           danger
             ? 'bg-[#ff4b78] text-white hover:bg-[#ff5e87]'
-            : 'bg-[#d9f85a] text-[#140b26] hover:bg-[#bae32f]'
+            : 'bg-pbx-ui-hi text-pbx-ui-hi-fg hover:bg-pbx-ui-hi-strong'
         }`}
         onClick={onConfirm}
         disabled={busy}

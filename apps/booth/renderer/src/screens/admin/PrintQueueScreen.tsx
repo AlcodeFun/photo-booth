@@ -18,10 +18,10 @@ import {
 } from '../../global';
 
 const STATE_STYLES: Record<IElectronAPIPrintJobState, string> = {
-  pending: 'border-[#a35ef6]/40 bg-[#a35ef6]/10 text-[#d9b8ff]',
+  pending: 'border-pbx-ui-secondary/40 bg-pbx-ui-secondary/10 text-pbx-line',
   submitted: 'border-amber-400/30 bg-amber-400/10 text-amber-300',
   processing: 'border-sky-400/30 bg-sky-400/10 text-sky-300',
-  completed: 'border-[#d9f85a]/30 bg-[#d9f85a]/10 text-[#d9f85a]',
+  completed: 'border-pbx-ui-hi/30 bg-pbx-ui-hi/10 text-pbx-ui-hi',
   failed: 'border-[#ff5e87]/30 bg-[#ff5e87]/10 text-[#ff8aa8]',
   canceled: 'border-white/10 bg-white/5 text-white/60',
 };
@@ -364,7 +364,7 @@ export const PrintQueueScreen: React.FC = () => {
             <button
               onClick={() => void startBatch([...selected])}
               disabled={busy === 'batch' || selected.size === 0}
-              className="inline-flex items-center gap-2 rounded-full bg-[#d9f85a] px-4 py-2 text-sm font-semibold text-[#140b26] transition hover:bg-[#bae32f] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-full bg-pbx-ui-hi px-4 py-2 text-sm font-semibold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong disabled:opacity-50"
             >
               <IconPrinter className="h-4 w-4" />
               Print selected ({selected.size})
@@ -388,14 +388,14 @@ export const PrintQueueScreen: React.FC = () => {
         {loading && jobs.length === 0 ? (
           <SkeletonTable rows={4} />
         ) : jobs.length === 0 ? (
-          <div className="rounded-2xl border border-white/10 bg-[#241341] px-8 py-12 text-center">
+          <div className="rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-12 text-center">
             <p className="text-lg font-semibold text-white">The queue is empty</p>
             <p className="mt-1 text-sm text-white/45">
               Sessions are enqueued automatically once their frame is ready. Select queued jobs to print.
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-[#241341]">
+          <div className="overflow-x-auto rounded-2xl border border-white/10 bg-pbx-ui-raised">
             <table className="w-full min-w-[760px] text-left text-sm">
               <thead>
                 <tr className="border-b border-white/10 text-xs uppercase tracking-wider text-white/45">
@@ -419,7 +419,7 @@ export const PrintQueueScreen: React.FC = () => {
                             type="checkbox"
                             checked={selected.has(job.id)}
                             onChange={() => toggleOne(job.id)}
-                            className="h-4 w-4 accent-[#d9f85a]"
+                            className="h-4 w-4 accent-pbx-ui-hi"
                             aria-label={`Select job ${job.id}`}
                           />
                         )}
@@ -455,7 +455,7 @@ export const PrintQueueScreen: React.FC = () => {
                             <button
                               onClick={() => void retryJob(job.id)}
                               disabled={busy === `retry:${job.id}`}
-                              className="rounded-full border border-[#d9f85a]/40 bg-[#d9f85a]/10 px-3 py-1 text-xs font-medium text-[#d9f85a] transition hover:bg-[#d9f85a]/20 disabled:opacity-50"
+                              className="rounded-full border border-pbx-ui-hi/40 bg-pbx-ui-hi/10 px-3 py-1 text-xs font-medium text-pbx-ui-hi transition hover:bg-pbx-ui-hi/20 disabled:opacity-50"
                             >
                               Retry
                             </button>
@@ -495,7 +495,7 @@ export const PrintQueueScreen: React.FC = () => {
           value={addQuery}
           onChange={(event) => setAddQuery(event.target.value)}
           placeholder="Search by session token…"
-          className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/35 focus:border-[#ff4bb5]/60 focus:outline-none"
+          className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white placeholder:text-white/35 focus:border-pbx-ui-brand/60 focus:outline-none"
         />
         <div className="mt-4 max-h-[50vh] space-y-1 overflow-y-auto">
           {addCandidates.length === 0 ? (
@@ -515,7 +515,7 @@ export const PrintQueueScreen: React.FC = () => {
                 <button
                   onClick={() => void enqueueSession(session)}
                   disabled={busy === `add:${session.token}`}
-                  className="shrink-0 rounded-full border border-[#d9f85a]/40 bg-[#d9f85a]/10 px-3 py-1 text-xs font-medium text-[#d9f85a] transition hover:bg-[#d9f85a]/20 disabled:opacity-50"
+                  className="shrink-0 rounded-full border border-pbx-ui-hi/40 bg-pbx-ui-hi/10 px-3 py-1 text-xs font-medium text-pbx-ui-hi transition hover:bg-pbx-ui-hi/20 disabled:opacity-50"
                 >
                   Add
                 </button>

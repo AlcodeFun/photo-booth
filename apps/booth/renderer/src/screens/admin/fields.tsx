@@ -7,7 +7,7 @@ const toNumericValue = (value: string) => {
 };
 
 const FIELD_CLASS =
-  'h-10 w-full rounded-[10px] border-[3px] border-[#c9b8ff] bg-white px-3 text-sm font-bold normal-case tracking-normal text-[#4d2d85] outline-none focus:border-[#a35ef6]';
+  'h-10 w-full rounded-[10px] border-[3px] border-pbx-line bg-white px-3 text-sm font-bold normal-case tracking-normal text-pbx-ink outline-none focus:border-pbx-secondary';
 
 interface FieldLabelProps {
   label: string;
@@ -17,7 +17,7 @@ interface FieldLabelProps {
 
 const FieldLabel = ({ label, className = 'flex flex-col gap-1', children }: FieldLabelProps) => (
   <label
-    className={`${className} min-w-0 text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#7a4de3]`}
+    className={`${className} min-w-0 text-[0.65rem] font-black uppercase tracking-[0.16em] text-pbx-secondary-strong`}
   >
     {label}
     {children}
@@ -95,7 +95,7 @@ export const TextField = ({
   error,
 }: TextFieldProps) => {
   const showError = Boolean(error) && value.trim() === '';
-  const fieldClass = showError ? `${FIELD_CLASS} border-[#ff4bb5]` : FIELD_CLASS;
+  const fieldClass = showError ? `${FIELD_CLASS} border-pbx-ui-brand` : FIELD_CLASS;
 
   return (
     <FieldLabel label={label} className={`flex flex-col gap-1 ${className ?? ''}`}>
@@ -108,7 +108,7 @@ export const TextField = ({
         aria-invalid={showError}
         className={fieldClass}
       />
-      {showError ? <span className="text-[0.65rem] font-bold normal-case text-[#b3206e]">{error}</span> : null}
+      {showError ? <span className="text-[0.65rem] font-bold normal-case text-pbx-brand-strong">{error}</span> : null}
     </FieldLabel>
   );
 };
@@ -140,7 +140,7 @@ export const ColorField = ({ label, value, onChange }: ColorFieldProps) => (
       type="color"
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="h-10 w-full cursor-pointer rounded-[10px] border-[3px] border-[#c9b8ff] bg-white p-1"
+      className="h-10 w-full cursor-pointer rounded-[10px] border-[3px] border-pbx-line bg-white p-1"
     />
   </FieldLabel>
 );
@@ -159,7 +159,7 @@ export const FileField = ({ label, accept, multiple, onChange }: FileFieldProps)
       accept={accept}
       multiple={multiple}
       onChange={onChange}
-      className="cursor-pointer rounded-[10px] border-[3px] border-dashed border-[#a35ef6] bg-white px-3 py-2.5 text-[0.65rem] font-black uppercase tracking-[0.14em] text-[#5b3aa8] file:mr-3 file:rounded-[8px] file:border-0 file:bg-[#d9f85a] file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-[0.12em] file:text-[#4d2d85] hover:bg-[#fbf3ff]"
+      className="cursor-pointer rounded-[10px] border-[3px] border-dashed border-pbx-secondary bg-white px-3 py-2.5 text-[0.65rem] font-black uppercase tracking-[0.14em] text-pbx-secondary-strong file:mr-3 file:rounded-[8px] file:border-0 file:bg-pbx-tertiary file:px-3 file:py-1.5 file:text-xs file:font-black file:uppercase file:tracking-[0.12em] file:text-pbx-tertiary-fg hover:bg-pbx-paper"
     />
   </FieldLabel>
 );

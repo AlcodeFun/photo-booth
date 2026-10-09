@@ -26,8 +26,8 @@ interface PhotoAreasPanelProps {
 const chipClass = (active: boolean) =>
   `h-10 rounded-[10px] border-[3px] px-4 text-xs font-black uppercase tracking-[0.12em] transition-all ${
     active
-      ? 'border-[#ff4bb5] bg-[#ff4bb5] text-white'
-      : 'border-[#c9b8ff] bg-white text-[#5b3aa8] hover:bg-[#efe8ff]'
+      ? 'border-pbx-ui-brand bg-pbx-ui-brand text-pbx-ui-brand-fg'
+      : 'border-pbx-line bg-white text-pbx-secondary-strong hover:bg-pbx-tint'
   }`;
 
 export const PhotoAreasPanel = ({
@@ -41,10 +41,10 @@ export const PhotoAreasPanel = ({
   onDeleteArea,
   onUpdateActiveArea,
 }: PhotoAreasPanelProps) => (
-  <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+  <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
     <div className="mb-3 flex flex-wrap items-center gap-2">
-      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Photo Areas</h2>
-      <span className="rounded-[8px] border-2 border-[#4acaf1] bg-[#e3f6ff] px-2 py-0.5 text-xs font-black text-[#1b7fa8]">
+      <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Photo Areas</h2>
+      <span className="rounded-[8px] border-2 border-pbx-accent bg-pbx-accent-tint px-2 py-0.5 text-xs font-black text-pbx-accent-strong">
         {areas.length}
       </span>
     </div>
@@ -66,21 +66,21 @@ export const PhotoAreasPanel = ({
       <button
         type="button"
         onClick={onAddArea}
-        className="h-10 rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#4d2d85] transition-all hover:-translate-y-0.5 hover:bg-[#e9ff9e] active:translate-y-0"
+        className="h-10 rounded-[10px] border-[3px] border-pbx-secondary bg-pbx-tertiary px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg transition-all hover:-translate-y-0.5 hover:bg-pbx-tertiary-soft active:translate-y-0"
       >
         + Add Area
       </button>
       <button
         type="button"
         onClick={onDuplicateArea}
-        className="h-10 rounded-[10px] border-[3px] border-[#c9b8ff] bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition-colors hover:bg-[#efe8ff]"
+        className="h-10 rounded-[10px] border-[3px] border-pbx-line bg-white px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-secondary-strong transition-colors hover:bg-pbx-tint"
       >
         Duplicate
       </button>
       <button
         type="button"
         onClick={onDeleteArea}
-        className="h-10 rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 text-xs font-black uppercase tracking-[0.12em] text-[#b3206e] transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
+        className="h-10 rounded-[10px] border-[3px] border-pbx-brand-soft bg-pbx-brand-tint px-4 text-xs font-black uppercase tracking-[0.12em] text-pbx-brand-strong transition-colors hover:bg-white disabled:cursor-not-allowed disabled:opacity-40"
       >
         Delete
       </button>

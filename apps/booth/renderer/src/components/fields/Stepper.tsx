@@ -18,9 +18,9 @@ export interface StepperOption {
 }
 
 const STEP_BUTTON_CLASS =
-  'flex h-10 w-8 shrink-0 items-center justify-center rounded-[8px] border-[3px] border-[#c9b8ff] bg-white text-lg font-black leading-none text-[#5b3aa8] transition hover:border-[#a35ef6] hover:bg-[#fbf3ff] active:translate-y-px disabled:cursor-not-allowed disabled:opacity-40';
+  'flex h-10 w-8 shrink-0 items-center justify-center rounded-[8px] border-[3px] border-pbx-line bg-white text-lg font-black leading-none text-pbx-secondary-strong transition hover:border-pbx-secondary hover:bg-pbx-paper active:translate-y-px disabled:cursor-not-allowed disabled:opacity-40';
 const INPUT_CLASS =
-  'h-10 min-w-0 flex-1 rounded-[8px] border-[3px] border-[#c9b8ff] bg-white px-3 text-sm font-black text-[#4d2d85] outline-none focus:border-[#a35ef6] disabled:bg-white/60 disabled:text-[#7d6ea6]';
+  'h-10 min-w-0 flex-1 rounded-[8px] border-[3px] border-pbx-line bg-white px-3 text-sm font-black text-pbx-ink outline-none focus:border-pbx-secondary disabled:bg-white/60 disabled:text-pbx-ink-muted';
 
 /**
  * Formats a number while it is being typed: drops everything that is not a digit
@@ -92,7 +92,7 @@ const StepperShell: React.FC<StepperShellProps> = ({
     <div className="flex min-w-0 flex-col gap-1">
       <span
         id={labelId}
-        className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-[#7a4de3]"
+        className="text-[0.65rem] font-black uppercase tracking-[0.16em] text-pbx-secondary-strong"
       >
         {label}
       </span>
@@ -140,7 +140,7 @@ const StepperShell: React.FC<StepperShellProps> = ({
         </button>
       </div>
       {hint ? (
-        <span className="text-[0.6rem] font-semibold normal-case tracking-normal text-[#7d6ea6]">
+        <span className="text-[0.6rem] font-semibold normal-case tracking-normal text-pbx-ink-muted">
           {hint}
         </span>
       ) : null}
@@ -215,7 +215,7 @@ export const NumberStepper: React.FC<NumberStepperProps> = ({
       label={label}
       text={text}
       hint={hint}
-      adornment={suffix ? <span className="shrink-0 text-xs font-bold text-[#7a4de3]">{suffix}</span> : undefined}
+      adornment={suffix ? <span className="shrink-0 text-xs font-bold text-pbx-secondary-strong">{suffix}</span> : undefined}
       invalid={invalid}
       disabled={disabled}
       inputMode={decimals > 0 ? 'decimal' : 'numeric'}

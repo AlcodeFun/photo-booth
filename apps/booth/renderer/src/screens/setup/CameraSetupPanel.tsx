@@ -119,15 +119,15 @@ export const CameraSetupPanel: React.FC = () => {
         <span className={`rounded-[12px] border-[3px] px-4 py-2 text-sm font-black uppercase tracking-[0.16em] ${statusStyle}`}>
           {statusLabel}
         </span>
-        <div className="text-sm font-bold text-[#4d2d85]">
-          Device: <span className="text-[#a35ef6]">{canon.model ?? 'Not detected'}</span>
+        <div className="text-sm font-bold text-pbx-ink">
+          Device: <span className="text-pbx-secondary">{canon.model ?? 'Not detected'}</span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1.4fr)_minmax(260px,0.8fr)]">
         <div className="space-y-4">
           <div
-            className="relative overflow-hidden rounded-[16px] border-[4px] border-[#a35ef6] bg-[#261640]"
+            className="relative overflow-hidden rounded-[16px] border-[4px] border-pbx-ui-secondary bg-pbx-ui-raised"
             style={{ aspectRatio: '4 / 3' }}
           >
             {canon.liveFrame ? (
@@ -149,21 +149,21 @@ export const CameraSetupPanel: React.FC = () => {
           </div>
 
           {testPhoto && (
-            <div className="flex items-center gap-4 rounded-[12px] border-[3px] border-[#d9f85a] bg-[#f8ffd9] p-3">
+            <div className="flex items-center gap-4 rounded-[12px] border-[3px] border-pbx-tertiary bg-pbx-tertiary-soft p-3">
               <img
                 src={testPhoto.dataUrl}
                 alt="Test capture"
-                className="h-24 w-32 rounded-[8px] border-2 border-[#a35ef6] object-cover"
+                className="h-24 w-32 rounded-[8px] border-2 border-pbx-secondary object-cover"
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-black uppercase tracking-[0.14em] text-[#4d2d85]">Last Test Capture</div>
-                <div className="mt-0.5 truncate text-xs font-semibold text-[#4d2d85]" title={testPhoto.filePath}>
+                <div className="text-sm font-black uppercase tracking-[0.14em] text-pbx-ink">Last Test Capture</div>
+                <div className="mt-0.5 truncate text-xs font-semibold text-pbx-ink" title={testPhoto.filePath}>
                   Saved to: {testPhoto.filePath}
                 </div>
                 <button
                   type="button"
                   onClick={() => setTestPhoto(null)}
-                  className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-[#a35ef6] hover:underline"
+                  className="mt-1 text-xs font-bold uppercase tracking-[0.14em] text-pbx-secondary hover:underline"
                 >
                   Clear
                 </button>
@@ -171,12 +171,12 @@ export const CameraSetupPanel: React.FC = () => {
             </div>
           )}
 
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
                 Auto-connect &amp; poll interval
               </div>
-              <span className="rounded-full bg-[#4acaf1] px-3 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.14em] text-white">
+              <span className="rounded-full bg-pbx-ui-accent px-3 py-0.5 text-[0.6rem] font-black uppercase tracking-[0.14em] text-white">
                 {camera.autoConnect ? 'Auto' : 'Manual'}
               </span>
             </div>
@@ -185,9 +185,9 @@ export const CameraSetupPanel: React.FC = () => {
                 type="checkbox"
                 checked={camera.autoConnect}
                 onChange={(e) => updateCamera({ autoConnect: e.target.checked })}
-                className="h-5 w-5 accent-[#4acaf1]"
+                className="h-5 w-5 accent-pbx-accent"
               />
-              <span className="text-sm font-bold text-[#4d2d85]">
+              <span className="text-sm font-bold text-pbx-ink">
                 Auto-connect camera when plugged in (start live view + re-apply settings)
               </span>
             </label>
@@ -206,12 +206,12 @@ export const CameraSetupPanel: React.FC = () => {
             </div>
           </div>
 
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-              <div className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Camera settings</div>
-              <div className="flex items-center gap-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-[#7a4de3]">
+              <div className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Camera settings</div>
+              <div className="flex items-center gap-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-pbx-secondary-strong">
                 {loading ? 'Loading…' : supported ? 'Live from gphoto2' : 'No camera options'}
-                {settingsBusy && <span className="ml-1 h-2.5 w-2.5 rounded-full bg-[#ff4bb5]" />}
+                {settingsBusy && <span className="ml-1 h-2.5 w-2.5 rounded-full bg-pbx-brand" />}
               </div>
             </div>
 
@@ -229,7 +229,7 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
             </div>
 
             <div className="mt-5">
-              <div className="text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">More settings</div>
+              <div className="text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">More settings</div>
               <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {SECONDARY_SETTINGS.map((item) => (
                   <OptionStepper
@@ -244,13 +244,13 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#4d2d85]/70">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-pbx-ink/70">
               <span>Apply writes them to the camera and pauses/restarts live view briefly.</span>
               <button
                 type="button"
                 onClick={() => runAction(async () => apply({}))}
                 disabled={busy || settingsBusy}
-                className="rounded-[8px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-1.5 text-[0.7rem] font-black uppercase tracking-[0.12em] text-[#4d2d85] disabled:opacity-50"
+                className="rounded-[8px] border-[3px] border-pbx-secondary bg-pbx-tertiary px-4 py-1.5 text-[0.7rem] font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg disabled:opacity-50"
               >
                 {settingsBusy ? 'Applying…' : 'Refresh options & re-apply'}
               </button>
@@ -265,8 +265,8 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
         </div>
 
         <div className="space-y-4">
-          <div className="rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4">
-            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Actions</div>
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
+            <div className="mb-3 text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Actions</div>
             <div className="space-y-2">
               <button
                 type="button"
@@ -277,7 +277,7 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
                     await canon.start();
                   })
                 }
-                className="w-full rounded-[10px] border-[3px] border-[#a35ef6] bg-[#d9f85a] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85] disabled:opacity-50"
+                className="w-full rounded-[10px] border-[3px] border-pbx-secondary bg-pbx-tertiary px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-tertiary-fg disabled:opacity-50"
               >
                 Test Connection / Start Live View
               </button>
@@ -285,7 +285,7 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
                 type="button"
                 disabled={busy || settingsBusy || canon.status === 'DISCONNECTED'}
                 onClick={() => runAction(canon.stop)}
-                className="w-full rounded-[10px] border-[3px] border-[#ff9ecb] bg-[#ffe0ef] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#b3206e] disabled:opacity-50"
+                className="w-full rounded-[10px] border-[3px] border-pbx-brand-soft bg-pbx-brand-tint px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-brand-strong disabled:opacity-50"
               >
                 Stop Live View
               </button>
@@ -300,7 +300,7 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
                     }
                   })
                 }
-                className="w-full rounded-[10px] bg-[#ff4bb5] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-white disabled:opacity-50"
+                className="w-full rounded-[10px] bg-pbx-ui-brand px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-ui-brand-fg disabled:opacity-50"
               >
                 Take Test Picture
               </button>
@@ -313,21 +313,21 @@ onChange={(next) => updateCamera({ [item.key]: next } as unknown as Partial<type
                     await canon.retry();
                   })
                 }
-                className="w-full rounded-[10px] border-[3px] border-[#c9b8ff] bg-[#efe8ff] px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-[#5b3aa8] disabled:opacity-50"
+                className="w-full rounded-[10px] border-[3px] border-pbx-line bg-pbx-tint px-4 py-2.5 text-sm font-black uppercase tracking-[0.12em] text-pbx-secondary-strong disabled:opacity-50"
               >
                 Retry
               </button>
             </div>
           </div>
 
-          <div className="rounded-[12px] border-[3px] border-[#c9b8ff] bg-[#faf7ff] p-4">
-            <div className="mb-1 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">How to test</div>
-            <ol className="space-y-1.5 text-sm font-semibold text-[#4d2d85]">
+          <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
+            <div className="mb-1 text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">How to test</div>
+            <ol className="space-y-1.5 text-sm font-semibold text-pbx-ink">
               <li>1. Plug the Canon camera into USB and power it on.</li>
-              <li>2. Leave Auto-connect on, or press <span className="font-black text-[#a35ef6]">Test Connection</span>.</li>
+              <li>2. Leave Auto-connect on, or press <span className="font-black text-pbx-secondary">Test Connection</span>.</li>
               <li>3. Confirm the live view appears above.</li>
               <li>4. Pick ISO / aperture / shutter speed (values pulled live from gphoto2).</li>
-              <li>5. Press <span className="font-black text-[#ff4bb5]">Take Test Picture</span>.</li>
+              <li>5. Press <span className="font-black text-pbx-brand">Take Test Picture</span>.</li>
             </ol>
           </div>
         </div>

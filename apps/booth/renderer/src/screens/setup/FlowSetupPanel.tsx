@@ -120,20 +120,20 @@ export const FlowSetupPanel: React.FC = () => {
               onClick={() => setDraftMode(option.mode)}
               className={`rounded-[14px] border-[4px] p-4 text-left transition-all ${
                 active
-                  ? 'border-[#4acaf1] bg-[#f7f5ff]'
-                  : 'border-[#a35ef6] bg-[#fdf3ff] hover:border-[#4acaf1]'
+                  ? 'border-pbx-accent bg-pbx-paper'
+                  : 'border-pbx-secondary bg-pbx-paper hover:border-pbx-accent'
               }`}
             >
               <div className="mb-2 text-2xl">{option.icon}</div>
-              <div className="text-sm font-black uppercase tracking-[0.12em] text-[#4d2d85]">
+              <div className="text-sm font-black uppercase tracking-[0.12em] text-pbx-ink">
                 {CAPTURE_FLOW_LABELS[option.mode]}
               </div>
-              <p className="mt-1 text-xs font-semibold leading-relaxed text-[#4d2d85]/80">
+              <p className="mt-1 text-xs font-semibold leading-relaxed text-pbx-ink/80">
                 {option.description}
               </p>
               <div
                 className={`mt-3 inline-block rounded-full px-3 py-1 text-[0.6rem] font-black uppercase tracking-[0.14em] ${
-                  active ? 'bg-[#4acaf1] text-white' : 'bg-[#efe8ff] text-[#7a4de3]'
+                  active ? 'bg-pbx-accent text-pbx-accent-fg' : 'bg-pbx-tint text-pbx-secondary-strong'
                 }`}
               >
                 {active ? 'Selected' : 'Select'}
@@ -143,10 +143,10 @@ export const FlowSetupPanel: React.FC = () => {
         })}
       </div>
 
-      <div className="rounded-[12px] border-[3px] border-[#c9b8ff] bg-[#faf7ff] p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">
+      <div className="rounded-[12px] border-[3px] border-pbx-line bg-pbx-paper p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">
           <span>Flow settings</span>
-          <span className="rounded-full bg-[#4acaf1] px-3 py-0.5 text-[0.6rem] tracking-[0.14em] text-white">
+          <span className="rounded-full bg-pbx-ui-accent px-3 py-0.5 text-[0.6rem] tracking-[0.14em] text-white">
             {CAPTURE_FLOW_LABELS[draftMode]}
           </span>
         </div>
@@ -165,7 +165,7 @@ export const FlowSetupPanel: React.FC = () => {
           ))}
         </div>
 
-        <p className="mt-4 text-xs font-semibold text-[#4d2d85]/75">
+        <p className="mt-4 text-xs font-semibold text-pbx-ink/75">
           {draftMode === 'retake' &&
             `Each slot allows up to ${draftFlow.maxAttempts} ${
               draftFlow.maxAttempts === 1 ? 'attempt' : 'attempts'
@@ -178,17 +178,17 @@ export const FlowSetupPanel: React.FC = () => {
       </div>
 
       {/* Save bar — flow settings are committed to the booth only on Save. */}
-      <div className="flex flex-wrap items-center justify-end gap-3 rounded-[12px] border-[3px] border-[#ff4bb5] bg-[#fff1f8] px-4 py-3">
-        <div className="mr-auto flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+      <div className="flex flex-wrap items-center justify-end gap-3 rounded-[12px] border-[3px] border-pbx-brand bg-pbx-brand-tint px-4 py-3">
+        <div className="mr-auto flex items-center gap-2 text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">
           {dirty ? (
             <>
-              <span className="h-2.5 w-2.5 rounded-full bg-[#ff4bb5] shadow-[0_0_6px_rgba(255,75,181,0.8)]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-pbx-brand shadow-[0_0_6px_rgb(var(--pbx-brand-rgb)/0.8)]" />
               Unsaved changes
             </>
           ) : savedAt ? (
             <span className="text-[#2e9e4f]">✓ Saved at {savedAt}</span>
           ) : (
-            <span className="text-[#4d2d85]/60">No changes</span>
+            <span className="text-pbx-ink/60">No changes</span>
           )}
         </div>
         <button
@@ -197,8 +197,8 @@ export const FlowSetupPanel: React.FC = () => {
           disabled={!dirty}
           className={`rounded-[10px] border-[3px] px-5 py-2.5 text-[0.7rem] font-black uppercase tracking-[0.16em] transition-all ${
             dirty
-              ? 'border-[#a35ef6] bg-white text-[#4d2d85] hover:-translate-y-0.5 active:translate-y-0'
-              : 'cursor-not-allowed border-[#c9b8ff] bg-white/60 text-[#7d6ea6]'
+              ? 'border-pbx-secondary bg-white text-pbx-ink hover:-translate-y-0.5 active:translate-y-0'
+              : 'cursor-not-allowed border-pbx-line bg-white/60 text-pbx-ink-muted'
           }`}
         >
           Reset
@@ -209,8 +209,8 @@ export const FlowSetupPanel: React.FC = () => {
           disabled={!dirty}
           className={`rounded-[10px] px-5 py-2.5 text-[0.7rem] font-black uppercase tracking-[0.16em] text-white transition-all ${
             dirty
-              ? 'bg-[#ff4bb5] shadow-[0_4px_0_rgba(122,43,140,0.45)] hover:-translate-y-0.5 active:translate-y-0'
-              : 'cursor-not-allowed bg-[#7d6ea6] opacity-70'
+              ? 'bg-pbx-brand shadow-[0_4px_0_rgba(122,43,140,0.45)] hover:-translate-y-0.5 active:translate-y-0'
+              : 'cursor-not-allowed bg-pbx-ink-muted opacity-70'
           }`}
         >
           Save setup flow
