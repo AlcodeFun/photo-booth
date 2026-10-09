@@ -196,3 +196,14 @@ export const IconCheck: React.FC<IconProps> = ({ className }) => (
     <path d="M4 12.5l5 5L20 6.5" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </Icon>
 );
+export const IconTicket: React.FC<IconProps> = ({ className }) => (
+  <Icon className={className}>
+    <path
+      d="M3 8a2 2 0 002-2h14a2 2 0 002 2v2a2 2 0 000 4v2a2 2 0 00-2 2H5a2 2 0 00-2-2v-2a2 2 0 000-4V8z"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinejoin="round"
+    />
+    <path d="M15 7v2M15 11v2M15 15v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </Icon>
+);

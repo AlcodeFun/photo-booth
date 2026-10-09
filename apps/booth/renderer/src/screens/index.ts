@@ -1,4 +1,5 @@
 export { default as ContextBumperScreen } from './ContextBumperScreen';
+export { default as UnlockScreen } from './UnlockScreen';
 export { default as TutorialScreen } from './TutorialScreen';
 export { default as FrameSelectionScreen } from './FrameSelectionScreen';
 export { default as FrameAdminScreen } from './FrameAdminScreen';

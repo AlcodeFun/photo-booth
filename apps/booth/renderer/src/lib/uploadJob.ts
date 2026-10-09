@@ -54,6 +54,8 @@ interface UploadJob {
   frame: FrameConfig | null;
   photoSlots: PhotoSlotState[];
   filterId: string | null;
+  /** Voucher that paid for the session, stamped on its row. */
+  voucherId?: string | null;
   /** Per-token statuses accumulated by this job (survives a store reset). */
   fileStates: SessionFileState[];
 }
@@ -239,7 +241,7 @@ const run = async (job: UploadJob) => {
     // idempotently before each attempt, so a transient network failure here
     // never hides the session from the dashboard.
     if (token) {
-      createSessionRecord(token, job.downloadUrl ?? `${endpoint}/p/${token}`, flowMode);
+      createSessionRecord(token, job.downloadUrl ?? `${endpoint}/p/${token}`, flowMode, job.voucherId ?? null);
     }
     try {
       if (token) {
@@ -414,6 +416,7 @@ const maybeStart = () => {
     frame: store.frame,
     photoSlots: store.photoSlots,
     filterId: store.filterId,
+    voucherId: store.voucherId,
     fileStates: [...(store.sessionFilesByToken[store.sessionToken ?? ''] ?? [])],
   };
   runningJobs.set(sessionId, job);

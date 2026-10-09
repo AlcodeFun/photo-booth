@@ -14,6 +14,7 @@ import ReviewView from '../booth/ReviewView';
 import FilterSelectionView from '../booth/FilterSelectionView';
 import ResultsView from '../booth/ResultsView';
 import CompleteView from '../booth/CompleteView';
+import UnlockView from '../booth/UnlockView';
 
 export type PreviewFlow = 'retake' | 'auto' | 'timed';
 
@@ -54,6 +55,27 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
       key: 'bumper',
       label: 'Start',
       render: () => <StartScreenPreview appearance={appearance} />,
+    };
+
+    // Only shown to guests when Booth Setup -> Access requires a voucher.
+    const unlock: Slide = {
+      key: 'unlock',
+      label: 'Voucher unlock',
+      render: () => (
+        <UnlockView
+          copy={copy}
+          theme={theme}
+          mode="scan"
+          status="idle"
+          code=""
+          cameraFeed={
+            <div
+              className="h-full w-full"
+              style={{ background: `linear-gradient(140deg, ${theme.deep}, ${withAlpha(theme.deep, 0.7)})` }}
+            />
+          }
+        />
+      ),
     };
 
     const tutorial: Slide = {
@@ -203,9 +225,9 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
     // carousel: it shoots freely inside a time budget, then goes straight to
     // the QR and the completion screen.
     if (isTimed) {
-      return [bumper, tutorial, filter, results, complete];
+      return [bumper, unlock, tutorial, filter, results, complete];
     }
-    return [bumper, tutorial, frameSelect, ...captureReviewPair, filter, results, complete];
+    return [bumper, unlock, tutorial, frameSelect, ...captureReviewPair, filter, results, complete];
   }, [appearance, copy, theme, flowMode]);
 
   const safeIndex = Math.min(index, slides.length - 1);

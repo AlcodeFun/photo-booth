@@ -4,6 +4,7 @@ export type AdminArea =
   | 'sesi'
   | 'templates'
   | 'print-queue'
+  | 'voucher'
   | 'appearance'
   | 'frame-fit'
   | 'camera';

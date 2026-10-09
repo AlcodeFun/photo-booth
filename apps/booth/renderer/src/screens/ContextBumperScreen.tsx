@@ -290,7 +290,8 @@ const Gradient3DStart: React.FC<{ onAdvance: () => void; onOpenPin: () => void }
  * the PIN-gated route into booth setup.
  */
 export const ContextBumperScreen: React.FC = () => {
-  const confirmPayment = useSessionStore((state) => state.confirmPayment);
+  // Straight into the session, or to the voucher unlock screen when locked.
+  const requestStart = useSessionStore((state) => state.requestStart);
   const { copy, theme, startScreen } = useBoothAppearance((state) => state.appearance);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinDigits, setPinDigits] = useState<string[]>([]);
@@ -340,17 +341,17 @@ export const ContextBumperScreen: React.FC = () => {
   return (
     <div className="fixed inset-0 z-[60]">
       {startScreen.style === 'flat' ? (
-        <FlatJournalView copy={copy} theme={theme} photos={PHOTOS} onAdvance={confirmPayment} onOpenPin={openPin} />
+        <FlatJournalView copy={copy} theme={theme} photos={PHOTOS} onAdvance={requestStart} onOpenPin={openPin} />
       ) : startScreen.style === 'camera' ? (
         <CameraOverlayView
           copy={copy}
           theme={theme}
           cameraFeed={<StartCameraFeed fallbackSrc={PHOTOS[0]} />}
-          onAdvance={confirmPayment}
+          onAdvance={requestStart}
           onOpenPin={openPin}
         />
       ) : (
-        <Gradient3DStart onAdvance={confirmPayment} onOpenPin={openPin} />
+        <Gradient3DStart onAdvance={requestStart} onOpenPin={openPin} />
       )}
 
       {/* Admin PIN modal — gate to camera settings */}

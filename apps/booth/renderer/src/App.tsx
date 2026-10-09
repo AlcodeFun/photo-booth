@@ -5,6 +5,7 @@ import { AdminApp } from './screens/admin/AdminApp';
 import { OrganizeScreen } from './screens/OrganizeScreen';
 import {
   ContextBumperScreen,
+  UnlockScreen,
   TutorialScreen,
   FrameSelectionScreen,
   BoothSetUpScreen,
@@ -106,6 +107,8 @@ function App() {
     switch (currentScreen) {
       case 'CONTEXT_BUMPER':
         return <ContextBumperScreen />;
+      case 'UNLOCK':
+        return <UnlockScreen />;
       case 'TUTORIAL':
         return <TutorialScreen />;
       case 'SELECT_FRAME':

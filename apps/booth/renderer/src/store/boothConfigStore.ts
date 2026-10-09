@@ -177,18 +177,38 @@ export const DEFAULT_FLOW_SETTINGS: CaptureFlowSettings = {
   shotCountdown: 5,
 };
 
+/**
+ * Who may start a session. 'open': anyone taps the start screen. 'voucher':
+ * the start screen leads to the unlock screen and a single-use voucher
+ * (scanned as a QR on the webcam, or typed) must be redeemed first.
+ */
+export type BoothAccessMode = 'open' | 'voucher';
+
+export interface BoothAccessSettings {
+  mode: BoothAccessMode;
+  /** Webcam used to scan voucher QRs; null = the first camera found. */
+  scannerDeviceId: string | null;
+}
+
+export const DEFAULT_ACCESS: BoothAccessSettings = {
+  mode: 'open',
+  scannerDeviceId: null,
+};
+
 export interface BoothConfigState {
   flowMode: CaptureFlowMode;
   flow: CaptureFlowSettings;
   outputs: BoothOutputSettings;
   printer: BoothPrinterSettings;
   camera: BoothCameraSettings;
+  access: BoothAccessSettings;
 
   setFlowMode: (mode: CaptureFlowMode) => void;
   updateFlow: (patch: Partial<CaptureFlowSettings>) => void;
   updateOutputs: (patch: Partial<BoothOutputSettings>) => void;
   updatePrinter: (patch: Partial<BoothPrinterSettings>) => void;
   updateCamera: (patch: Partial<BoothCameraSettings>) => void;
+  updateAccess: (patch: Partial<BoothAccessSettings>) => void;
   resetConfig: () => void;
 }
 
@@ -199,6 +219,7 @@ export const DEFAULT_BOOTH_CONFIG = {
   outputs: DEFAULT_OUTPUTS,
   printer: DEFAULT_PRINTER,
   camera: DEFAULT_CAMERA_SETTINGS,
+  access: DEFAULT_ACCESS,
 };
 
 export const useBoothConfig = create<BoothConfigState>()(
@@ -211,17 +232,19 @@ export const useBoothConfig = create<BoothConfigState>()(
       updateOutputs: (outputs) => set((state) => ({ outputs: { ...state.outputs, ...outputs } })),
       updatePrinter: (printer) => set((state) => ({ printer: { ...state.printer, ...printer } })),
       updateCamera: (camera) => set((state) => ({ camera: { ...state.camera, ...camera } })),
+      updateAccess: (access) => set((state) => ({ access: { ...state.access, ...access } })),
       resetConfig: () => set({ ...DEFAULT_BOOTH_CONFIG }),
     }),
     {
       name: 'photo-booth.setup',
-      version: 6,
+      version: 7,
       migrate: (persistedState, version) => {
         const state = persistedState as {
           flow?: Record<string, unknown>;
           outputs?: Record<string, unknown>;
           printer?: Record<string, unknown>;
           camera?: Record<string, unknown>;
+          access?: Record<string, unknown>;
         };
         if (version < 2 && state.flow) {
           // Auto flow had a separate "gap between shots" — the countdown now
@@ -243,6 +266,10 @@ export const useBoothConfig = create<BoothConfigState>()(
         if (version < 6) {
           // v6 adds the camera slice (auto-connect + 600D shooting settings).
           state.camera = { ...DEFAULT_CAMERA_SETTINGS, ...(state.camera ?? {}) };
+        }
+        if (version < 7) {
+          // v7 adds the access slice (open vs voucher-locked booth).
+          state.access = { ...DEFAULT_ACCESS, ...(state.access ?? {}) };
         }
         return state as unknown as BoothConfigState;
       },

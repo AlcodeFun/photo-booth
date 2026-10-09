@@ -3,15 +3,17 @@ import CameraSetupPanel from './setup/CameraSetupPanel';
 import PrinterSetupPanel from './setup/PrinterSetupPanel';
 import FlowSetupPanel from './setup/FlowSetupPanel';
 import OutputSetupPanel from './setup/OutputSetupPanel';
+import AccessSetupPanel from './setup/AccessSetupPanel';
 import { navigateToBooth } from '../lib/navigation';
 
-type SetupTab = 'camera' | 'printer' | 'flow' | 'output';
+type SetupTab = 'camera' | 'printer' | 'flow' | 'output' | 'access';
 
 const TABS: { id: SetupTab; label: string; icon: string }[] = [
   { id: 'camera', label: 'Camera', icon: '📷' },
   { id: 'printer', label: 'Printer', icon: '🖨️' },
   { id: 'flow', label: 'Flow', icon: '🎬' },
   { id: 'output', label: 'Output', icon: '📤' },
+  { id: 'access', label: 'Access', icon: '🎟️' },
 ];
 
 const TAB_DESCRIPTIONS: Record<SetupTab, string> = {
@@ -19,6 +21,7 @@ const TAB_DESCRIPTIONS: Record<SetupTab, string> = {
   printer: 'Canon Selphy CP1000 over CUPS — queue, paper and quality.',
   flow: 'How customers capture: retake, timed session or auto sequence.',
   output: 'Which results are produced and uploaded to the gallery.',
+  access: 'Who can start a session: open to everyone, or only with a voucher QR.',
 };
 
 export const BoothSetUpScreen: React.FC = () => {
@@ -67,6 +70,7 @@ export const BoothSetUpScreen: React.FC = () => {
               {tab === 'printer' && <PrinterSetupPanel />}
               {tab === 'flow' && <FlowSetupPanel />}
               {tab === 'output' && <OutputSetupPanel />}
+              {tab === 'access' && <AccessSetupPanel />}
             </section>
           </div>
 

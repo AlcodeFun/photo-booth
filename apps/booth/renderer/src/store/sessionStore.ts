@@ -10,6 +10,7 @@ import { GALLERY_URL } from '../config';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
+  | 'UNLOCK'
   | 'TUTORIAL'
   | 'SELECT_FRAME'
   | 'READY'
@@ -31,6 +32,8 @@ export interface SessionStore {
   currentPhotoSlot: number; // 1-indexed (e.g. slot 1, 2, 3)
   photoSlots: PhotoSlotState[];
   paymentConfirmed: boolean;
+  /** Voucher redeemed to start this session (voucher-locked booths only). */
+  voucherId: string | null;
 
   // Print & Sync Simulation States
   printStatus: BoothPrintStatus;
@@ -54,6 +57,10 @@ export interface SessionStore {
   // Actions
   startNewSession: () => void;
   confirmPayment: () => void;
+  /** Start-screen tap: straight in when the booth is open, else the unlock screen. */
+  requestStart: () => void;
+  /** A voucher was redeemed on the unlock screen: start the session. */
+  unlockWithVoucher: (voucherId: string) => void;
   selectFrame: (frame: FrameConfig) => void;
   selectFilter: (filterId: string) => void;
   /** Replaces the frame with one carrying the guest's photo move/zoom edits. */
@@ -88,6 +95,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   currentPhotoSlot: 1,
   photoSlots: [],
   paymentConfirmed: false,
+  voucherId: null,
 
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
@@ -106,6 +114,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       currentPhotoSlot: 1,
       photoSlots: [],
       paymentConfirmed: false,
+      voucherId: null,
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,
@@ -122,6 +131,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       paymentConfirmed: true,
       currentScreen: 'TUTORIAL',
     });
+  },
+
+  requestStart: () => {
+    if (useBoothConfig.getState().access.mode === 'voucher') {
+      set({ currentScreen: 'UNLOCK' });
+      return;
+    }
+    get().confirmPayment();
+  },
+
+  unlockWithVoucher: (voucherId) => {
+    set({ voucherId, paymentConfirmed: true, currentScreen: 'TUTORIAL' });
   },
 
   selectFrame: (frame) => {

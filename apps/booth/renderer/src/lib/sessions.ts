@@ -103,6 +103,7 @@ export const createSessionRecord = (
   token: string,
   downloadUrl: string,
   flowMode: SessionFlowMode = 'retake',
+  voucherId: string | null = null,
 ): void => {
   persistGuard(
     (async () => {
@@ -115,6 +116,7 @@ export const createSessionRecord = (
         download_url: downloadUrl,
         files: [],
         flow_mode: flowMode,
+        ...(voucherId ? { voucher_id: voucherId } : {}),
         meta: { build: 'persist-v3' },
       });
       // 23505 = token already exists (a retried request that already landed).

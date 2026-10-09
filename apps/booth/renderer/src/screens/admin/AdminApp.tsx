@@ -11,6 +11,7 @@ import { AdminSessionsScreen } from './AdminSessionsScreen';
 import { AdminFramesScreen } from './AdminFramesScreen';
 import { AdminAppearanceScreen } from './AdminAppearanceScreen';
 import { PrintQueueScreen } from './PrintQueueScreen';
+import { AdminVouchersScreen } from './AdminVouchersScreen';
 import { FrameAdminScreen } from '../FrameAdminScreen';
 
 type AdminArea = AdminNavArea | 'frame-fit' | 'login';
@@ -30,6 +31,7 @@ const parseArea = (): AdminArea => {
     segment === 'sesi' ||
     segment === 'templates' ||
     segment === 'print-queue' ||
+    segment === 'voucher' ||
     segment === 'appearance' ||
     segment === 'frame-fit'
   ) {
@@ -163,6 +165,7 @@ export const AdminApp: React.FC = () => {
         {area === 'sesi' && <AdminSessionsScreen />}
         {area === 'print-queue' && <PrintQueueScreen />}
         {area === 'templates' && <AdminFramesScreen />}
+        {area === 'voucher' && <AdminVouchersScreen />}
         {area === 'appearance' && <AdminAppearanceScreen />}
       </AdminLayout>
       {snackbar && (

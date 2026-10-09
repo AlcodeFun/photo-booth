@@ -99,6 +99,7 @@ export type BoothBackgroundFit = 'cover' | 'contain' | 'repeat';
 
 export type BoothCopyGroupId =
   | 'bumper'
+  | 'unlock'
   | 'tutorial'
   | 'frame'
   | 'capture'
@@ -130,6 +131,22 @@ export interface BoothCopywriting {
   tutorialStep3Title: string;
   tutorialStep3Body: string;
   tutorialStartButton: string;
+
+  unlockEyebrow: string;
+  unlockTitle: string;
+  unlockBody: string;
+  unlockTypeButton: string;
+  unlockScanButton: string;
+  unlockSubmitButton: string;
+  unlockBackButton: string;
+  unlockChecking: string;
+  unlockSuccess: string;
+  unlockErrorInvalid: string;
+  unlockErrorUsed: string;
+  unlockErrorExpired: string;
+  unlockErrorBusy: string;
+  unlockErrorOffline: string;
+  unlockNoCamera: string;
 
   frameEyebrow: string;
   frameTitle: string;
@@ -319,6 +336,22 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     tutorialStep3Body: 'Lihat hasil akhir, pilih filter, dan bagikan momen lewat QR.',
     tutorialStartButton: 'Ayo mulai',
 
+    unlockEyebrow: 'Voucher',
+    unlockTitle: 'Scan voucher kamu',
+    unlockBody: 'Arahkan QR voucher ke kamera di atas layar',
+    unlockTypeButton: 'Ketik kode',
+    unlockScanButton: 'Scan QR',
+    unlockSubmitButton: 'Pakai kode',
+    unlockBackButton: 'Kembali',
+    unlockChecking: 'Mengecek voucher…',
+    unlockSuccess: 'Voucher valid! Ayo mulai',
+    unlockErrorInvalid: 'Kode voucher tidak dikenal',
+    unlockErrorUsed: 'Voucher ini sudah dipakai',
+    unlockErrorExpired: 'Voucher ini sudah kedaluwarsa',
+    unlockErrorBusy: 'Terlalu banyak percobaan, tunggu sebentar ya',
+    unlockErrorOffline: 'Booth sedang offline. Hubungi petugas ya',
+    unlockNoCamera: 'Kamera scan tidak ditemukan. Ketik kodenya saja ya',
+
     frameEyebrow: 'Bingkai',
     frameTitle: 'Pilih gaya foto',
     frameConfirmButton: 'Pilih bingkai',
@@ -469,6 +502,27 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'bumperPinTitle', label: 'Setup PIN title' },
       { key: 'bumperPinSubtitle', label: 'Setup PIN subtitle' },
       { key: 'bumperPinError', label: 'Setup PIN error' },
+    ],
+  },
+  {
+    id: 'unlock',
+    label: 'Voucher unlock',
+    fields: [
+      { key: 'unlockEyebrow', label: 'Eyebrow' },
+      { key: 'unlockTitle', label: 'Title' },
+      { key: 'unlockBody', label: 'Scan instruction' },
+      { key: 'unlockTypeButton', label: 'Type code button' },
+      { key: 'unlockScanButton', label: 'Back to scan button' },
+      { key: 'unlockSubmitButton', label: 'Submit code button' },
+      { key: 'unlockBackButton', label: 'Back button' },
+      { key: 'unlockChecking', label: 'Checking message' },
+      { key: 'unlockSuccess', label: 'Success message' },
+      { key: 'unlockErrorInvalid', label: 'Error: unknown code' },
+      { key: 'unlockErrorUsed', label: 'Error: already used' },
+      { key: 'unlockErrorExpired', label: 'Error: expired' },
+      { key: 'unlockErrorBusy', label: 'Error: too many tries' },
+      { key: 'unlockErrorOffline', label: 'Error: offline' },
+      { key: 'unlockNoCamera', label: 'No scan camera' },
     ],
   },
   {

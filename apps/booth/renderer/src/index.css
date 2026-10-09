@@ -862,3 +862,72 @@
     animation-iteration-count: 1 !important;
   }
 }
+
+/* ---- Voucher unlock screen ---- */
+/* Two columns on landscape booths, stacked on portrait screens and phones. */
+.pb-unlock-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: center;
+}
+@container pb-screen (orientation: portrait) {
+  .pb-unlock-grid {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+  }
+}
+
+@keyframes pb-scan-sweep {
+  0% { top: 6%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { top: 94%; opacity: 0; }
+}
+
+@keyframes pb-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px) rotate(-1deg); }
+  40% { transform: translateX(7px) rotate(1deg); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes pb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---- Voucher print sheet (admin -> Vouchers -> Print) ---- */
+#voucher-print-sheet { display: none; }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body.pb-printing-vouchers > *:not(#voucher-print-sheet) { display: none !important; }
+  body.pb-printing-vouchers { background: #ffffff !important; }
+  body.pb-printing-vouchers #voucher-print-sheet { display: block; }
+}
+.voucher-print-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+}
+.voucher-card {
+  break-inside: avoid;
+  border: 0.6mm dashed;
+  border-radius: 4mm;
+  padding: 0 0 4mm;
+  overflow: hidden;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+  color: #1f1f1f;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.voucher-card-band {
+  padding: 2mm 0;
+  font-size: 3mm;
+  font-weight: 900;
+  letter-spacing: 0.6mm;
+}
+.voucher-card-qr { display: block; width: 38mm; height: 38mm; margin: 3mm auto 1mm; }
+.voucher-card-code { font-family: ui-monospace, Consolas, monospace; font-size: 5.2mm; font-weight: 800; letter-spacing: 0.6mm; }
+.voucher-card-meta { margin-top: 1mm; font-size: 2.6mm; font-weight: 600; }
+.voucher-card-hint { margin-top: 1mm; font-size: 2.3mm; opacity: 0.65; }
