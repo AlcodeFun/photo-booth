@@ -320,7 +320,7 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     bumperBrand: 'Kelana',
     bumperTapToStart: 'Click dimana saja untuk mulai',
     bumperCaption1: 'The Best',
-    bumperCaption2: 'Photostrip',
+    bumperCaption2: 'Kelana',
     bumperCaption3: 'Experience',
     bumperPinTitle: 'Admin PIN',
     bumperPinSubtitle: 'Masukkan PIN untuk membuka setting kamera',
