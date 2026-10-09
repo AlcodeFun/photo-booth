@@ -512,8 +512,10 @@ export async function createResultLiveFramed(
     ctx.scale(unitsToPixels, unitsToPixels);
     for (let i = 0; i < template.photoSlots.length; i += 1) {
       const slot = template.photoSlots[i];
-      const clip = liveClips[i] ?? [];
       const photoIndex = (slot.sourcePhotoSlot ?? slot.slotNumber) - 1;
+      // Clips belong to photos, not slots: frames that repeat a photo in
+      // several slots (two strips per sheet) must play the same clip in each.
+      const clip = liveClips[photoIndex] ?? [];
       const url = !isFinalFrame && clip.length
         ? clip[t % clip.length]
         : photos[photoIndex] ?? photos[i];
