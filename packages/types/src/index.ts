@@ -172,16 +172,23 @@ export interface BoothCopywriting {
   filterEffectsLabel: string;
   filterApplyButton: string;
 
+  resultsTitle: string;
+  resultsSubtitle: string;
+  resultsScanMe: string;
+  resultsPrinting: string;
+  resultsPrintQueued: string;
+  resultsPrintReady: string;
+  resultsPrintError: string;
+  resultsUploading: string;
+  resultsUploaded: string;
+  resultsUploadError: string;
   resultsNoFramed: string;
   resultsViewAllPhotos: string;
-  resultsNoIndividualPhotos: string;
-  resultsCollectionOff: string;
   resultsQrDownload: string;
   resultsQrArrange: string;
   resultsGeneratingQr: string;
   resultsFinishButton: string;
   resultsFinishDone: string;
-  resultsGalleryTitle: string;
   resultsQrModalTitle: string;
   resultsClose: string;
   resultsLiveBadge: string;
@@ -350,24 +357,31 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     filterEffectsLabel: 'Efek foto',
     filterApplyButton: 'Gunakan Filter',
 
+    resultsTitle: 'Yeay, fotomu jadi!',
+    resultsSubtitle: 'Scan QR buat simpan semua foto, live photo & GIF-nya.',
+    resultsScanMe: 'Scan aku!',
+    resultsPrinting: 'Lagi dicetak…',
+    resultsPrintQueued: 'Cetakan masuk antrean',
+    resultsPrintReady: 'Cetakan siap diambil',
+    resultsPrintError: 'Cetak gagal, panggil kru ya',
+    resultsUploading: 'Menyimpan ke cloud…',
+    resultsUploaded: 'Tersimpan di cloud',
+    resultsUploadError: 'Unggahan tertunda, kru akan bantu',
     resultsNoFramed: 'No framed photo',
-    resultsViewAllPhotos: 'View all photos ({count})',
-    resultsNoIndividualPhotos: 'No individual photos recorded.',
-    resultsCollectionOff: 'Photo collection is turned off.',
+    resultsViewAllPhotos: 'Semua foto ({count})',
     resultsQrDownload: 'Scan QR to download your photos',
     resultsQrArrange: 'Scan QR, arrange your frame & print',
     resultsGeneratingQr: 'Generating QR...',
     resultsFinishButton: 'Finish Session',
     resultsFinishDone: '✓ Selesai 🎉',
-    resultsGalleryTitle: 'Your photos',
     resultsQrModalTitle: 'Scan untuk unduh',
     resultsClose: 'Tutup',
-    resultsLiveBadge: '📹 Live',
-    resultsGifBadge: '🎞️ GIF',
+    resultsLiveBadge: 'Live',
+    resultsGifBadge: 'GIF',
     resultsFramedLiveBadge: '📹 Framed live photo',
     resultsAnimatedGifBadge: '🎞️ Animated GIF',
     resultsPhotoLabel: 'Photo {index}',
-    resultsFramedPhotoLabel: 'Framed photo',
+    resultsFramedPhotoLabel: 'Foto',
 
     completeTitle: 'Thank You!',
     completeBody:
@@ -526,24 +540,31 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
     id: 'results',
     label: 'Results & QR',
     fields: [
+      { key: 'resultsTitle', label: 'Headline' },
+      { key: 'resultsSubtitle', label: 'Subtitle', multiline: true },
+      { key: 'resultsScanMe', label: 'QR sticker' },
+      { key: 'resultsPrinting', label: 'Print status: printing' },
+      { key: 'resultsPrintQueued', label: 'Print status: queued' },
+      { key: 'resultsPrintReady', label: 'Print status: ready' },
+      { key: 'resultsPrintError', label: 'Print status: failed' },
+      { key: 'resultsUploading', label: 'Upload status: uploading' },
+      { key: 'resultsUploaded', label: 'Upload status: done' },
+      { key: 'resultsUploadError', label: 'Upload status: failed' },
       { key: 'resultsNoFramed', label: 'No framed photo' },
-      { key: 'resultsViewAllPhotos', label: 'View all photos badge', hint: 'Token: {count}' },
-      { key: 'resultsNoIndividualPhotos', label: 'No individual photos' },
-      { key: 'resultsCollectionOff', label: 'Collection turned off' },
+      { key: 'resultsViewAllPhotos', label: 'Photo strip label', hint: 'Token: {count}' },
       { key: 'resultsQrDownload', label: 'QR hint (standard flow)' },
       { key: 'resultsQrArrange', label: 'QR hint (timed flow)' },
       { key: 'resultsGeneratingQr', label: 'Generating QR message' },
       { key: 'resultsFinishButton', label: 'Finish button' },
       { key: 'resultsFinishDone', label: 'Finish button (done)' },
-      { key: 'resultsGalleryTitle', label: 'Gallery title' },
       { key: 'resultsQrModalTitle', label: 'QR modal title' },
       { key: 'resultsClose', label: 'Close button' },
-      { key: 'resultsLiveBadge', label: 'Live badge' },
-      { key: 'resultsGifBadge', label: 'GIF badge' },
+      { key: 'resultsLiveBadge', label: 'Live tab' },
+      { key: 'resultsGifBadge', label: 'GIF tab' },
       { key: 'resultsFramedLiveBadge', label: 'Framed live badge' },
       { key: 'resultsAnimatedGifBadge', label: 'Animated GIF badge' },
       { key: 'resultsPhotoLabel', label: 'Photo thumbnail label', hint: 'Token: {index}' },
-      { key: 'resultsFramedPhotoLabel', label: 'Framed photo label' },
+      { key: 'resultsFramedPhotoLabel', label: 'Framed photo tab' },
     ],
   },
   {

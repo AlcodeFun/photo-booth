@@ -1,15 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { formatBoothCopy, type BoothCopywriting, type BoothTheme, type FrameConfig } from '@photo-booth/types';
 import FrameCanvas from '../FrameCanvas';
 import { withAlpha } from '../../lib/appearance';
+import { resolveFrameTemplate } from '../../utils/frameConfig';
+
+/** Guest-facing print progress. `off` hides the chip (no printer / timed flow). */
+export type ResultsPrintState = 'off' | 'printing' | 'queued' | 'ready' | 'error';
+/** Guest-facing cloud upload progress behind the QR. */
+export type ResultsUploadState = 'uploading' | 'done' | 'error';
+
+type HeroTab = 'framed' | 'live' | 'gif';
 
 export interface ResultsViewProps {
   copy: BoothCopywriting;
   theme: BoothTheme;
-  /** `true` shows the QR alone; `false` shows framed + slideshow + live/gif + QR. */
+  /** Timed flow arranges the frame later: no hero print, QR + photo strip only. */
   isTimedFlow: boolean;
   frame: FrameConfig | null;
+  /** Selected photo per slot, in slot order (what the frame is built from). */
   photoUrls: Array<string | undefined>;
+  /** Every captured photo for the film strip; defaults to `photoUrls`. */
+  allPhotoUrls?: string[];
   photoSlotCount: number;
   filterStyle: string;
   /** Data URLs produced by the session's canvas/GIF work. Absent in the preview. */
@@ -20,27 +31,34 @@ export interface ResultsViewProps {
   showAllPhotos: boolean;
   showLive: boolean;
   showGif: boolean;
+  printState: ResultsPrintState;
+  uploadState: ResultsUploadState;
   isDone: boolean;
   canFinish: boolean;
   surfaceStyle?: React.CSSProperties;
   onFinish?: () => void;
   onViewFramed?: () => void;
-  /** Opens the fullscreen gallery of every captured photo. */
-  onOpenGallery?: () => void;
   onViewLive?: () => void;
   onViewGif?: () => void;
+  onViewPhoto?: (url: string, index: number) => void;
   /** Opens the enlarged QR modal. */
   onOpenQr?: () => void;
 }
 
+const CONFETTI_COUNT = 46;
+
 /**
- * Presentational core of the results screen: framed photo (left), photo
- * slideshow plus live/GIF results (middle), and QR + Finish (right). The timed
- * flow hides everything but the QR column.
+ * Presentational core of the results / QR screen.
  *
- * Sizing uses percentages rather than the `vh` units this screen originally used,
- * so the same markup renders correctly both full-screen in the booth and scaled
- * down inside the admin preview stage.
+ *  - Hero: the result as an instant print that ejects and "develops"; tabs
+ *    switch between the framed photo, the framed live photo and the GIF.
+ *  - Info column: headline, print + upload status, the QR with a sticker, and
+ *    the finish button.
+ *  - Film strip: every captured photo, tap to enlarge.
+ *
+ * Sized in container units against `pb-screen`, so the booth and the scaled
+ * admin preview render identically. Paper confetti falls once when the session
+ * is done.
  */
 export const ResultsView: React.FC<ResultsViewProps> = ({
   copy,
@@ -48,6 +66,7 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   isTimedFlow,
   frame,
   photoUrls,
+  allPhotoUrls,
   photoSlotCount,
   filterStyle,
   liveUrl,
@@ -57,331 +76,400 @@ export const ResultsView: React.FC<ResultsViewProps> = ({
   showAllPhotos,
   showLive,
   showGif,
+  printState,
+  uploadState,
   isDone,
   canFinish,
   surfaceStyle,
   onFinish,
   onViewFramed,
-  onOpenGallery,
   onViewLive,
   onViewGif,
+  onViewPhoto,
   onOpenQr,
 }) => {
-  const [slideIndex, setSlideIndex] = useState(0);
+  const hasFramed = Boolean(showFramed && frame && photoSlotCount > 0);
+  const tabs = useMemo(() => {
+    const list: Array<{ id: HeroTab; label: string }> = [];
+    if (hasFramed) list.push({ id: 'framed', label: copy.resultsFramedPhotoLabel });
+    if (showLive && liveUrl) list.push({ id: 'live', label: copy.resultsLiveBadge });
+    if (showGif && gifUrl) list.push({ id: 'gif', label: copy.resultsGifBadge });
+    return list;
+  }, [hasFramed, showLive, liveUrl, showGif, gifUrl, copy]);
 
+  const [tab, setTab] = useState<HeroTab>('framed');
+  const activeTab = tabs.some((t) => t.id === tab) ? tab : tabs[0]?.id;
+  // Re-key the media so each tab switch re-runs the develop animation.
+  const [developKey, setDevelopKey] = useState(0);
+
+  const stripPhotos = useMemo(
+    () => (allPhotoUrls ?? photoUrls.filter((url): url is string => Boolean(url))),
+    [allPhotoUrls, photoUrls],
+  );
+
+  // One confetti burst on the transition to done.
+  const [confettiOn, setConfettiOn] = useState(false);
   useEffect(() => {
-    if (photoUrls.length <= 1) {
-      setSlideIndex(0);
-      return;
-    }
-    const timer = setInterval(() => {
-      setSlideIndex((current) => (current + 1) % photoUrls.length);
-    }, 2500);
-    return () => clearInterval(timer);
-  }, [photoUrls.length]);
+    if (!isDone) return;
+    setConfettiOn(true);
+    const timer = setTimeout(() => setConfettiOn(false), 5200);
+    return () => clearTimeout(timer);
+  }, [isDone]);
 
-  const visiblePhotos = photoUrls.filter((url): url is string => Boolean(url));
+  const confetti = useMemo(
+    () =>
+      Array.from({ length: CONFETTI_COUNT }, (_, i) => ({
+        left: `${(i * 61) % 100}%`,
+        color: [theme.primary, theme.tertiary, theme.secondary, theme.accent, theme.action][i % 5],
+        w: 0.9 + ((i * 7) % 6) * 0.2,
+        h: 1.6 + ((i * 5) % 5) * 0.3,
+        round: i % 4 === 0,
+        duration: 2.8 + ((i * 13) % 20) / 10,
+        delay: ((i * 3) % 14) / 10,
+        drift: `${((i * 17) % 21) - 10}cqw`,
+        spin: `${360 + ((i * 47) % 540)}deg`,
+      })),
+    [theme],
+  );
+
+  // Polaroid geometry. With W the card width: 5% side and top margins, a 14%
+  // bottom lip, and a media box exactly the frame's ratio r. Card aspect
+  // a = W/H = 1 / (0.9/r + 0.19); vertical offsets are fractions of H.
+  const card = useMemo(() => {
+    const template = frame ? resolveFrameTemplate(frame, photoSlotCount || 3) : null;
+    const r = template && template.height > 0 ? template.width / template.height : 3 / 4;
+    const a = 1 / (0.9 / r + 0.19);
+    return {
+      aspect: String(a),
+      media: { left: '5%', width: '90%', top: `${5 * a}%`, height: `${(90 * a) / r}%` } as React.CSSProperties,
+    };
+  }, [frame, photoSlotCount]);
+
+  const openHero = () => {
+    if (activeTab === 'framed') onViewFramed?.();
+    else if (activeTab === 'live') onViewLive?.();
+    else if (activeTab === 'gif') onViewGif?.();
+  };
+
+  const printChip =
+    printState === 'off'
+      ? null
+      : {
+          printing: { icon: '🖨️', text: copy.resultsPrinting, busy: true, tone: theme.secondary },
+          queued: { icon: '🧾', text: copy.resultsPrintQueued, busy: false, tone: theme.secondary },
+          ready: { icon: '✅', text: copy.resultsPrintReady, busy: false, tone: theme.primary },
+          error: { icon: '⚠️', text: copy.resultsPrintError, busy: false, tone: theme.destructive },
+        }[printState];
+  const uploadChip = {
+    uploading: { icon: '☁️', text: copy.resultsUploading, busy: true, tone: theme.secondary },
+    done: { icon: '☁️', text: copy.resultsUploaded, busy: false, tone: theme.primary },
+    error: { icon: '⚠️', text: copy.resultsUploadError, busy: false, tone: theme.destructive },
+  }[uploadState];
 
   return (
     <div
-      className="print-qrpage relative flex h-full w-full flex-col overflow-hidden"
-      style={{
-        ...surfaceStyle,
-        color: theme.deep,
-        animation: 'pb-modal-fade 0.25s ease-out both',
-      }}
+      className="pb-screen pb-results-anim print-qrpage relative h-full w-full select-none overflow-hidden"
+      style={{ ...surfaceStyle, color: theme.deep }}
     >
-      {/* Floating background cuteness */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        {[
-          { left: '6%', top: '14%', size: 'text-xl', delay: '0s', rot: '12deg' },
-          { right: '10%', top: '10%', size: 'text-2xl', delay: '0.6s', rot: '-6deg' },
-          { left: '14%', bottom: '12%', size: 'text-2xl', delay: '1.1s', rot: '4deg' },
-          { right: '12%', bottom: '16%', size: 'text-xl', delay: '1.6s', rot: '-10deg' },
-        ].map((s, i) => (
-          <span
-            key={i}
-            className={`absolute ${s.size} opacity-30 select-none`}
-            style={{
-              left: s.left,
-              right: s.right,
-              top: s.top,
-              bottom: s.bottom,
-              transform: `rotate(${s.rot})`,
-              animation: 'pb-balloon-float 6s ease-in-out infinite',
-              animationDelay: s.delay,
-              ['--dx' as string]: '14px',
-              ['--dy' as string]: '-16px',
-              ['--rot' as string]: s.rot,
-            }}
-          >
-            {['💖', '⭐', '🎀', '✨'][i]}
-          </span>
-        ))}
-      </div>
+      {/* Soft spotlight behind the hero so the print pops off the surface */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: `radial-gradient(60cqmin 50cqmin at 28% 45%, ${withAlpha(theme.card, 0.55)}, transparent 70%)`,
+        }}
+      />
 
-      {/* Main result — framed (left), photo slideshow + live (middle), QR (right).
-          The timed flow shows the QR alone (it points at /p/:token, whose
-          arrange section lets the customer compose the frame for print). */}
-      <div className="print-no-show pb-scroll relative min-h-0 flex-1 overflow-y-auto p-3 sm:p-5 lg:overflow-hidden">
-        <div className="relative z-10 flex h-full min-h-0 flex-col gap-4 lg:flex-row lg:items-stretch lg:justify-center">
-          {/* Left: framed photo — clickable to zoom */}
-          {!isTimedFlow && (
-            <button
-              type="button"
-              onClick={onViewFramed}
-              disabled={!onViewFramed}
-              title="View framed photo larger"
-              aria-label="View framed photo larger"
-              className="group relative mx-auto flex h-[34%] w-full max-w-[260px] min-h-0 shrink-0 cursor-pointer items-center justify-center self-center bg-transparent p-0 sm:max-w-[300px] lg:h-auto lg:max-w-none lg:flex-1 lg:self-auto"
-              style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) both' }}
-            >
-              {frame && photoSlotCount > 0 && showFramed ? (
-                <>
-                  <div className="relative flex h-full w-full min-h-0 items-center justify-center">
-                    <FrameCanvas
-                      frame={frame}
-                      photos={photoUrls}
-                      photoSlotCount={photoSlotCount}
-                      filter={filterStyle}
-                      qrCodeUrl={qrDataUrl ?? undefined}
-                      className="max-h-full w-auto max-w-full rounded-md bg-white shadow-[0_14px_30px_rgba(77,45,133,0.25)] transition-transform group-hover:scale-[1.02]"
-                      style={{ height: '100%', aspectRatio: '3 / 4' }}
-                    />
-                    <span
-                      className="pointer-events-none absolute -right-1.5 -top-1.5 text-2xl"
-                      style={{ animation: 'pb-float 3.5s ease-in-out infinite' }}
-                    >
-                      💖
-                    </span>
-                  </div>
-                </>
-              ) : (
-                <span
-                  className="rounded-lg bg-white/60 px-4 py-6 text-center text-sm font-bold"
-                  style={{ color: withAlpha(theme.deep, 0.6) }}
+      {confettiOn && (
+        <div className="print-no-show pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-hidden="true">
+          {confetti.map((piece, i) => (
+            <span
+              key={i}
+              className="absolute top-0"
+              style={
+                {
+                  left: piece.left,
+                  width: `${piece.w}cqmin`,
+                  height: `${piece.round ? piece.w : piece.h}cqmin`,
+                  borderRadius: piece.round ? '50%' : '0.2cqmin',
+                  backgroundColor: piece.color,
+                  '--cx': piece.drift,
+                  '--cr': piece.spin,
+                  animation: `pb-confetti-fall ${piece.duration}s cubic-bezier(0.3, 0.6, 0.5, 1) ${piece.delay}s both`,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
+      )}
+
+      <div
+        className={`print-no-show pb-results-grid relative z-10 h-full w-full p-[3.2cqmin] ${isTimedFlow ? 'is-timed' : ''}`}
+      >
+        {/* ---------- Hero: the instant print ---------- */}
+        {!isTimedFlow && (
+          <section className="flex min-h-0 flex-col items-center justify-center gap-[2cqmin]" style={{ gridArea: 'hero' }}>
+            {/* printer slot the print slides out of */}
+            <div className="relative flex min-h-0 w-full flex-1 flex-col items-center">
+              <div
+                className="z-20 h-[1.6cqmin] w-[70%] max-w-[62cqmin] rounded-full"
+                style={{ backgroundColor: theme.deep, boxShadow: `0 0.6cqmin 1.2cqmin ${withAlpha(theme.deep, 0.35)}` }}
+                aria-hidden="true"
+              />
+              <div className="relative -mt-[0.8cqmin] flex min-h-0 w-full flex-1 justify-center overflow-hidden pt-[0.8cqmin]">
+                <button
+                  type="button"
+                  onClick={openHero}
+                  disabled={!activeTab}
+                  aria-label="View result larger"
+                  className="group relative h-full max-w-full transition-transform hover:scale-[1.015] disabled:cursor-default"
+                  style={{
+                    // Explicit shape derived from the frame, so the card never
+                    // collapses and the frame inside is never stretched.
+                    aspectRatio: card.aspect,
+                    backgroundColor: '#fffdf8',
+                    boxShadow: `0 2cqmin 4cqmin ${withAlpha(theme.deep, 0.3)}`,
+                    animation: 'pb-eject 1.1s cubic-bezier(0.25, 0.9, 0.3, 1.05) 0.15s both',
+                  }}
                 >
-                  {copy.resultsNoFramed}
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Middle: photo slideshow + live/GIF results below, same size */}
-          {!isTimedFlow && (
-            <div
-              className="flex min-h-0 flex-1 flex-col gap-3"
-              style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.08s both' }}
-            >
-              <button
-                type="button"
-                onClick={onOpenGallery}
-                disabled={!onOpenGallery || visiblePhotos.length === 0}
-                title="View all photos"
-                aria-label={formatBoothCopy(copy.resultsViewAllPhotos, { count: visiblePhotos.length })}
-                className="group relative flex min-h-0 min-h-[26%] w-full flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 bg-white p-1.5 transition-transform hover:-translate-y-0.5 disabled:cursor-default disabled:hover:translate-y-0 sm:p-2.5"
-                style={{
-                  borderColor: theme.secondary,
-                  boxShadow: `0 6px 0 ${withAlpha(theme.secondary, 0.2)}`,
-                }}
-              >
-                {showAllPhotos && visiblePhotos.length > 0 ? (
-                  <>
-                    <div className="relative m-auto h-full w-full overflow-hidden rounded-md bg-black/10">
-                      <div
-                        className="flex h-full w-full transition-transform duration-700 ease-out"
-                        style={{ transform: `translateX(-${slideIndex * 100}%)` }}
-                      >
-                        {visiblePhotos.map((dataUrl, index) => (
-                          <img
-                            key={index}
-                            src={dataUrl}
-                            alt={formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
-                            draggable={false}
-                            className="h-full w-full shrink-0 object-cover"
-                          />
-                        ))}
-                      </div>
-                    </div>
-                    {/* Slideshow dots */}
-                    {visiblePhotos.length > 1 && (
-                      <span className="pointer-events-none absolute inset-x-0 top-2 flex justify-center gap-1.5">
-                        {visiblePhotos.map((_, index) => (
-                          <span
-                            key={index}
-                            className="h-2.5 w-2.5 rounded-full transition-all duration-300"
-                            style={
-                              index === slideIndex % visiblePhotos.length
-                                ? {
-                                    width: '1.25rem',
-                                    backgroundColor: theme.primary,
-                                    boxShadow: `0 0 6px ${withAlpha(theme.primary, 0.8)}`,
-                                  }
-                                : { backgroundColor: withAlpha(theme.deep, 0.3) }
-                            }
-                          />
-                        ))}
+                  <div
+                    key={`${activeTab}-${developKey}`}
+                    className="absolute flex items-center justify-center overflow-hidden bg-black/5"
+                    style={{ ...card.media, animation: 'pb-develop 2.4s ease-out 0.9s both' }}
+                  >
+                    {activeTab === 'framed' && frame ? (
+                      <FrameCanvas
+                        frame={frame}
+                        photos={photoUrls}
+                        photoSlotCount={photoSlotCount}
+                        filter={filterStyle}
+                        qrCodeUrl={qrDataUrl ?? undefined}
+                        className="h-full w-full border-0 bg-white shadow-none"
+                      />
+                    ) : activeTab === 'live' && liveUrl ? (
+                      <img src={liveUrl} alt={copy.resultsFramedLiveBadge} className="h-full w-auto max-w-full object-contain" />
+                    ) : activeTab === 'gif' && gifUrl ? (
+                      <img src={gifUrl} alt={copy.resultsAnimatedGifBadge} className="h-full w-auto max-w-full object-contain" />
+                    ) : (
+                      <span className="px-[4cqmin] text-center text-[2.4cqmin] font-bold opacity-60">
+                        {copy.resultsNoFramed}
                       </span>
                     )}
-                    <span
-                      className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white"
-                      style={{ backgroundColor: withAlpha(theme.primary, 0.9) }}
-                    >
-                      💖 {formatBoothCopy(copy.resultsViewAllPhotos, { count: visiblePhotos.length })}
-                    </span>
-                  </>
-                ) : (
-                  <span
-                    className="text-center text-sm font-bold"
-                    style={{ color: withAlpha(theme.deep, 0.6) }}
-                  >
-                    {showAllPhotos ? copy.resultsNoIndividualPhotos : copy.resultsCollectionOff}
-                  </span>
-                )}
-              </button>
-
-              {/* Framed live result */}
-              {liveUrl && showLive && (
-                <button
-                  type="button"
-                  onClick={onViewLive}
-                  disabled={!onViewLive}
-                  title="View framed live photo"
-                  aria-label="View framed live photo"
-                  className="group relative flex min-h-0 min-h-[24%] w-full flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 bg-white p-1.5 transition-transform hover:-translate-y-0.5 disabled:cursor-default disabled:hover:translate-y-0 sm:p-2.5"
-                  style={{
-                    borderColor: theme.action,
-                    boxShadow: `0 6px 0 ${withAlpha(theme.action, 0.25)}`,
-                  }}
-                >
-                  <img
-                    src={liveUrl}
-                    alt={copy.resultsLiveBadge}
-                    className="h-full w-full rounded-md object-cover"
-                  />
-                  <span
-                    className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white"
-                    style={{ backgroundColor: withAlpha(theme.action, 0.9) }}
-                  >
-                    📹 {copy.resultsLiveBadge}
-                  </span>
-                </button>
-              )}
-
-              {/* Plain animated GIF result */}
-              {gifUrl && showGif && (
-                <button
-                  type="button"
-                  onClick={onViewGif}
-                  disabled={!onViewGif}
-                  title="View animated GIF"
-                  aria-label="View animated GIF"
-                  className="group relative flex min-h-0 min-h-[24%] w-full flex-1 cursor-pointer items-center justify-center overflow-hidden rounded-[18px] border-4 bg-white p-1.5 transition-transform hover:-translate-y-0.5 disabled:cursor-default disabled:hover:translate-y-0 sm:p-2.5"
-                  style={{
-                    borderColor: theme.secondary,
-                    boxShadow: `0 6px 0 ${withAlpha(theme.secondary, 0.25)}`,
-                  }}
-                >
-                  <img
-                    src={gifUrl}
-                    alt={copy.resultsGifBadge}
-                    className="h-full w-full rounded-md object-cover"
-                  />
-                  <span
-                    className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-white"
-                    style={{ backgroundColor: withAlpha(theme.secondary, 0.9) }}
-                  >
-                    🎞️ {copy.resultsGifBadge}
-                  </span>
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Right: QR + Finish Session */}
-          <div
-            className={`flex min-h-0 flex-col items-center justify-center gap-5 ${isTimedFlow ? 'flex-1 lg:gap-10' : 'shrink-0 lg:w-64 lg:gap-[9rem] xl:w-72'}`}
-            style={{ animation: 'pb-bounce-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.16s both' }}
-          >
-            <div className="flex flex-col items-center gap-2">
-              <span
-                className="text-center text-[0.6rem] font-black uppercase tracking-[0.2em]"
-                style={{ color: theme.deep }}
-              >
-                {isTimedFlow ? copy.resultsQrArrange : copy.resultsQrDownload}
-              </span>
-              <button
-                type="button"
-                onClick={onOpenQr}
-                disabled={!onOpenQr || !qrDataUrl}
-                title="Enlarge QR code"
-                aria-label="Enlarge QR code"
-                className="relative block w-full cursor-pointer overflow-hidden rounded-[18px] border-4 bg-white p-3 transition-transform hover:-translate-y-0.5 disabled:cursor-default disabled:hover:translate-y-0"
-                style={{
-                  borderColor: theme.secondary,
-                  boxShadow: `0 8px 0 ${withAlpha(theme.secondary, 0.25)}`,
-                }}
-              >
-                {qrDataUrl ? (
-                  <>
-                    <img
-                      src={qrDataUrl}
-                      alt={copy.resultsQrDownload}
-                      className="h-40 w-40 sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64"
-                    />
-                    {/* Pulsing aura */}
-                    <span
-                      className="pointer-events-none absolute inset-0 rounded-[14px]"
-                      style={{ animation: 'pb-pulse-ring 2.4s ease-out infinite' }}
-                    />
-                    {/* Scanning line */}
-                    <span
-                      className="pointer-events-none absolute inset-x-4 top-4 z-10 h-[3px] rounded-full"
-                      style={{
-                        backgroundColor: withAlpha(theme.primary, 0.8),
-                        boxShadow: `0 0 10px ${withAlpha(theme.primary, 0.9)}`,
-                        animation: 'pb-scan 2.8s ease-in-out infinite',
-                      }}
-                    />
-                  </>
-                ) : (
-                  <div
-                    className="flex h-40 w-40 flex-col items-center justify-center gap-1 text-center text-[0.6rem] font-black uppercase tracking-[0.18em] sm:h-52 sm:w-52 md:h-60 md:w-60 lg:h-64 lg:w-64"
-                    style={{ color: theme.deep }}
-                  >
-                    <span className="pb-tap text-base" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>
-                      ⏳
-                    </span>
-                    {copy.resultsGeneratingQr}
                   </div>
-                )}
-              </button>
+                  <span
+                    className="absolute inset-x-0 bottom-[1.2cqmin] text-center text-[2.4cqmin] font-black uppercase tracking-[0.2em]"
+                    style={{ color: withAlpha(theme.deep, 0.55) }}
+                  >
+                    🔍 {tabs.find((t) => t.id === activeTab)?.label ?? ''}
+                  </span>
+                </button>
+              </div>
             </div>
 
+            {tabs.length > 1 && (
+              <div
+                role="tablist"
+                className="flex shrink-0 gap-[1cqmin] rounded-full p-[0.8cqmin]"
+                style={{ backgroundColor: withAlpha(theme.deep, 0.12) }}
+              >
+                {tabs.map((t) => {
+                  const selected = t.id === activeTab;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={selected}
+                      onClick={() => {
+                        setTab(t.id);
+                        setDevelopKey((k) => k + 1);
+                      }}
+                      className="rounded-full px-[2.8cqmin] py-[1.1cqmin] text-[2.2cqmin] font-black uppercase tracking-[0.12em] transition-all"
+                      style={
+                        selected
+                          ? { backgroundColor: theme.primary, color: theme.primaryForeground, transform: 'scale(1.05)' }
+                          : { color: theme.deep }
+                      }
+                    >
+                      {t.id === 'framed' ? '🖼️' : t.id === 'live' ? '📹' : '🎞️'} {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ---------- Info: headline, status, QR, finish ---------- */}
+        <section
+          className={`flex min-h-0 flex-col justify-center gap-[2.4cqmin] ${isTimedFlow ? 'items-center text-center' : ''}`}
+          style={{ gridArea: 'info' }}
+        >
+          <header style={{ animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.4s both' }}>
+            <h1 className="text-[6.4cqmin] font-black leading-[1] tracking-[-0.03em]">{copy.resultsTitle}</h1>
+            <p className="mt-[1cqmin] max-w-[78cqmin] text-[2.5cqmin] font-semibold opacity-75">
+              {isTimedFlow ? copy.resultsQrArrange : copy.resultsSubtitle}
+            </p>
+          </header>
+
+          <div
+            className={`flex flex-wrap gap-[1cqmin] ${isTimedFlow ? 'justify-center' : ''}`}
+            style={{ animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.55s both' }}
+          >
+            {[printChip, uploadChip].filter(Boolean).map((chip, i) => (
+              <span
+                key={i}
+                role="status"
+                className="inline-flex items-center gap-[1cqmin] rounded-full border-[0.35cqmin] px-[2cqmin] py-[0.9cqmin] text-[2.1cqmin] font-bold"
+                style={{ borderColor: chip!.tone, backgroundColor: withAlpha(theme.card, 0.85), color: theme.cardForeground }}
+              >
+                <span aria-hidden="true">{chip!.icon}</span>
+                {chip!.text}
+                {chip!.busy && (
+                  <span className="inline-flex gap-[0.4cqmin]" aria-hidden="true">
+                    {[0, 1, 2].map((d) => (
+                      <span
+                        key={d}
+                        className="h-[0.8cqmin] w-[0.8cqmin] rounded-full"
+                        style={{ backgroundColor: chip!.tone, animation: `pb-dot-bounce 1.2s ease-in-out ${d * 0.15}s infinite` }}
+                      />
+                    ))}
+                  </span>
+                )}
+              </span>
+            ))}
+          </div>
+
+          <div
+            className={`flex items-center gap-[3cqmin] ${isTimedFlow ? 'flex-col' : ''}`}
+            style={{ animation: 'pb-bounce-in 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.2) 0.7s both' }}
+          >
             <button
               type="button"
-              onClick={onFinish}
-              disabled={!canFinish}
-              className="shrink-0 rounded-[12px] px-6 py-3 text-[1.2rem] font-black uppercase tracking-[0.16em] text-white transition-all md:px-8"
-              style={
-                canFinish
-                  ? {
-                      backgroundColor: theme.primary,
-                      boxShadow: '0 4px 0 rgba(0,0,0,0.18)',
-                      animation: 'pb-bounce-in 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.2) both',
-                    }
-                  : {
-                      backgroundColor: theme.muted,
-                      color: theme.mutedForeground,
-                      cursor: 'not-allowed',
-                      opacity: 0.7,
-                    }
-              }
+              onClick={onOpenQr}
+              disabled={!onOpenQr || !qrDataUrl}
+              aria-label="Enlarge QR code"
+              className="relative shrink-0 rounded-[2.4cqmin] border-[0.6cqmin] bg-white p-[1.8cqmin] transition-transform hover:-translate-y-[0.4cqmin] disabled:cursor-default"
+              style={{ borderColor: theme.deep, boxShadow: `0 1cqmin 0 ${theme.deep}` }}
             >
-              {isDone ? copy.resultsFinishDone : copy.resultsFinishButton}
+              {qrDataUrl ? (
+                <>
+                  <img src={qrDataUrl} alt={copy.resultsQrDownload} className="h-[30cqmin] w-[30cqmin]" />
+                  <span
+                    className="pointer-events-none absolute inset-x-[2cqmin] top-[2cqmin] h-[0.5cqmin] rounded-full"
+                    style={{
+                      backgroundColor: withAlpha(theme.primary, 0.85),
+                      boxShadow: `0 0 1.4cqmin ${withAlpha(theme.primary, 0.9)}`,
+                      animation: 'pb-scan 2.8s ease-in-out infinite',
+                    }}
+                  />
+                  <span
+                    className="pointer-events-none absolute inset-0 rounded-[2cqmin]"
+                    style={{ animation: 'pb-pulse-ring 2.4s ease-out infinite' }}
+                  />
+                </>
+              ) : (
+                <span className="flex h-[30cqmin] w-[30cqmin] flex-col items-center justify-center gap-[1cqmin] text-center text-[1.9cqmin] font-black uppercase tracking-[0.16em]">
+                  <span className="text-[4cqmin]" style={{ animation: 'pb-tap 1.2s ease-in-out infinite' }}>
+                    ⏳
+                  </span>
+                  {copy.resultsGeneratingQr}
+                </span>
+              )}
+              {/* "Scan me" sticker */}
+              <span
+                className="absolute -right-[3.5cqmin] -top-[3cqmin] grid h-[11cqmin] w-[11cqmin] place-items-center rounded-full px-[1cqmin] text-center text-[1.9cqmin] font-black uppercase leading-[1.05]"
+                style={{
+                  backgroundColor: theme.primary,
+                  color: theme.primaryForeground,
+                  boxShadow: `0 0.6cqmin 0 ${withAlpha(theme.deep, 0.35)}`,
+                  animation: 'pb-sticker-wobble 2.2s ease-in-out infinite',
+                }}
+              >
+                {copy.resultsScanMe}
+              </span>
             </button>
+
+            <div className={`flex min-w-0 flex-col gap-[2.4cqmin] ${isTimedFlow ? 'items-center' : ''}`}>
+              <button
+                type="button"
+                onClick={onFinish}
+                disabled={!canFinish}
+                className="relative overflow-hidden rounded-[1.8cqmin] px-[4cqmin] py-[2cqmin] text-[2.8cqmin] font-black uppercase tracking-[0.12em] transition-all enabled:hover:-translate-y-[0.3cqmin] enabled:active:translate-y-0"
+                style={
+                  canFinish
+                    ? {
+                        backgroundColor: theme.action,
+                        color: theme.actionForeground,
+                        boxShadow: `0 0.8cqmin 0 ${theme.deep}`,
+                      }
+                    : {
+                        backgroundColor: theme.muted,
+                        color: theme.mutedForeground,
+                        cursor: 'not-allowed',
+                        opacity: 0.7,
+                      }
+                }
+              >
+                {isDone ? copy.resultsFinishDone : copy.resultsFinishButton}
+                {canFinish && (
+                  <span
+                    className="pointer-events-none absolute inset-y-0 left-0 w-1/3"
+                    style={{
+                      background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent)',
+                      animation: 'pb-btn-shine 2.8s ease-in-out 1.2s infinite',
+                    }}
+                  />
+                )}
+              </button>
+            </div>
           </div>
-        </div>
+        </section>
+
+        {/* ---------- Film strip of every captured photo ---------- */}
+        {showAllPhotos && stripPhotos.length > 0 && (
+          <section style={{ gridArea: 'strip' }} className="min-w-0 justify-self-center">
+            <p className="mb-[0.8cqmin] text-[1.9cqmin] font-black uppercase tracking-[0.2em] opacity-70">
+              {formatBoothCopy(copy.resultsViewAllPhotos, { count: stripPhotos.length })}
+            </p>
+            <div
+              className="pb-scroll relative overflow-x-auto rounded-[1cqmin] px-[1.2cqmin] py-[1.8cqmin]"
+              style={{ backgroundColor: theme.deep }}
+            >
+              {/* sprocket holes */}
+              {(['top', 'bottom'] as const).map((edge) => (
+                <span
+                  key={edge}
+                  className="pointer-events-none absolute inset-x-0 h-[0.8cqmin]"
+                  style={{
+                    [edge]: '0.45cqmin',
+                    backgroundImage: `repeating-linear-gradient(90deg, ${withAlpha(theme.card, 0.85)} 0 1.2cqmin, transparent 1.2cqmin 2.6cqmin)`,
+                  }}
+                  aria-hidden="true"
+                />
+              ))}
+              <div className="flex w-max gap-[1.2cqmin]">
+                {stripPhotos.map((url, index) => (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => onViewPhoto?.(url, index)}
+                    disabled={!onViewPhoto}
+                    aria-label={formatBoothCopy(copy.resultsPhotoLabel, { index: index + 1 })}
+                    className="block shrink-0 overflow-hidden transition-transform hover:-translate-y-[0.4cqmin] disabled:cursor-default"
+                    style={
+                      {
+                        '--pr': `${index % 2 === 0 ? -1.5 : 1.5}deg`,
+                        animation: `pb-pop-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) ${1 + index * 0.08}s both`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <img src={url} alt="" draggable={false} className="h-[12cqmin] w-[16cqmin] object-cover" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

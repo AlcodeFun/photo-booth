@@ -183,6 +183,9 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
           showAllPhotos={!isTimed}
           showLive={!isTimed}
           showGif={!isTimed}
+          printState={isTimed ? 'off' : 'printing'}
+          uploadState="done"
+          allPhotoUrls={[1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`)}
           isDone
           canFinish
           surfaceStyle={appearanceSurfaceStyle(appearance, theme.tertiary)}
