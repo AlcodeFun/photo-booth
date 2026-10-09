@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { KELANA_CREAM, KelanaLogo, KelanaMark } from '../../components/brand/KelanaLogo';
 import { signInAdmin } from '../../lib/adminAuth';
 
 interface AdminLoginScreenProps {
@@ -31,11 +32,12 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onAuthentica
     <div className="flex min-h-screen items-center justify-center bg-pbx-ui-bg px-4 text-white">
       <div className="w-full max-w-[400px]">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-pbx-ui-brand to-pbx-ui-secondary shadow-[0_0_36px_rgb(var(--pbx-ui-brand-rgb)/0.45)]">
-            <span className="text-2xl font-black text-pbx-ui-bg">PB</span>
+          <div className="grid h-16 w-16 place-items-center rounded-2xl bg-[#F5EBDD] p-1.5 shadow-[0_0_36px_rgba(245,235,221,0.25)]">
+            <KelanaMark className="h-full w-full" />
           </div>
-          <div className="text-center">
-            <h1 className="text-xl font-bold tracking-wide">Booth Admin</h1>
+          <div className="flex flex-col items-center text-center">
+            <KelanaLogo className="h-8 w-auto" ink={KELANA_CREAM} />
+            <h1 className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-white/70">Booth Admin</h1>
             <p className="mt-1 text-sm text-white/50">Sign in to manage sessions and frames</p>
           </div>
         </div>

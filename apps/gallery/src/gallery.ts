@@ -1,5 +1,8 @@
 import { themeTokenCssVars, type BoothTheme } from '@photo-booth/types';
 
+/** Kelana K on a cream tile (same as the booth favicon), inlined so the worker serves no extra file. */
+const KELANA_FAVICON = 'data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%22-6.5%20-20.5%20165%20165%22%20role%3D%22img%22%20aria-label%3D%22Kelana%22%3E%3Crect%20x%3D%22-6.5%22%20y%3D%22-20.5%22%20width%3D%22165%22%20height%3D%22165%22%20rx%3D%2236.3%22%20fill%3D%22%23F5EBDD%22%2F%3E%3Cmask%20id%3D%22k%22%20maskUnits%3D%22userSpaceOnUse%22%20x%3D%220%22%20y%3D%22-10%22%20width%3D%22160%22%20height%3D%22150%22%3E%3Crect%20x%3D%220%22%20y%3D%22-10%22%20width%3D%22160%22%20height%3D%22150%22%20fill%3D%22%23fff%22%2F%3E%3Ccircle%20cx%3D%2254%22%20cy%3D%2266%22%20r%3D%2223%22%20fill%3D%22%23000%22%2F%3E%3Crect%20x%3D%2260%22%20y%3D%22-10%22%20width%3D%225%22%20height%3D%22150%22%20fill%3D%22%23000%22%2F%3E%3C%2Fmask%3E%3Cg%20mask%3D%22url(%23k)%22%20fill%3D%22%23344D66%22%20stroke%3D%22%23344D66%22%20stroke-linecap%3D%22round%22%3E%3Crect%20x%3D%2222%22%20y%3D%2210%22%20width%3D%2238%22%20height%3D%22110%22%20rx%3D%2217%22%20stroke%3D%22none%22%2F%3E%3Cpath%20d%3D%22M84%2042L113%2017%22%20stroke-width%3D%2234%22%20fill%3D%22none%22%2F%3E%3Cpath%20d%3D%22M84%2082L108%20106%22%20stroke-width%3D%2236%22%20fill%3D%22none%22%2F%3E%3C%2Fg%3E%3Ccircle%20cx%3D%2254%22%20cy%3D%2266%22%20r%3D%2217%22%20fill%3D%22%23344D66%22%2F%3E%3Ccircle%20cx%3D%2249%22%20cy%3D%2260%22%20r%3D%225%22%20fill%3D%22%23F5EBDD%22%2F%3E%3Cpath%20d%3D%22M98%2048Q101.36%2056.64%20110%2060Q101.36%2063.36%2098%2072Q94.64%2063.36%2086%2060Q94.64%2056.64%2098%2048Z%22%20fill%3D%22%23F07842%22%2F%3E%3C%2Fsvg%3E';
+
 /**
  * Self-contained gallery page served at GET /p/:token.
  * It fetches the session file list from the Worker and renders the framed
@@ -27,7 +30,8 @@ export const renderGallery = (params: {
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <meta name="robots" content="noindex"/>
-<title>Hasil Foto Mu</title>
+<title>Hasil Foto Mu · Kelana</title>
+<link rel="icon" type="image/svg+xml" href="${KELANA_FAVICON}"/>
 <style>
   :root { ${themeVars} --pink:var(--pbx-ui-brand); --pink-fg:var(--pbx-ui-brand-fg); --purple:var(--pbx-ui-secondary); --dark:var(--pbx-ui-panel); --lime:var(--pbx-ui-hi); --panel:var(--pbx-ui-raised); --card:var(--pbx-ui-raised); }
   * { box-sizing:border-box; }

@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { KelanaMark } from '../../brand/KelanaLogo';
 import type { BoothTheme } from '@photo-booth/types';
 
 /**
@@ -30,30 +31,15 @@ export const useStartScreenFonts = (): void => {
  * that leaves the frame, i.e. a photo taken on the move. Drawn from theme
  * colors so it follows whichever palette is active.
  */
+/** Kelana K mark, inked from the active booth theme so it fits every preset. */
 export const BrandMark: React.FC<{
   theme: BoothTheme;
   className?: string;
-  /** Ring/route color; defaults to the theme foreground. */
+  /** Letter color; defaults to the theme foreground. */
   ink?: string;
-}> = ({ theme, className, ink }) => {
-  const stroke = ink ?? theme.foreground;
-  return (
-    <svg viewBox="0 0 64 64" className={className} aria-hidden="true">
-      <circle cx="32" cy="32" r="26" fill="none" stroke={stroke} strokeWidth="4" />
-      <circle cx="32" cy="32" r="12" fill={theme.tertiary} stroke={stroke} strokeWidth="3" />
-      <circle cx="27.5" cy="27.5" r="3" fill={stroke} opacity="0.85" />
-      <path
-        d="M6 50 C 18 40, 26 54, 38 42 S 54 20, 60 10"
-        fill="none"
-        stroke={theme.primary}
-        strokeWidth="4"
-        strokeLinecap="round"
-        strokeDasharray="1 6"
-      />
-      <path d="M53 8 L61 9 L58 16" fill="none" stroke={theme.primary} strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-};
+}> = ({ theme, className, ink }) => (
+  <KelanaMark className={className} ink={ink ?? theme.foreground} accent={theme.primary} light={theme.background} />
+);
 
 /** PIN-gated setup entry, kept out of the way in the top-right corner. */
 export const SetupGearButton: React.FC<{ onOpenPin?: () => void; color: string; border: string }> = ({

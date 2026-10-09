@@ -317,7 +317,7 @@ export const BOOTH_START_SCREEN_PRESETS: BoothStartScreenPreset[] = [
  */
 export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
   copy: {
-    bumperBrand: 'Photostrip',
+    bumperBrand: 'Kelana',
     bumperTapToStart: 'Click dimana saja untuk mulai',
     bumperCaption1: 'The Best',
     bumperCaption2: 'Photostrip',

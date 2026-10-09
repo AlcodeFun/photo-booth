@@ -1,9 +1,17 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import * as path from 'path';
+import * as fs from 'fs';
 import { GphotoCameraService } from './camera/GphotoCameraService';
 import { MjpegLoopbackServer } from './camera/MjpegLoopbackServer';
 import { PrinterService } from './printer/PrinterService';
 import { PrintJob, PrintQueue } from './printer/PrintQueue';
+
+/** Kelana app icon for the window / taskbar: built renderer first, then the dev public folder. */
+const windowIcon = (): string | undefined =>
+  [
+    path.join(__dirname, '../renderer/icons/icon-512.png'),
+    path.join(__dirname, '../../renderer/public/icons/icon-512.png'),
+  ].find((file) => fs.existsSync(file));
 
 const rendererPort = Number(process.env.VITE_PORT || 5173);
 
@@ -133,6 +141,7 @@ function createWindow() {
   const isDev = process.env.NODE_ENV === 'development';
 
   mainWindow = new BrowserWindow({
+    icon: windowIcon(),
     width: 1280,
     height: 800,
     fullscreen: process.env.BOOTH_WINDOWED !== '1',
@@ -141,7 +150,7 @@ function createWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    title: 'Self Photo Booth',
+    title: 'Kelana Photobooth',
     autoHideMenuBar: true,
   });
 
@@ -174,6 +183,7 @@ function createAdminWindow() {
   }
 
   adminWindow = new BrowserWindow({
+    icon: windowIcon(),
     width: 1280,
     height: 800,
     fullscreen: false,
@@ -182,7 +192,7 @@ function createAdminWindow() {
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
-    title: 'Self Photo Booth — Admin',
+    title: 'Kelana Photobooth — Admin',
     autoHideMenuBar: true,
   });
 

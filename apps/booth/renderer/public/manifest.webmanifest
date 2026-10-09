@@ -1,16 +1,22 @@
 {
   "id": "./",
-  "name": "Photostrip",
-  "short_name": "Photostrip",
-  "description": "Photostrip - pick a frame, snap strips, print.",
+  "name": "Kelana Photobooth",
+  "short_name": "Kelana",
+  "description": "Kelana Photobooth - pick a frame, snap, print.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",
   "orientation": "any",
-  "background_color": "#1a0b2e",
-  "theme_color": "#ff4bb5",
+  "background_color": "#F5EBDD",
+  "theme_color": "#344D66",
   "lang": "en",
   "icons": [
+    {
+      "src": "./favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
     {
       "src": "./icons/icon-192.png",
       "sizes": "192x192",
@@ -24,7 +30,7 @@
       "purpose": "any"
     },
     {
-      "src": "./icons/icon-512.png",
+      "src": "./icons/icon-maskable-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"

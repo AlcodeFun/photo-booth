@@ -13,6 +13,7 @@ import { AdminAppearanceScreen } from './AdminAppearanceScreen';
 import { PrintQueueScreen } from './PrintQueueScreen';
 import { AdminVouchersScreen } from './AdminVouchersScreen';
 import { FrameAdminScreen } from '../FrameAdminScreen';
+import { KelanaMark } from '../../components/brand/KelanaLogo';
 
 type AdminArea = AdminNavArea | 'frame-fit' | 'login';
 
@@ -46,8 +47,8 @@ const setHash = (area: AdminArea) => {
 
 const Splash = () => (
   <div className="flex min-h-screen items-center justify-center bg-pbx-ui-bg">
-    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-gradient-to-br from-pbx-ui-brand to-pbx-ui-secondary text-2xl font-black text-pbx-ui-bg">
-      PB
+    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-[#F5EBDD] p-1.5">
+      <KelanaMark className="h-full w-full" />
     </div>
   </div>
 );

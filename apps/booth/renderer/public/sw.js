@@ -4,7 +4,7 @@
  * - Cache-first for static assets (hashed by Vite in production)
  * Bump CACHE_NAME whenever you ship a new build so caches refresh.
  */
-const CACHE_NAME = 'photobooth-v2';
+const CACHE_NAME = 'photobooth-v3';
 const APP_SHELL = ['./', './index.html', './manifest.webmanifest'];
 
 self.addEventListener('install', (event) => {
