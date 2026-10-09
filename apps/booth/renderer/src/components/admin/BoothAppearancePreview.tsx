@@ -6,7 +6,7 @@ import { MOCK_FRAMES } from '../../data/mockData';
 import { withAlpha } from '../../lib/appearance';
 import { getCanvasFilter } from '../../utils/filters';
 import BoothPreviewStage from './BoothPreviewStage';
-import BumperView from '../booth/BumperView';
+import StartScreenPreview from './StartScreenPreview';
 import TutorialView from '../booth/TutorialView';
 import FrameSelectionView from '../booth/FrameSelectionView';
 import CaptureView from '../booth/CaptureView';
@@ -18,8 +18,6 @@ import CompleteView from '../booth/CompleteView';
 export type PreviewFlow = 'retake' | 'auto' | 'timed';
 
 const FLOW_ORDER: PreviewFlow[] = ['retake', 'auto', 'timed'];
-
-const BUMPER_PHOTOS = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
 
 export interface BoothAppearancePreviewProps {
   appearance: BoothAppearance;
@@ -55,27 +53,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
     const bumper: Slide = {
       key: 'bumper',
       label: 'Start',
-      render: () => (
-        <BumperView
-          copy={copy}
-          theme={theme}
-          flavor="pink"
-          palette={{
-            inner: theme.bumperInner,
-            mid: theme.bumperMid,
-            outer: theme.bumperOuter,
-          }}
-          photos={BUMPER_PHOTOS}
-          refs={{
-            rootRef: { current: null },
-            farRef: { current: null },
-            bgRef: { current: null },
-            collageWrapRef: { current: null },
-            collageRef: { current: null },
-            sparkleRef: { current: null },
-          }}
-        />
-      ),
+      render: () => <StartScreenPreview appearance={appearance} />,
     };
 
     const tutorial: Slide = {

@@ -3,6 +3,7 @@ import {
   BoothAppearance,
   BoothBackgroundFit,
   BOOTH_COPY_GROUPS,
+  BOOTH_START_SCREEN_PRESETS,
   BOOTH_THEME_GROUPS,
   BOOTH_THEME_PRESETS,
   BoothCopywriting,
@@ -19,15 +20,17 @@ import {
   BoothAppearancePreview,
   type PreviewFlow,
 } from '../../components/admin/BoothAppearancePreview';
-import { IconImage, IconPalette, IconUpload } from '../../components/admin/AdminIcons';
+import { IconCheck, IconImage, IconPalette, IconUpload } from '../../components/admin/AdminIcons';
+import BoothPreviewStage from '../../components/admin/BoothPreviewStage';
+import StartScreenPreview from '../../components/admin/StartScreenPreview';
 import { Snackbar, SnackbarVariant } from '../../components/admin/Snackbar';
 
 /**
  * Admin editor for the customer-facing booth appearance.
  *
- * Scope is deliberately narrow: this changes what guests see (copy, palette,
- * background) and never the dashboard itself. Editing happens against a local
- * draft so the preview updates instantly; nothing reaches the booth until Save.
+ * Copy, start screen and background change what guests see; the palette also
+ * themes the dashboard and tools. Editing happens against a local draft so the
+ * preview updates instantly; nothing reaches the booth until Save.
  */
 
 const BACKDROP_FITS: BoothBackgroundFit[] = ['cover', 'contain', 'repeat'];
@@ -228,7 +231,7 @@ export const AdminAppearanceScreen: React.FC = () => {
             Appearance
           </h1>
           <p className="mt-0.5 text-sm text-white/50">
-            Customize what guests see on the booth. The dashboard is unaffected.
+            Customize what guests see on the booth. The palette also themes this dashboard.
           </p>
         </div>
 
@@ -302,6 +305,60 @@ export const AdminAppearanceScreen: React.FC = () => {
               </details>
             ))}
           </div>
+        </Section>
+
+        {/* ---- Start screen ---- */}
+        <Section
+          title="Start screen"
+          description="The attract loop guests see before tapping in. Every preset follows the palette below."
+        >
+          <div className="grid gap-4 md:grid-cols-3">
+            {BOOTH_START_SCREEN_PRESETS.map((preset) => {
+              const selected = draft.startScreen.style === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setDraft((current) => ({ ...current, startScreen: { style: preset.id } }))}
+                  aria-pressed={selected}
+                  className={`group overflow-hidden rounded-xl border text-left transition ${
+                    selected
+                      ? 'border-pbx-ui-hi ring-2 ring-pbx-ui-hi/40'
+                      : 'border-white/10 hover:border-white/30'
+                  }`}
+                >
+                  {/* Live thumbnail; pointer-events off so it never steals the click. */}
+                  <div className="pointer-events-none">
+                    <BoothPreviewStage className="w-full" frameStyle={{ backgroundColor: draft.theme.deep }}>
+                      <StartScreenPreview appearance={draft} style={preset.id} />
+                    </BoothPreviewStage>
+                  </div>
+                  <div className="flex items-start justify-between gap-2 bg-white/5 px-3 py-2.5">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-white">{preset.label}</p>
+                      <p className="mt-0.5 text-xs text-white/45">{preset.description}</p>
+                    </div>
+                    {selected && (
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-pbx-ui-hi text-pbx-ui-hi-fg">
+                        <IconCheck className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-xs text-white/40">
+            The Flat Journal and Fullscreen Camera presets were designed around the{' '}
+            <button
+              type="button"
+              onClick={() => applyThemePreset('kelana')}
+              className="font-semibold text-pbx-ui-hi underline-offset-2 hover:underline"
+            >
+              Kelana palette
+            </button>
+            . The camera preset uses the Canon live view when connected, else the webcam.
+          </p>
         </Section>
 
         {/* ---- Theme colors ---- */}

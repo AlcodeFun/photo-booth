@@ -4,6 +4,9 @@ import { useBoothAppearance } from '../store/appearanceStore';
 import { withAlpha } from '../lib/appearance';
 import { navigateToAdmin } from '../lib/navigation';
 import BumperView from '../components/booth/BumperView';
+import FlatJournalView from '../components/booth/startScreen/FlatJournalView';
+import CameraOverlayView from '../components/booth/startScreen/CameraOverlayView';
+import StartCameraFeed from '../components/booth/startScreen/StartCameraFeed';
 
 type Flavor = 'pink' | 'lime';
 
@@ -73,16 +76,11 @@ const PHOTOS = [
   photoAsset('photos/3.jpg'),
 ];
 
-export const ContextBumperScreen: React.FC = () => {
-  const confirmPayment = useSessionStore((state) => state.confirmPayment);
+/** The original "3D Gradient" preset: morphing gradient + 3D polaroid collage. */
+const Gradient3DStart: React.FC<{ onAdvance: () => void; onOpenPin: () => void }> = ({ onAdvance, onOpenPin }) => {
   const { copy, theme } = useBoothAppearance((state) => state.appearance);
   // Which of the two bumper gradients is currently showing.
   const [flavor, setFlavor] = useState<Flavor>('pink');
-  const [pinOpen, setPinOpen] = useState(false);
-  const [pinDigits, setPinDigits] = useState<string[]>([]);
-  const [pinError, setPinError] = useState(false);
-
-  const ADMIN_PIN = '250503';
 
   // Gradients and decoration colors follow the admin appearance. The animation
   // loops below are long-lived effects, so the derived palettes are mirrored into
@@ -271,6 +269,35 @@ export const ContextBumperScreen: React.FC = () => {
     };
   }, [switchFlavor]);
 
+
+  return (
+    <BumperView
+      copy={copy}
+      theme={theme}
+      flavor={flavor}
+      palette={themes[flavor]}
+      photos={PHOTOS}
+      refs={{ rootRef, farRef, bgRef, collageWrapRef, collageRef, sparkleRef }}
+      onAdvance={onAdvance}
+      onOpenPin={onOpenPin}
+    />
+  );
+};
+
+/**
+ * Start screen (attract loop). The admin picks the layout preset in
+ * Appearance; this owns what every preset shares: advancing the session and
+ * the PIN-gated route into booth setup.
+ */
+export const ContextBumperScreen: React.FC = () => {
+  const confirmPayment = useSessionStore((state) => state.confirmPayment);
+  const { copy, theme, startScreen } = useBoothAppearance((state) => state.appearance);
+  const [pinOpen, setPinOpen] = useState(false);
+  const [pinDigits, setPinDigits] = useState<string[]>([]);
+  const [pinError, setPinError] = useState(false);
+
+  const ADMIN_PIN = '250503';
+
   /* PIN-gated camera settings: click the gear, type 111111, and only then
      navigate to #/admin/camera. Wrong PINs clear and flash an error. */
   const closePin = () => {
@@ -308,18 +335,23 @@ export const ContextBumperScreen: React.FC = () => {
     }
   }, [pinDigits]);
 
+  const openPin = () => setPinOpen(true);
+
   return (
     <div className="fixed inset-0 z-[60]">
-      <BumperView
-        copy={copy}
-        theme={theme}
-        flavor={flavor}
-        palette={themes[flavor]}
-        photos={PHOTOS}
-        refs={{ rootRef, farRef, bgRef, collageWrapRef, collageRef, sparkleRef }}
-        onAdvance={confirmPayment}
-        onOpenPin={() => setPinOpen(true)}
-      />
+      {startScreen.style === 'flat' ? (
+        <FlatJournalView copy={copy} theme={theme} photos={PHOTOS} onAdvance={confirmPayment} onOpenPin={openPin} />
+      ) : startScreen.style === 'camera' ? (
+        <CameraOverlayView
+          copy={copy}
+          theme={theme}
+          cameraFeed={<StartCameraFeed fallbackSrc={PHOTOS[0]} />}
+          onAdvance={confirmPayment}
+          onOpenPin={openPin}
+        />
+      ) : (
+        <Gradient3DStart onAdvance={confirmPayment} onOpenPin={openPin} />
+      )}
 
       {/* Admin PIN modal — gate to camera settings */}
       {pinOpen && (

@@ -4,6 +4,8 @@ import {
   BoothBackgroundFit,
   BoothBackgroundType,
   BoothCopywriting,
+  BoothStartScreen,
+  BoothStartScreenStyle,
   BoothTheme,
   DEFAULT_BOOTH_APPEARANCE,
 } from '@photo-booth/types';
@@ -25,6 +27,7 @@ export interface BoothAppearanceRow {
   copy: Partial<BoothCopywriting> | null;
   theme: Partial<BoothTheme> | null;
   background: Partial<BoothBackground> | null;
+  start_screen?: Partial<BoothStartScreen> | null;
   updated_at?: string;
 }
 
@@ -60,6 +63,14 @@ export const withAlpha = (hex: string, alpha: number): string => {
 
 const BACKGROUND_FITS: BoothBackgroundFit[] = ['cover', 'contain', 'repeat'];
 const BACKGROUND_TYPES: BoothBackgroundType[] = ['color', 'image'];
+const START_SCREEN_STYLES: BoothStartScreenStyle[] = ['gradient3d', 'flat', 'camera'];
+
+/** Unknown/missing styles (e.g. written by a newer build) fall back to the default. */
+const normalizeStartScreen = (value: Partial<BoothStartScreen> | null | undefined): BoothStartScreen => ({
+  style: START_SCREEN_STYLES.includes(value?.style as BoothStartScreenStyle)
+    ? (value!.style as BoothStartScreenStyle)
+    : DEFAULT_BOOTH_APPEARANCE.startScreen.style,
+});
 
 /**
  * Merges a stored (possibly partial, possibly from an older schema) document
@@ -70,17 +81,24 @@ const mergeAppearance = (
     copy?: Partial<BoothCopywriting> | null;
     theme?: Partial<BoothTheme> | null;
     background?: Partial<BoothBackground> | null;
+    startScreen?: Partial<BoothStartScreen> | null;
   } | null,
 ): BoothAppearance => ({
   copy: { ...DEFAULT_BOOTH_APPEARANCE.copy, ...(value?.copy ?? {}) },
   theme: { ...DEFAULT_BOOTH_APPEARANCE.theme, ...(value?.theme ?? {}) },
   background: { ...DEFAULT_BOOTH_APPEARANCE.background, ...(value?.background ?? {}) },
+  startScreen: normalizeStartScreen(value?.startScreen),
 });
 
 /** Normalizes a stored row into the full document the booth renders. */
 const normalizeAppearance = (row: BoothAppearanceRow | null | undefined): BoothAppearance => {
   if (!row) return DEFAULT_BOOTH_APPEARANCE;
-  return mergeAppearance({ copy: row.copy, theme: row.theme, background: row.background });
+  return mergeAppearance({
+    copy: row.copy,
+    theme: row.theme,
+    background: row.background,
+    startScreen: row.start_screen,
+  });
 };
 
 /**
@@ -103,6 +121,7 @@ const mapAppearanceToRow = (appearance: BoothAppearance): BoothAppearanceRow => 
   copy: appearance.copy,
   theme: appearance.theme,
   background: appearance.background,
+  start_screen: appearance.startScreen,
 });
 
 /* ------------------------------------------------------------------ *
@@ -135,6 +154,10 @@ export const validateAppearance = (appearance: BoothAppearance): AppearanceValid
 
   if (!(BACKGROUND_FITS as string[]).includes(background.fit)) {
     errors.push('Background fit must be cover, contain or repeat.');
+  }
+
+  if (!START_SCREEN_STYLES.includes(appearance.startScreen?.style)) {
+    errors.push('Pick a start screen preset.');
   }
 
   if (background.type === 'image' && !background.imageUrl) {

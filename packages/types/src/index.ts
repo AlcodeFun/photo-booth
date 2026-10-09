@@ -236,11 +236,49 @@ export interface BoothBackground {
   position: string;
 }
 
+/**
+ * Layout of the attract loop (start screen). Every style reads its colors from
+ * the theme, so any palette works with any style.
+ *  - gradient3d: animated radial gradient, balloons and a 3D polaroid collage
+ *  - flat:       flat travel-journal collage (paper, tape, stamps, film strip)
+ *  - camera:     fullscreen live camera behind a film / polaroid overlay
+ */
+export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera';
+
+export interface BoothStartScreen {
+  style: BoothStartScreenStyle;
+}
+
 export interface BoothAppearance {
   copy: BoothCopywriting;
   theme: BoothTheme;
   background: BoothBackground;
+  startScreen: BoothStartScreen;
 }
+
+export interface BoothStartScreenPreset {
+  id: BoothStartScreenStyle;
+  label: string;
+  description: string;
+}
+
+export const BOOTH_START_SCREEN_PRESETS: BoothStartScreenPreset[] = [
+  {
+    id: 'gradient3d',
+    label: '3D Gradient',
+    description: 'Animated gradient, floating balloons and a spinning 3D photo collage.',
+  },
+  {
+    id: 'flat',
+    label: 'Flat Journal',
+    description: 'Flat travel-journal collage: polaroids, tape, stamps and a film strip.',
+  },
+  {
+    id: 'camera',
+    label: 'Fullscreen Camera',
+    description: 'Live camera fills the screen behind a film-grain polaroid overlay.',
+  },
+];
 
 /**
  * The appearance shipped with the app. There is no "default mode": the booth
@@ -371,6 +409,9 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     color: '#d9f85a',
     fit: 'cover',
     position: 'center',
+  },
+  startScreen: {
+    style: 'gradient3d',
   },
 };
 
@@ -616,6 +657,45 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
       bumperAltInner: '#E8B85F',
       bumperAltMid: '#674A38',
       bumperAltOuter: '#2A2119',
+    },
+  },
+  {
+    id: 'kelana',
+    label: 'Kelana',
+    // Warm Cream, Sunset Orange, Butter Yellow, Travel Blue, Charcoal.
+    swatches: ['#F5EBDD', '#F07842', '#FFC34A', '#344D66', '#29251F'],
+    backgroundColor: '#F5EBDD',
+    theme: {
+      // White on Sunset Orange is only ~2.9:1, so brand fills carry charcoal.
+      primary: '#F07842',
+      primaryForeground: '#29251F',
+      secondary: '#344D66',
+      secondaryForeground: '#F5EBDD',
+      tertiary: '#FFC34A',
+      tertiaryForeground: '#29251F',
+      // A lifted Travel Blue for secondary highlights on the cream.
+      accent: '#7FA6C4',
+      accentForeground: '#29251F',
+      // Butter Yellow is the brief's call-to-action color.
+      action: '#FFC34A',
+      actionForeground: '#29251F',
+      background: '#F5EBDD',
+      foreground: '#29251F',
+      card: '#FBF5EC',
+      cardForeground: '#29251F',
+      surface: '#EFE1CC',
+      surfaceForeground: '#29251F',
+      muted: '#A79A88',
+      mutedForeground: '#29251F',
+      destructive: '#B23A2E',
+      destructiveForeground: '#F5EBDD',
+      deep: '#29251F',
+      bumperInner: '#F07842',
+      bumperMid: '#344D66',
+      bumperOuter: '#29251F',
+      bumperAltInner: '#FFC34A',
+      bumperAltMid: '#F07842',
+      bumperAltOuter: '#29251F',
     },
   },
 ];

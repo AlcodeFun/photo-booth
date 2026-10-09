@@ -569,3 +569,95 @@
     transform: scale(1.2);
   }
 }
+
+/* ---- Start screen presets: flat journal + fullscreen camera ---- */
+.pb-grain {
+  pointer-events: none;
+  position: absolute;
+  inset: -50%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0.9 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  animation: pb-grain-shift 0.9s steps(6) infinite;
+}
+
+@keyframes pb-grain-shift {
+  0% { transform: translate(0, 0); }
+  20% { transform: translate(-4%, 3%); }
+  40% { transform: translate(3%, -5%); }
+  60% { transform: translate(-6%, -2%); }
+  80% { transform: translate(5%, 4%); }
+  100% { transform: translate(0, 0); }
+}
+
+.pb-sway {
+  animation: pb-sway var(--sway-dur, 6s) ease-in-out var(--sway-delay, 0s) infinite alternate;
+}
+
+@keyframes pb-sway {
+  from { transform: rotate(var(--rot-a, -4deg)) translateY(0); }
+  to { transform: rotate(var(--rot-b, 2deg)) translateY(-1.2cqmin); }
+}
+
+.pb-filmroll {
+  animation: pb-filmroll 40s linear infinite;
+}
+
+@keyframes pb-filmroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+.pb-route {
+  stroke-dasharray: 2 2.4;
+  animation: pb-route 3s linear infinite;
+}
+
+@keyframes pb-route {
+  to { stroke-dashoffset: -8.8; }
+}
+
+.pb-stamp-spin {
+  animation: pb-stamp-spin 30s linear infinite;
+}
+
+@keyframes pb-stamp-spin {
+  to { transform: rotate(360deg); }
+}
+
+.pb-kenburns {
+  animation: pb-kenburns 18s ease-in-out infinite alternate;
+}
+
+@keyframes pb-kenburns {
+  from { transform: scale(1.04) translate(0, 0); }
+  to { transform: scale(1.14) translate(-2%, -1.5%); }
+}
+
+.pb-cta-pulse {
+  animation: pb-cta-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes pb-cta-pulse {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50% { transform: translateY(-0.6cqmin) rotate(1deg); }
+}
+
+.pb-rec-blink {
+  animation: pb-rec-blink 1.4s steps(2) infinite;
+}
+
+@keyframes pb-rec-blink {
+  50% { opacity: 0.15; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-grain,
+  .pb-sway,
+  .pb-filmroll,
+  .pb-route,
+  .pb-stamp-spin,
+  .pb-kenburns,
+  .pb-cta-pulse,
+  .pb-rec-blink {
+    animation: none;
+  }
+}
