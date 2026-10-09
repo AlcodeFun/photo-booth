@@ -151,7 +151,6 @@ export interface BoothCopywriting {
   captureRetry: string;
   capturePreparing: string;
   captureHoldPose: string;
-  captureCaptured: string;
   captureCheese: string;
   captureGetReady: string;
   captureTapToStart: string;
@@ -292,7 +291,6 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     captureRetry: 'Retry camera',
     capturePreparing: 'Tunggu Sebentar',
     captureHoldPose: 'Tahan Posemu',
-    captureCaptured: 'Photo captured',
     captureCheese: 'Cheese!',
     captureGetReady: 'Get ready',
     captureTapToStart: 'Click dimana saja untuk memulai',
@@ -451,7 +449,6 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'captureRetry', label: 'Camera retry button' },
       { key: 'capturePreparing', label: 'Preparing message' },
       { key: 'captureHoldPose', label: 'Hold pose message' },
-      { key: 'captureCaptured', label: 'Captured message' },
       { key: 'captureCheese', label: 'Shutter message' },
       { key: 'captureGetReady', label: 'Get ready message' },
       { key: 'captureTapToStart', label: 'Tap to start hint' },

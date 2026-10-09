@@ -261,14 +261,10 @@ export const PhotoCaptureScreen: React.FC = () => {
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
+      // The mirror toggle only flips the on-screen preview. Saved photos stay
+      // true-to-life (like the Canon path) so text and logos print readable.
       const context = canvas.getContext('2d');
-      if (context) {
-        if (isMirrored) {
-          context.translate(canvas.width, 0);
-          context.scale(-1, 1);
-        }
-        context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      }
+      context?.drawImage(video, 0, 0, canvas.width, canvas.height);
       commitCapture(canvas.toDataURL('image/jpeg', 0.92));
     } finally {
       captureInFlightRef.current = false;
@@ -281,7 +277,6 @@ export const PhotoCaptureScreen: React.FC = () => {
     commitCapture,
     currentPhotoSlot,
     flowMode,
-    isMirrored,
     sessionId,
   ]);
 
@@ -331,13 +326,9 @@ export const PhotoCaptureScreen: React.FC = () => {
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
-    if (isMirrored) {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    }
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     return canvas.toDataURL('image/jpeg', 0.8);
-  }, [canonActive, isMirrored]);
+  }, [canonActive]);
 
   const pushLiveFrame = (frame: string | null) => {
     if (!frame) return;
@@ -495,7 +486,10 @@ export const PhotoCaptureScreen: React.FC = () => {
     setScreen,
   ]);
 
-  const handleLiveViewClick = () => {
+  const handleLiveViewClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    // Controls (mirror toggle, retry, slot arrows) must not double as the
+    // tap-anywhere shutter.
+    if ((event.target as HTMLElement).closest('button')) return;
     if (isTimedFlow) {
       if (timedPhase === 'idle') startTimedSession();
       else if (timedPhase === 'active') captureNow();

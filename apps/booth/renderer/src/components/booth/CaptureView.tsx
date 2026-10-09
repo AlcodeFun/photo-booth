@@ -106,7 +106,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
     {cameraFeed}
 
     <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-black/55 via-transparent to-black/65" />
-    {isFlash && <div className="pointer-events-none absolute inset-0 z-50 bg-white" />}
+    {isFlash && <div className="pointer-events-none absolute inset-0 z-[70] bg-white" />}
 
     <header className="absolute inset-x-0 top-0 z-20 flex flex-wrap items-start justify-between gap-2 px-4 py-4 sm:gap-4 sm:px-8 sm:py-7">
       <div className="rounded-[12px] bg-black/45 px-4 py-3 backdrop-blur-sm">
@@ -190,9 +190,9 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
         </div>
       </div>
     )}
-    {isStarted && countdown === 0 && (
+    {isStarted && countdown === 0 && !isCapturing && (
       <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center text-3xl font-bold uppercase tracking-[0.12em] drop-shadow-lg sm:text-5xl">
-        {isCapturing ? copy.captureCaptured : copy.captureCheese}
+        {copy.captureCheese}
       </div>
     )}
 
@@ -336,7 +336,8 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
       {isTimedFlow && <div className="w-16" aria-hidden="true" />}
     </footer>
 
-    {isPreparing && (
+    {/* Held from Live View teardown until the shot lands, so guests keep still. */}
+    {(isPreparing || isCapturing) && (
       <div
         className="absolute inset-0 z-[60] flex items-center justify-center px-6 text-center text-4xl font-bold sm:text-6xl"
         style={{ backgroundColor: theme.card, color: theme.cardForeground }}
