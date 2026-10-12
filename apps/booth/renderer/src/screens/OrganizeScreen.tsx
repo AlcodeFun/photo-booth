@@ -32,14 +32,13 @@ const transformKey = (name: string, t: OrganizePhotoTransform) => `${name}|${t.r
 
 /**
  * Timed flow: the guest picks the frame here (the booth no longer asks).
- * Every frame is previewed with the guest's own photos.
+ * Frames are previewed with numbered slot placeholders; the guest fills them after.
  */
 const FramePicker: React.FC<{
   frames: FrameConfig[] | null;
-  photoUrls: string[];
   onPick: (frame: FrameConfig) => void;
   onClose?: () => void;
-}> = ({ frames, photoUrls, onPick, onClose }) => (
+}> = ({ frames, onPick, onClose }) => (
   <section className="flex h-[100dvh] flex-col overflow-hidden bg-pbx-paper text-pbx-ink">
     <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-pbx-line px-4 py-3">
       <div>
@@ -66,7 +65,6 @@ const FramePicker: React.FC<{
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           {frames.map((frame) => {
             const template = resolveFrameTemplate(frame, Math.max(1, Math.floor(frame.photoSlots ?? 3)));
-            const photos = template.photoSlots.map((slot) => photoUrls[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1]);
             return (
               <button
                 key={frame.id}
@@ -74,7 +72,7 @@ const FramePicker: React.FC<{
                 onClick={() => onPick(frame)}
                 className="flex flex-col gap-2 rounded-[14px] border-[3px] border-pbx-line bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-pbx-brand hover:shadow-md"
               >
-                <FrameCanvas template={template} photos={photos} photoSlotCount={template.photoSlots.length} className="w-full !border-0" />
+                <FrameCanvas template={template} photos={[]} photoSlotCount={template.photoSlots.length} className="w-full !border-0" />
                 <span className="truncate px-1 text-center text-xs font-black uppercase">{frame.name}</span>
               </button>
             );
@@ -387,6 +385,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       const style = window.getComputedStyle(area);
       const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
       const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+      // A detached area (picker / GIF step open) measures 0x0: keep the last size.
+      if (!area.isConnected || rect.width === 0 || rect.height === 0) return;
       const availableWidth = Math.max(0, rect.width - padX);
       const availableHeight = Math.max(0, rect.height - padY);
       const widthScale = template.width > 0 ? availableWidth / template.width : 0;
@@ -401,7 +401,9 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     const observer = new ResizeObserver(computeFit);
     observer.observe(area);
     return () => observer.disconnect();
-  }, [template]);
+    // framePicker / step / phase / themeLoading: the canvas area unmounts while those screens
+    // show, so it must be observed again when it comes back.
+  }, [template, framePicker, step, phase, themeLoading]);
 
   const repaintSlots = useCallback((nextSlots: (string | null)[]) => {
     setSlots(nextSlots);
@@ -497,9 +499,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const pickFrame = (frame: FrameConfig) => {
     const resolved = resolveFrameTemplate(frame, Math.max(1, Math.floor(frame.photoSlots ?? 3)));
-    // Starts blank: the guest places each photo. Switching frames keeps the
-    // photos already placed, slot by slot.
-    const nextSlots = Array.from({ length: resolved.photoSlots.length }, (_, i) => (template ? (slots[i] ?? null) : null));
+    // Always starts blank (first pick or a switch): the guest places each photo.
+    const nextSlots: (string | null)[] = Array.from({ length: resolved.photoSlots.length }, () => null);
     setOrganize((current) =>
       current ? { ...current, frameId: frame.id, template: resolved, slotCount: resolved.photoSlots.length, slots: nextSlots } : current,
     );
@@ -745,7 +746,6 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     return (
       <FramePicker
         frames={frames}
-        photoUrls={photos.map((photo) => photoUrlFor(photo.name))}
         onPick={pickFrame}
         onClose={template ? () => setFramePicker(false) : undefined}
       />

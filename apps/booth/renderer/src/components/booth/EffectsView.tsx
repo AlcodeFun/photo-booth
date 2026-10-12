@@ -10,6 +10,7 @@ import {
   gifAdjustTransform,
   isDefaultGifAdjust,
   type GifAdjust,
+  type GifGeometry,
 } from '../../utils/gifAdjust';
 
 export interface EffectsGifFrame {
@@ -105,9 +106,13 @@ export const GifPreview: React.FC<{
     return () => window.clearInterval(timer);
   }, [photos.length]);
   const ratio = useGifAspect(overlay, photos);
+  const photoAspect = useImageAspect(photos[0]);
+  // Pan limits follow the real photo-in-box fit, so moving works without zooming.
+  const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio, mode: 'contain' });
+  geometryRef.current = { imageAspect: photoAspect ?? ratio, boxAspect: ratio, mode: overlay ? 'cover' : 'contain' };
 
   const boxRef = useRef<HTMLDivElement>(null);
-  const current = clampGifAdjust(adjust);
+  const current = clampGifAdjust(adjust, geometryRef.current);
   const currentRef = useRef(current);
   currentRef.current = current;
   const onChangeRef = useRef(onAdjustChange);
@@ -117,7 +122,7 @@ export const GifPreview: React.FC<{
   const dragged = useRef(false);
   const editable = Boolean(onAdjustChange);
 
-  const emit = (next: Partial<GifAdjust>) => onChangeRef.current?.(clampGifAdjust({ ...currentRef.current, ...next }));
+  const emit = (next: Partial<GifAdjust>) => onChangeRef.current?.(clampGifAdjust({ ...currentRef.current, ...next }, geometryRef.current));
 
   const snapshot = () => {
     const pts = [...pointers.current.values()];
@@ -155,7 +160,7 @@ export const GifPreview: React.FC<{
       offsetY: a.offsetY + (s.midY - g.midY) / rect.height,
     };
     if (pointers.current.size >= 2 && g.dist > 0 && s.dist > 0) next.scale = a.scale * (s.dist / g.dist);
-    currentRef.current = clampGifAdjust({ ...a, ...next });
+    currentRef.current = clampGifAdjust({ ...a, ...next }, geometryRef.current);
     emit(currentRef.current);
     g.midX = s.midX;
     g.midY = s.midY;
@@ -180,7 +185,7 @@ export const GifPreview: React.FC<{
       event.preventDefault();
       // No dragged flag: a wheel never ends in a click, so the flag would only
       // swallow the next real tap (e.g. on Mirror).
-      currentRef.current = clampGifAdjust({ ...currentRef.current, scale: currentRef.current.scale * Math.exp(-event.deltaY * 0.0015) });
+      currentRef.current = clampGifAdjust({ ...currentRef.current, scale: currentRef.current.scale * Math.exp(-event.deltaY * 0.0015) }, geometryRef.current);
       onChangeRef.current?.(currentRef.current);
     };
     box.addEventListener('wheel', onWheel, { passive: false });
