@@ -17,7 +17,9 @@ function compile() {
 }
 
 async function start() {
-  if (!fs.existsSync(mainEntry) || process.argv.includes('--rebuild')) {
+  // Always recompile: a stale dist/electron silently runs old main-process code
+  // (e.g. the window icon / title). tsc is incremental-fast enough.
+  if (!fs.existsSync(mainEntry) || !process.argv.includes('--no-rebuild')) {
     console.log('Compiling Electron main process...');
     await compile();
   }

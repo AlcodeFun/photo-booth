@@ -11,7 +11,8 @@
     "build:renderer": "vite build && node -e \"var fs=require('fs');fs.cpSync('renderer/public/manifest.webmanifest','dist/renderer/manifest.webmanifest');fs.cpSync('renderer/public/sw.js','dist/renderer/sw.js');fs.cpSync('renderer/public/icons','dist/renderer/icons',{recursive:true})\"",
     "build:electron": "tsc -p electron/tsconfig.json",
     "start": "node scripts/start-electron.js",
-    "typecheck": "tsc -p electron/tsconfig.json --noEmit && tsc -p renderer/tsconfig.json --noEmit"
+    "typecheck": "tsc -p electron/tsconfig.json --noEmit && tsc -p renderer/tsconfig.json --noEmit",
+    "dist": "corepack pnpm build && electron-builder"
   },
   "dependencies": {
     "@photo-booth/types": "workspace:*",
@@ -40,5 +41,38 @@
     "typescript": "^5.3.3",
     "vite": "^5.1.4",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "id.kelana.photobooth",
+    "productName": "Kelana Photobooth",
+    "directories": {
+      "buildResources": "resources",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "Kelana Photobooth"
+    },
+    "linux": {
+      "icon": "resources/icon.png",
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Graphics",
+      "executableName": "kelana-photobooth"
+    }
   }
 }

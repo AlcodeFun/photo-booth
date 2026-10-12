@@ -6,9 +6,13 @@ import { MjpegLoopbackServer } from './camera/MjpegLoopbackServer';
 import { PrinterService } from './printer/PrinterService';
 import { PrintJob, PrintQueue } from './printer/PrintQueue';
 
-/** Kelana app icon for the window / taskbar: built renderer first, then the dev public folder. */
+/**
+ * Kelana app icon for the window / taskbar. Windows wants the multi-size .ico
+ * (crisp at every taskbar scale); other platforms take the 512px PNG.
+ */
 const windowIcon = (): string | undefined =>
   [
+    path.join(__dirname, '../../resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     path.join(__dirname, '../renderer/icons/icon-512.png'),
     path.join(__dirname, '../../renderer/public/icons/icon-512.png'),
   ].find((file) => fs.existsSync(file));
@@ -201,6 +205,12 @@ function createAdminWindow() {
     adminWindow = null;
   });
 }
+
+// Own taskbar identity on Windows, so the Kelana icon is not grouped under Electron.
+if (process.platform === 'win32') {
+  app.setAppUserModelId('id.kelana.photobooth');
+}
+app.setName('Kelana Photobooth');
 
 app.whenReady().then(() => {
   ipcMain.handle('print-to-pdf', async () => printWindowToPdf());
