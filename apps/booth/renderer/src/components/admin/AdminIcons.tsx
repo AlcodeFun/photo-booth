@@ -207,3 +207,10 @@ export const IconTicket: React.FC<IconProps> = ({ className }) => (
     <path d="M15 7v2M15 11v2M15 15v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </Icon>
 );
+
+export const IconFilm: React.FC<IconProps> = ({ className }) => (
+  <Icon className={className}>
+    <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="2" />
+    <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" stroke="currentColor" strokeWidth="2" />
+  </Icon>
+);

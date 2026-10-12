@@ -12,6 +12,7 @@ import { AdminFramesScreen } from './AdminFramesScreen';
 import { AdminAppearanceScreen } from './AdminAppearanceScreen';
 import { PrintQueueScreen } from './PrintQueueScreen';
 import { AdminVouchersScreen } from './AdminVouchersScreen';
+import { AdminGifFramesScreen } from './AdminGifFramesScreen';
 import { FrameAdminScreen } from '../FrameAdminScreen';
 import { KelanaMark } from '../../components/brand/KelanaLogo';
 
@@ -33,6 +34,7 @@ const parseArea = (): AdminArea => {
     segment === 'templates' ||
     segment === 'print-queue' ||
     segment === 'voucher' ||
+    segment === 'gif-frames' ||
     segment === 'appearance' ||
     segment === 'frame-fit'
   ) {
@@ -167,6 +169,7 @@ export const AdminApp: React.FC = () => {
         {area === 'print-queue' && <PrintQueueScreen />}
         {area === 'templates' && <AdminFramesScreen />}
         {area === 'voucher' && <AdminVouchersScreen />}
+        {area === 'gif-frames' && <AdminGifFramesScreen />}
         {area === 'appearance' && <AdminAppearanceScreen />}
       </AdminLayout>
       {snackbar && (

@@ -6,6 +6,7 @@ import {
   IconMenu,
   IconPalette,
   IconTicket,
+  IconFilm,
   IconPhotoBooth,
   IconPrinter,
   IconSearch,
@@ -15,13 +16,14 @@ import {
 import { ConfirmModal } from './Modal';
 import { KELANA_CREAM, KelanaLogo, KelanaMark } from '../brand/KelanaLogo';
 
-export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'voucher' | 'appearance';
+export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'voucher' | 'gif-frames' | 'appearance';
 
 const NAV_ITEMS: Array<{ area: AdminNavArea; label: string; keywords: string }> = [
   { area: 'dashboard', label: 'Dashboard', keywords: 'dashboard home summary overview' },
   { area: 'sesi', label: 'Sessions', keywords: 'sessions sesi upload results photos' },
   { area: 'print-queue', label: 'Print Queue', keywords: 'print printer queue selphy cups reprint batch' },
   { area: 'templates', label: 'Templates', keywords: 'templates frame gallery frames' },
+  { area: 'gif-frames', label: 'GIF Frames', keywords: 'gif frame frames overlay animation template' },
   { area: 'voucher', label: 'Vouchers', keywords: 'voucher vouchers qr code ticket access lock unlock print' },
   {
     area: 'appearance',
@@ -126,6 +128,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                   {item.area === 'print-queue' && <IconPrinter />}
                   {item.area === 'templates' && <IconTemplates />}
                   {item.area === 'voucher' && <IconTicket />}
+                  {item.area === 'gif-frames' && <IconFilm />}
                   {item.area === 'appearance' && <IconPalette />}
                 </span>
                 {!collapsed && <span className="truncate">{item.label}</span>}
@@ -195,6 +198,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                         {item.area === 'print-queue' && <IconPrinter className="h-4 w-4" />}
                         {item.area === 'templates' && <IconTemplates className="h-4 w-4" />}
                         {item.area === 'voucher' && <IconTicket className="h-4 w-4" />}
+                        {item.area === 'gif-frames' && <IconFilm className="h-4 w-4" />}
                         {item.area === 'appearance' && <IconPalette className="h-4 w-4" />}
                       </span>
                       {item.label}
@@ -263,6 +267,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
                 {item.area === 'print-queue' && <IconPrinter />}
                 {item.area === 'templates' && <IconTemplates />}
                   {item.area === 'voucher' && <IconTicket />}
+                  {item.area === 'gif-frames' && <IconFilm />}
                 {item.area === 'appearance' && <IconPalette />}
               </span>
             </button>

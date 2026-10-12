@@ -5,6 +5,7 @@ export type AdminArea =
   | 'templates'
   | 'print-queue'
   | 'voucher'
+  | 'gif-frames'
   | 'appearance'
   | 'frame-fit'
   | 'camera';

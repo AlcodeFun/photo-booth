@@ -56,6 +56,8 @@ interface UploadJob {
   filterId: string | null;
   /** Voucher that paid for the session, stamped on its row. */
   voucherId?: string | null;
+  /** GIF frame overlay chosen on the effects screen. */
+  gifFrameUrl?: string | null;
   /** Per-token statuses accumulated by this job (survives a store reset). */
   fileStates: SessionFileState[];
 }
@@ -333,7 +335,7 @@ const run = async (job: UploadJob) => {
     const gifResult = (async () => {
       if (flowMode === 'timed' || !outputs.gif || job.photoSlots.length === 0) return null;
       try {
-        const blob = await createResultGif(job.photoSlots, job.filterId);
+        const blob = await createResultGif(job.photoSlots, job.filterId, { overlayUrl: job.gifFrameUrl });
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result.gif', blob));
         return { blob, name: 'result.gif' as const };
       } catch (error) {
@@ -418,6 +420,7 @@ const maybeStart = () => {
     photoSlots: store.photoSlots,
     filterId: store.filterId,
     voucherId: store.voucherId,
+    gifFrameUrl: store.gifFrame?.url ?? null,
     fileStates: [...(store.sessionFilesByToken[store.sessionToken ?? ''] ?? [])],
   };
   runningJobs.set(sessionId, job);

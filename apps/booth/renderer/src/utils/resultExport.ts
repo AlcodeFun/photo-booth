@@ -393,15 +393,37 @@ const drawContain = (
   ctx.restore();
 };
 
+/** Fills the whole canvas with the image, cropping the overflow (CSS cover). */
+const drawCover = (
+  ctx: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  fitWidth: number,
+  fitHeight: number,
+  canvasFilter: string,
+) => {
+  const scale = Math.max(fitWidth / image.width, fitHeight / image.height);
+  const drawWidth = image.width * scale;
+  const drawHeight = image.height * scale;
+  ctx.save();
+  ctx.filter = canvasFilter;
+  ctx.drawImage(image, (fitWidth - drawWidth) / 2, (fitHeight - drawHeight) / 2, drawWidth, drawHeight);
+  ctx.filter = 'none';
+  ctx.restore();
+};
+
 /**
  * Creates an animated GIF of the selected photos shown one after another,
  * looping continuously. The canvas matches the camera's original aspect ratio
  * (from the first photo) and each photo is fit fully — no cropping.
+ *
+ * With a GIF frame (`overlayUrl`), the canvas takes the overlay's aspect
+ * ratio instead: each photo fills it (cover) and the overlay PNG is drawn on
+ * top, so the photo shows through the overlay's transparent window.
  */
 export async function createResultGif(
   photoSlots: PhotoSlotState[],
   filterId: string | null | undefined,
-  opts: { width?: number; delay?: number } = {},
+  opts: { width?: number; delay?: number; overlayUrl?: string | null } = {},
 ): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
 
@@ -410,12 +432,15 @@ export async function createResultGif(
     throw new Error('No photos to encode.');
   }
 
-  const { width = 720, delay = 700 } = opts;
+  const { width = 720, delay = 700, overlayUrl } = opts;
 
-  // The camera keeps a fixed aspect ratio across shots, so the canvas is sized
-  // from the first photo and every photo is drawn to fit without cropping.
-  const firstImage = await loadImage(photos[0]);
-  const height = Math.max(1, Math.round((width / firstImage.width) * firstImage.height));
+  // An overlay that fails to load is skipped: a plain GIF beats no GIF.
+  const overlay = overlayUrl ? await loadImage(overlayUrl).catch(() => null) : null;
+
+  // Without an overlay the camera's fixed aspect ratio sizes the canvas (from
+  // the first photo) and every photo is drawn to fit without cropping.
+  const sizing = overlay ?? (await loadImage(photos[0]));
+  const height = Math.max(1, Math.round((width / sizing.width) * sizing.height));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -434,7 +459,12 @@ export async function createResultGif(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#111111';
       ctx.fillRect(0, 0, width, height);
-      drawContain(ctx, image, width, height, canvasFilter);
+      if (overlay) {
+        drawCover(ctx, image, width, height, canvasFilter);
+        ctx.drawImage(overlay, 0, 0, width, height);
+      } else {
+        drawContain(ctx, image, width, height, canvasFilter);
+      }
 
       const imageData = ctx.getImageData(0, 0, width, height);
       // Palette comes from the clean frame; dithering is applied afterwards so

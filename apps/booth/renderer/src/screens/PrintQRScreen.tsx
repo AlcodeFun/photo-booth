@@ -23,6 +23,7 @@ export const PrintQRScreen: React.FC = () => {
       completeSession: state.completeSession,
     }),
   );
+  const gifFrame = useSessionStore((state) => state.gifFrame);
   const outputs = useBoothConfig((state) => state.outputs);
   const flowMode = useBoothConfig((state) => state.flowMode);
   const printMode = useBoothConfig((state) => state.printer.printMode);
@@ -121,7 +122,7 @@ export const PrintQRScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     if (outputs.gif && photoSlots.length > 0) {
-      createResultGif(photoSlots, filterId)
+      createResultGif(photoSlots, filterId, { overlayUrl: gifFrame?.url })
         .then((blob) => {
           if (!cancelled) {
             setGifBlob(blob);
@@ -139,7 +140,7 @@ export const PrintQRScreen: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [outputs.gif, photoSlots, filterId]);
+  }, [outputs.gif, photoSlots, filterId, gifFrame]);
 
   useEffect(() => {
     if (!gifBlob) {

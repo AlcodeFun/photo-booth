@@ -34,6 +34,9 @@ export interface SessionStore {
   paymentConfirmed: boolean;
   /** Voucher redeemed to start this session (voucher-locked booths only). */
   voucherId: string | null;
+  /** Overlay picked for the animated GIF (null = plain GIF). */
+  gifFrame: { id: string; url: string } | null;
+  setGifFrame: (gifFrame: { id: string; url: string } | null) => void;
 
   // Print & Sync Simulation States
   printStatus: BoothPrintStatus;
@@ -96,6 +99,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   photoSlots: [],
   paymentConfirmed: false,
   voucherId: null,
+  gifFrame: null,
+  setGifFrame: (gifFrame) => set({ gifFrame }),
 
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
@@ -115,6 +120,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       photoSlots: [],
       paymentConfirmed: false,
       voucherId: null,
+      gifFrame: null,
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,
