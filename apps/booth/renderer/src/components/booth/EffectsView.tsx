@@ -44,7 +44,7 @@ const NoneIcon = (
 );
 
 /** Animated stand-in for the GIF: the photos take turns behind the overlay. */
-const GifPreview: React.FC<{
+export const GifPreview: React.FC<{
   photos: string[];
   filter: string;
   overlay: EffectsGifFrame | null;

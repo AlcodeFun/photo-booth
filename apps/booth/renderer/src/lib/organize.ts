@@ -48,6 +48,8 @@ export interface OrganizeManifest {
   adjustments?: OrganizePhotoAdjustment[];
   /** Rotate / mirror per raw photo file name. */
   transforms?: Record<string, OrganizePhotoTransform>;
+  /** GIF frame overlay picked on the organize page (null = plain GIF). */
+  gifFrameUrl?: string | null;
 }
 
 export interface OrganizePhotoAdjustment {

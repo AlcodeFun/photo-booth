@@ -267,7 +267,9 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
       const originals = [...new Set(slots.filter((name): name is string => Boolean(name)))]
         .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
         .map((name) => fileUrl(endpoint, token, name));
-      const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null);
+      const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null, {
+        overlayUrl: manifest.gifFrameUrl ?? null,
+      });
       uploads.push({ blob: gifBlob, name: 'result.gif' });
     }
     if (outputs.framedLive) {

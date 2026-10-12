@@ -15,19 +15,18 @@ import {
   type OrganizePhotoAdjustment,
   type OrganizePhotoTransform,
   type PrintRequestFile,
+  photoIndexFromName,
 } from '../lib/organize';
 import { resolveFrameTemplate, resolveObjectPosition } from '../utils/frameConfig';
 import { listFrameTemplates } from '../lib/frames';
 import { FILTERS, getCanvasFilter } from '../utils/filters';
 import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
+import { listActiveGifFrames } from '../lib/gifFrames';
+import { GifPreview, type EffectsGifFrame } from '../components/booth/EffectsView';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
 const transformKey = (name: string, t: OrganizePhotoTransform) => `${name}|${t.rotate}|${t.flip ? 1 : 0}`;
-
-/** Photos of a frame filled in capture order (repeated slots repeat photos). */
-const autoFill = (template: FrameTemplateConfig, photoNames: string[]) =>
-  template.photoSlots.map((slot) => photoNames[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1] ?? null);
 
 /**
  * Timed flow: the guest picks the frame here (the booth no longer asks).
@@ -43,7 +42,7 @@ const FramePicker: React.FC<{
     <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-pbx-line px-4 py-3">
       <div>
         <h1 className="text-sm font-black uppercase tracking-[0.18em]">Pilih Bingkai</h1>
-        <p className="text-xs font-bold text-pbx-secondary-strong">Fotomu langsung terpasang, tinggal pilih yang paling kamu suka</p>
+        <p className="text-xs font-bold text-pbx-secondary-strong">Pilih bingkai, lalu isi setiap slot dengan fotomu</p>
       </div>
       {onClose && (
         <button
@@ -161,6 +160,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [baked, setBaked] = useState<Record<string, string>>({});
   const [frames, setFrames] = useState<FrameConfig[] | null>(null);
   const [framePicker, setFramePicker] = useState(false);
+  // After the frame is arranged: pick the GIF frame, then send.
+  const [step, setStep] = useState<'arrange' | 'gif'>('arrange');
+  const [gifFrames, setGifFrames] = useState<EffectsGifFrame[] | null>(null);
+  const [gifFrameId, setGifFrameId] = useState<string | null>(null);
   const arrangeRetries = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -307,6 +310,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       if (manifest) {
         setFilterId(manifest.filterId ?? 'original');
         setTransforms(manifest.transforms ?? {});
+        if (manifest.gifFrameUrl) setGifFrameId(manifest.gifFrameUrl);
         if (!manifest.template && !manifest.frameId) {
           // The booth left the frame to the guest: show the picker.
           setOrganize(manifest);
@@ -448,9 +452,38 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       .catch(() => setFrames([]));
   }, [framePicker, frames]);
 
+  // GIF frames the admin enabled, loaded once (none = the GIF step is skipped).
+  useEffect(() => {
+    let alive = true;
+    listActiveGifFrames()
+      .then((rows) => {
+        if (alive) setGifFrames(rows.map((r) => ({ id: r.id, name: r.name, url: r.image_url, width: r.width, height: r.height })));
+      })
+      .catch(() => {
+        if (alive) setGifFrames([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The GIF is made from the original captures used on the frame, in capture
+  // order, without rotate / mirror and without the filter.
+  const gifPhotoUrls = useMemo(
+    () =>
+      [...new Set(slots.filter((name): name is string => Boolean(name)))]
+        .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
+        .map((name) => fileUrl(name)),
+    [slots, fileUrl],
+  );
+  // gifFrameId holds the frame id (or a saved overlay URL from organize.json).
+  const chosenGifFrame = gifFrames?.find((frame) => frame.id === gifFrameId || frame.url === gifFrameId) ?? null;
+
   const pickFrame = (frame: FrameConfig) => {
     const resolved = resolveFrameTemplate(frame, Math.max(1, Math.floor(frame.photoSlots ?? 3)));
-    const nextSlots = autoFill(resolved, photos.map((photo) => photo.name));
+    // Starts blank: the guest places each photo. Switching frames keeps the
+    // photos already placed, slot by slot.
+    const nextSlots = Array.from({ length: resolved.photoSlots.length }, (_, i) => (template ? (slots[i] ?? null) : null));
     setOrganize((current) =>
       current ? { ...current, frameId: frame.id, template: resolved, slotCount: resolved.photoSlots.length, slots: nextSlots } : current,
     );
@@ -568,7 +601,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const saveSlots = async (): Promise<boolean> => {
     if (!organize || !endpoint) return false;
-    const manifest = { ...organize, slots: slots.slice(), adjustments: adjustments.slice(), filterId, transforms };
+    const manifest = {
+      ...organize,
+      slots: slots.slice(),
+      adjustments: adjustments.slice(),
+      filterId,
+      transforms,
+      gifFrameUrl: chosenGifFrame?.url ?? null,
+    };
     const ok = await writeJsonFile(endpoint, token, ORGANIZE_FILE, manifest);
     if (ok) setOrganize(manifest);
     return ok;
@@ -679,6 +719,76 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         onPick={pickFrame}
         onClose={template ? () => setFramePicker(false) : undefined}
       />
+    );
+  }
+
+  if (phase === 'ready' && template && step === 'gif') {
+    return (
+      <section className="flex h-[100dvh] flex-col overflow-hidden bg-pbx-paper text-pbx-ink">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-pbx-line px-4 py-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-sm font-black uppercase tracking-[0.18em]">Bingkai GIF</h1>
+            <p className="truncate text-xs font-bold text-pbx-secondary-strong">Pilih bingkai untuk GIF animasimu</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStep('arrange')}
+              disabled={sent}
+              className="rounded-full border-2 border-pbx-secondary bg-white px-3 py-2 text-xs font-black uppercase text-pbx-ink disabled:opacity-40"
+            >
+              Kembali
+            </button>
+            <button
+              type="button"
+              onClick={() => void sendToPrint()}
+              disabled={sent}
+              className="rounded-full border-[3px] border-pbx-secondary bg-pbx-tertiary px-6 py-3 text-sm font-black uppercase tracking-wide text-pbx-tertiary-fg shadow-[0_6px_18px_rgb(var(--pbx-ink-rgb)/0.4)] transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50"
+            >
+              {sent ? 'Mengirim…' : 'Cetak'}
+            </button>
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+          <GifPreview
+            photos={gifPhotoUrls}
+            filter="none"
+            overlay={chosenGifFrame}
+            className="max-h-full w-full max-w-md shadow-[0_20px_50px_rgb(var(--pbx-ink-rgb)/0.35)]"
+          />
+        </div>
+        {status.kind === 'err' && <p className="pb-2 text-center text-xs font-extrabold text-pbx-brand-strong">{status.text}</p>}
+        <div className="shrink-0 border-t-2 border-pbx-line bg-pbx-paper/95">
+          <div className="pb-scroll mx-auto flex max-w-5xl gap-3 overflow-x-auto px-3 py-3">
+            {[null, ...(gifFrames ?? [])].map((option) => {
+              const selected = (option?.id ?? null) === (chosenGifFrame?.id ?? null);
+              return (
+                <button
+                  key={option?.id ?? 'none'}
+                  type="button"
+                  onClick={() => setGifFrameId(option?.id ?? null)}
+                  aria-pressed={selected}
+                  className="flex w-20 shrink-0 flex-col items-center gap-1"
+                >
+                  <span
+                    className={`relative block aspect-square w-full overflow-hidden rounded-[12px] border-[3px] bg-pbx-ink ${selected ? 'border-pbx-brand' : 'border-transparent'}`}
+                  >
+                    {gifPhotoUrls[0] && <img src={gifPhotoUrls[0]} alt="" className="absolute inset-0 h-full w-full object-cover" />}
+                    {option ? (
+                      <img src={option.url} alt="" className="absolute inset-0 h-full w-full object-fill" />
+                    ) : (
+                      <span className="absolute inset-0 grid place-items-center bg-black/40 text-2xl font-black text-white">⊘</span>
+                    )}
+                  </span>
+                  <span className={`w-full truncate text-center text-[0.65rem] ${selected ? 'font-black text-pbx-brand-strong' : 'font-bold text-pbx-ink/70'}`}>
+                    {option ? option.name : 'Tanpa Bingkai'}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
     );
   }
 
@@ -841,11 +951,17 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           </button>
           <button
             type="button"
-            onClick={() => void sendToPrint()}
-            disabled={!allAssigned || sent}
+            onClick={() => {
+              // GIF frame step next; without any GIF frames, send straight away.
+              if (gifFrames && gifFrames.length > 0) {
+                clearCanvasSelection();
+                setStep('gif');
+              } else void sendToPrint();
+            }}
+            disabled={!allAssigned || sent || gifFrames === null}
             className={sendButtonClass}
           >
-            {sent ? 'Mengirim…' : 'Cetak'}
+            {sent ? 'Mengirim…' : gifFrames && gifFrames.length > 0 ? 'Lanjut' : 'Cetak'}
           </button>
           {status.text && (
             <span
