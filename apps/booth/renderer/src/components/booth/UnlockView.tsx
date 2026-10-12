@@ -28,6 +28,8 @@ export interface UnlockViewProps {
   onPickImage?: () => void;
   /** Shown when the device has more than one camera (front / back). */
   onSwitchCamera?: () => void;
+  /** True while a picked picture is being read. */
+  picking?: boolean;
 }
 
 const CHECK_LEN = 60;
@@ -55,6 +57,7 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
   onBack,
   onPickImage,
   onSwitchCamera,
+  picking = false,
 }) => {
   const busy = status === 'checking' || status === 'success';
   const showScan = mode === 'scan' && cameraAvailable;
@@ -253,16 +256,25 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
             <button
               type="button"
               onClick={onPickImage}
-              disabled={busy}
+              disabled={busy || picking}
+              aria-busy={picking}
               className="rounded-[1.6cqmin] border-[0.4cqmin] px-[3cqmin] py-[1.6cqmin] text-[2cqmin] font-black uppercase tracking-[0.12em] transition-transform enabled:hover:-translate-y-0.5 disabled:opacity-50"
               style={{ borderColor: theme.deep, backgroundColor: theme.tertiary, color: theme.tertiaryForeground }}
             >
-              <svg viewBox="0 0 24 24" className="mr-[0.8cqmin] inline-block h-[2.4cqmin] w-[2.4cqmin] -translate-y-[0.15cqmin]" fill="none" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="2.4" />
-                <circle cx="9" cy="10" r="1.8" fill="currentColor" />
-                <path d="M4 18l5.5-5.5 4 4 2.5-2.5L20 18" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
-              </svg>
-              {copy.unlockPickButton}
+              {picking ? (
+                <span
+                  className="mr-[0.8cqmin] inline-block h-[2.4cqmin] w-[2.4cqmin] -translate-y-[0.15cqmin] rounded-full border-[0.4cqmin] align-middle"
+                  style={{ borderColor: withAlpha(theme.tertiaryForeground, 0.3), borderTopColor: theme.tertiaryForeground, animation: 'pb-spin 0.8s linear infinite' }}
+                  aria-hidden="true"
+                />
+              ) : (
+                <svg viewBox="0 0 24 24" className="mr-[0.8cqmin] inline-block h-[2.4cqmin] w-[2.4cqmin] -translate-y-[0.15cqmin]" fill="none" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="16" rx="2.5" stroke="currentColor" strokeWidth="2.4" />
+                  <circle cx="9" cy="10" r="1.8" fill="currentColor" />
+                  <path d="M4 18l5.5-5.5 4 4 2.5-2.5L20 18" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round" />
+                </svg>
+              )}
+              {picking ? copy.unlockPickReading : copy.unlockPickButton}
             </button>
             )}
             {!showScan && (

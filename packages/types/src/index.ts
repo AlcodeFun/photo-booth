@@ -151,6 +151,7 @@ export interface BoothCopywriting {
   unlockNoCamera: string;
   unlockPickButton: string;
   unlockPickError: string;
+  unlockPickReading: string;
 
   frameEyebrow: string;
   frameTitle: string;
@@ -377,6 +378,7 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     unlockNoCamera: 'Kamera scan tidak ditemukan. Ketik kodenya saja ya',
     unlockPickButton: 'Pilih dari galeri',
     unlockPickError: 'QR voucher tidak terbaca di gambar itu',
+    unlockPickReading: 'Membaca QR…',
 
     frameEyebrow: 'Bingkai',
     frameTitle: 'Pilih gaya foto',
@@ -571,6 +573,7 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'unlockNoCamera', label: 'No scan camera' },
       { key: 'unlockPickButton', label: 'Pick image button' },
       { key: 'unlockPickError', label: 'Error: no QR in picked image' },
+      { key: 'unlockPickReading', label: 'Reading the picked image' },
     ],
   },
   {

@@ -15,11 +15,11 @@ import {
   type VoucherStatus,
 } from '../../lib/vouchers';
 import { generateQrDataUrl } from '../../utils/qr';
-import { downloadVoucherCard, downloadVoucherCardsZip } from '../../lib/voucherCard';
+import { downloadVoucherCard, downloadVoucherCardsZip, renderVoucherCard } from '../../lib/voucherCard';
 import { useBoothAppearance } from '../../store/appearanceStore';
 import { Modal, ConfirmModal } from '../../components/admin/Modal';
 import { Snackbar, type SnackbarVariant } from '../../components/admin/Snackbar';
-import { IconPlus, IconTrash } from '../../components/admin/AdminIcons';
+import { IconEye, IconPlus, IconTrash } from '../../components/admin/AdminIcons';
 
 type StatusFilter = 'all' | VoucherStatus;
 
@@ -66,6 +66,7 @@ export const AdminVouchersScreen: React.FC = () => {
   const [busy, setBusy] = useState(false);
   const [snackbar, setSnackbar] = useState<{ message: string; variant: SnackbarVariant } | null>(null);
   const [printSheet, setPrintSheet] = useState<Array<{ voucher: Voucher; qr: string }> | null>(null);
+  const [viewing, setViewing] = useState<Voucher | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -396,7 +397,13 @@ export const AdminVouchersScreen: React.FC = () => {
                       />
                     </td>
                     <td className="px-3 py-2 font-mono text-[0.95rem] font-semibold tracking-wider text-white">
-                      {formatVoucherCode(voucher.code)}
+                      <button
+                        onClick={() => setViewing(voucher)}
+                        title="View QR"
+                        className="rounded px-1 -mx-1 hover:bg-white/10 hover:text-pbx-ui-hi"
+                      >
+                        {formatVoucherCode(voucher.code)}
+                      </button>
                     </td>
                     <td className="px-3 py-2">
                       <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[status]}`}>
@@ -424,6 +431,15 @@ export const AdminVouchersScreen: React.FC = () => {
                       )}
                     </td>
                     <td className="px-3 py-2 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                      <button
+                        onClick={() => setViewing(voucher)}
+                        title="View QR card"
+                        aria-label={`View QR card ${voucher.code}`}
+                        className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+                      >
+                        <IconEye className="h-4 w-4" />
+                      </button>
                       {status === 'active' && (
                         <button
                           onClick={() => void downloadCards([voucher])}
@@ -435,6 +451,7 @@ export const AdminVouchersScreen: React.FC = () => {
                           ⤓
                         </button>
                       )}
+                      </div>
                     </td>
                   </tr>
                 );
@@ -472,10 +489,83 @@ export const AdminVouchersScreen: React.FC = () => {
         }}
       />
 
+      <VoucherViewModal
+        voucher={viewing}
+        eventName={viewing ? eventNameOf(viewing) : null}
+        onDownload={(voucher) => void downloadCards([voucher])}
+        onClose={() => setViewing(null)}
+      />
+
       {printSheet && <VoucherPrintSheet items={printSheet} eventsById={eventsById} />}
 
       {snackbar && <Snackbar message={snackbar.message} variant={snackbar.variant} onDone={() => setSnackbar(null)} />}
     </div>
+  );
+};
+
+/** The guest's QR card, shown in place (download is optional). */
+const VoucherViewModal: React.FC<{
+  voucher: Voucher | null;
+  eventName?: string | null;
+  onDownload: (voucher: Voucher) => void;
+  onClose: () => void;
+}> = ({ voucher, eventName, onDownload, onClose }) => {
+  const [cardUrl, setCardUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    setCardUrl(null);
+    setFailed(false);
+    if (!voucher) return;
+    let url: string | null = null;
+    let alive = true;
+    renderVoucherCard(voucher, eventName)
+      .then((blob) => {
+        if (!alive) return;
+        url = URL.createObjectURL(blob);
+        setCardUrl(url);
+      })
+      .catch(() => alive && setFailed(true));
+    return () => {
+      alive = false;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [voucher, eventName]);
+
+  const status = voucher ? voucherStatus(voucher) : null;
+  return (
+    <Modal open={Boolean(voucher)} title={voucher ? `Voucher ${formatVoucherCode(voucher.code)}` : ''} onClose={onClose} width="460px">
+      {voucher && status && (
+        <div className="flex flex-col items-center gap-4">
+          <div className="flex w-full items-center justify-between gap-2">
+            <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${STATUS_STYLE[status]}`}>{STATUS_LABEL[status]}</span>
+            {status !== 'active' && <span className="text-xs text-white/50">This code can no longer start a session.</span>}
+          </div>
+          <div className="grid aspect-[2/3] w-full max-w-[340px] place-items-center overflow-hidden rounded-xl bg-white/5">
+            {cardUrl ? (
+              <img src={cardUrl} alt={`QR card for ${formatVoucherCode(voucher.code)}`} className="h-full w-full object-contain" />
+            ) : failed ? (
+              <span className="px-4 text-center text-sm text-white/50">Could not render the card.</span>
+            ) : (
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+            )}
+          </div>
+          <div className="flex w-full justify-end gap-2">
+            <button onClick={onClose} className="rounded-full px-4 py-2 text-sm text-white/70 hover:text-white">
+              Close
+            </button>
+            {status === 'active' && (
+              <button
+                onClick={() => onDownload(voucher)}
+                className="rounded-full bg-pbx-ui-hi px-4 py-2 text-sm font-semibold text-pbx-ui-hi-fg hover:bg-pbx-ui-hi-strong"
+              >
+                ⤓ Download PNG
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 };
 

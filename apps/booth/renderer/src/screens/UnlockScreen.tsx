@@ -217,10 +217,21 @@ export const UnlockScreen: React.FC = () => {
 
   // ---- Voucher picture picked from the device (gallery / files) ----
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [picking, setPicking] = useState(false);
   const onImagePicked = async (file: File | undefined) => {
     if (!file) return;
     touch();
-    const data = await decodeQrFromFile(file);
+    // Big photos take a moment on older phones: show it, and pause the camera
+    // scan so it cannot submit at the same time.
+    setPicking(true);
+    busyRef.current = true;
+    let data: string | null = null;
+    try {
+      data = await decodeQrFromFile(file);
+    } finally {
+      busyRef.current = false;
+      setPicking(false);
+    }
     if (data) void submit(data);
     else showMessage(copy.unlockPickError);
   };
@@ -288,6 +299,7 @@ export const UnlockScreen: React.FC = () => {
         // on the Electron kiosk a file dialog would expose the booth PC's files.
         onPickImage={window.electronAPI ? undefined : () => fileInputRef.current?.click()}
         onSwitchCamera={cameraCount > 1 ? () => void switchCamera() : undefined}
+        picking={picking}
       />
       <input
         ref={fileInputRef}
