@@ -23,6 +23,7 @@ import { FILTERS, getCanvasFilter } from '../utils/filters';
 import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
 import { listActiveGifFrames } from '../lib/gifFrames';
 import { GifPreview, type EffectsGifFrame } from '../components/booth/EffectsView';
+import { useBoothAppearance } from '../store/appearanceStore';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
@@ -139,6 +140,9 @@ const initialAdjustment = (
 
 export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const endpoint = GALLERY_URL;
+  // The theme saved in the dashboard; hold the UI until it is read so the
+  // guest never sees the default colors flash first.
+  const themeLoading = useBoothAppearance((state) => state.loading);
 
   const [phase, setPhase] = useState<'loading' | 'missing' | 'ready'>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -711,7 +715,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  if (phase === 'ready' && (framePicker || !template)) {
+  if (phase === 'ready' && !themeLoading && (framePicker || !template)) {
     return (
       <FramePicker
         frames={frames}
@@ -722,7 +726,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  if (phase === 'ready' && template && step === 'gif') {
+  if (phase === 'ready' && !themeLoading && template && step === 'gif') {
     return (
       <section className="flex h-[100dvh] flex-col overflow-hidden bg-pbx-paper text-pbx-ink">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-pbx-line px-4 py-3">
@@ -792,7 +796,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  if (phase === 'loading' || !template || !displayTemplate) {
+  if (themeLoading || phase === 'loading' || !template || !displayTemplate) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-pbx-ui-raised-2 text-white">
         <p className="animate-pulse text-lg font-black uppercase tracking-widest opacity-80">

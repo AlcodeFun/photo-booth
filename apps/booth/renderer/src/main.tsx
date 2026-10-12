@@ -48,10 +48,9 @@ if (!isOrganizePath) {
 
 // Booth appearance (admin-editable theme/copy/background). The cached copy is
 // already applied synchronously by the store; this refreshes it from Supabase in
-// the background. Also runs in the admin window so its live preview is accurate.
-if (!isOrganizePath) {
-  void useBoothAppearance.getState().loadAppearance();
-}
+// the background. Also runs in the admin window so its live preview is accurate,
+// and on the organize page so the guest sees the theme saved in the dashboard.
+void useBoothAppearance.getState().loadAppearance();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

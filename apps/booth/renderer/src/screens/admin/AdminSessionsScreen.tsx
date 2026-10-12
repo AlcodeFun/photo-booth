@@ -12,7 +12,7 @@ import {
 } from '../../lib/sessions';
 import { registerGallerySession, SessionUploadFile, uploadSessionFiles, deleteGallerySession } from '../../utils/sessionUpload';
 import { generateQrDataUrl } from '../../utils/qr';
-import { GALLERY_URL } from '../../config';
+import { APP_URL, GALLERY_URL } from '../../config';
 import { dropPendingUploads } from '../../lib/uploadJob';
 import { ConfirmModal } from '../../components/admin/Modal';
 import { SkeletonCard } from '../../components/admin/Skeleton';
@@ -20,6 +20,7 @@ import { EventsManager } from '../../components/admin/EventsManager';
 import { assignSessionsToEvent, BoothEvent, listEvents } from '../../lib/events';
 import {
   formatTimestamp,
+  OrganizePendingBadge,
   PrintBadge,
   RefreshIcon,
   UploadBadge,
@@ -28,6 +29,7 @@ import {
   IconEye,
   IconGif,
   IconImage,
+  IconPencil,
   IconQr,
   IconSearch,
   IconTrash,
@@ -46,6 +48,30 @@ type EventFilter = 'all' | 'none' | string;
  * session the finished outputs live on the gallery page.
  */
 const galleryUrl = (token: string): string => (GALLERY_URL ? `${GALLERY_URL}/p/${token}` : '');
+
+/**
+ * Flow 2 (timed) session whose guest has not finished the organize page yet:
+ * no framed output and no print request. Until then the admin can open the
+ * organize page for the guest; once it is done, only the gallery is offered.
+ */
+const isOrganizePending = (session: SessionRecord): boolean =>
+  session.flow_mode === 'timed' &&
+  session.print_status !== 'ready_to_print' &&
+  session.print_status !== 'queued' &&
+  !session.files.some((file) => file.name === 'framed.png' && file.uploaded);
+
+const organizeUrl = (session: SessionRecord): string =>
+  session.download_url.includes('/organize/')
+    ? session.download_url
+    : APP_URL
+      ? `${APP_URL}/organize/${session.token}`
+      : '';
+
+/** Where the admin's link / QR for a session points (organize while pending). */
+const sessionLink = (session: SessionRecord): { url: string; pending: boolean } => {
+  const pending = isOrganizePending(session) && Boolean(organizeUrl(session));
+  return { url: pending ? organizeUrl(session) : galleryUrl(session.token), pending };
+};
 
 interface ResultLinkProps {
   src: string | null;
@@ -205,6 +231,7 @@ const SessionRow: React.FC<SessionCardProps> = ({
   const preview = sessionPreviewUrl(session);
   const isFramed = session.files.some((file) => file.name === 'framed.png' && file.uploaded);
   const photoCount = session.files.filter((file) => file.name.startsWith('photo-')).length;
+  const link = sessionLink(session);
   return (
     <tr
       className={`border-b border-white/5 transition last:border-0 ${
@@ -255,7 +282,7 @@ const SessionRow: React.FC<SessionCardProps> = ({
       <td className="px-3 py-2">
         <div className="flex flex-wrap gap-1.5">
           <UploadBadge status={session.upload_status} />
-          <PrintBadge status={session.print_status} />
+          {link.pending ? <OrganizePendingBadge /> : <PrintBadge status={session.print_status} />}
         </div>
       </td>
       <td className="px-3 py-2">
@@ -274,15 +301,17 @@ const SessionRow: React.FC<SessionCardProps> = ({
               )}
             </button>
           )}
-          {galleryUrl(session.token) && (
+          {link.url && (
             <a
-              href={galleryUrl(session.token)}
+              href={link.url}
               target="_blank"
               rel="noreferrer"
-              title="Open gallery"
-              className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+              title={link.pending ? 'Organize frame' : 'Open gallery'}
+              className={`grid h-8 w-8 place-items-center rounded-full transition ${
+                link.pending ? 'bg-pbx-ui-secondary text-white hover:brightness-110' : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
             >
-              <IconQr className="h-4 w-4" />
+              {link.pending ? <IconPencil className="h-4 w-4" /> : <IconQr className="h-4 w-4" />}
             </a>
           )}
           <button
@@ -358,6 +387,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
   const preview = sessionPreviewUrl(session);
   const isFramed = session.files.some((file) => file.name === 'framed.png' && file.uploaded);
   const photoCount = session.files.filter((file) => file.name.startsWith('photo-')).length;
+  const link = sessionLink(session);
   return (
     <div
       className={`group relative overflow-hidden rounded-xl border bg-pbx-ui-raised shadow-lg transition ${
@@ -386,15 +416,17 @@ const SessionCard: React.FC<SessionCardProps> = ({
           >
             <IconEye />
           </button>
-          {galleryUrl(session.token) && (
+          {link.url && (
             <a
-              href={galleryUrl(session.token)}
+              href={link.url}
               target="_blank"
               rel="noreferrer"
-              title="Open gallery"
-              className="grid h-10 w-10 place-items-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/30"
+              title={link.pending ? 'Organize frame' : 'Open gallery'}
+              className={`grid h-10 w-10 place-items-center rounded-full backdrop-blur transition ${
+                link.pending ? 'bg-pbx-ui-secondary text-white hover:brightness-110' : 'bg-white/15 text-white hover:bg-white/30'
+              }`}
             >
-              <IconQr className="h-5 w-5" />
+              {link.pending ? <IconPencil className="h-5 w-5" /> : <IconQr className="h-5 w-5" />}
             </a>
           )}
           {session.upload_status === 'error' && (
@@ -439,7 +471,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
         </p>
         <div className="flex flex-wrap gap-1.5">
           <UploadBadge status={session.upload_status} />
-          <PrintBadge status={session.print_status} />
+          {link.pending ? <OrganizePendingBadge /> : <PrintBadge status={session.print_status} />}
         </div>
       </div>
     </div>
@@ -651,6 +683,7 @@ export const AdminSessionsScreen: React.FC = () => {
   };
 
   const resultsSession = useMemo(() => sessions.find((s) => s.token === resultsToken) ?? null, [sessions, resultsToken]);
+  const resultsLink = resultsSession ? sessionLink(resultsSession) : { url: '', pending: false };
 
   useEffect(() => {
     if (!resultsToken) return;
@@ -668,7 +701,7 @@ export const AdminSessionsScreen: React.FC = () => {
   }, [resultsToken, resultsQrFull]);
 
   useEffect(() => {
-    const url = resultsSession ? galleryUrl(resultsSession.token) : '';
+    const url = resultsSession ? sessionLink(resultsSession).url : '';
     if (!url) {
       setResultsQr(null);
       return;
@@ -689,7 +722,7 @@ export const AdminSessionsScreen: React.FC = () => {
   // Larger QR for the enlarged view / download.
   const [fullQr, setFullQr] = useState<string | null>(null);
   useEffect(() => {
-    const url = resultsSession && resultsQrFull ? galleryUrl(resultsSession.token) : '';
+    const url = resultsSession && resultsQrFull ? sessionLink(resultsSession).url : '';
     if (!resultsQrFull || !url) {
       setFullQr(null);
       return;
@@ -1102,16 +1135,20 @@ export const AdminSessionsScreen: React.FC = () => {
               </div>
             </div>
             <div className="ml-auto flex shrink-0 items-center gap-3">
-              {galleryUrl(resultsSession.token) && (
+              {resultsLink.url && (
                 <a
-                  href={galleryUrl(resultsSession.token)}
+                  href={resultsLink.url}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-pbx-ui-hi transition hover:bg-white/10"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-4 py-2 text-xs font-medium transition ${
+                    resultsLink.pending
+                      ? 'border-pbx-ui-secondary bg-pbx-ui-secondary text-white hover:brightness-110'
+                      : 'border-white/10 bg-white/5 text-pbx-ui-hi hover:bg-white/10'
+                  }`}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <IconQr className="h-3.5 w-3.5" />
-                  Open gallery
+                  {resultsLink.pending ? <IconPencil className="h-3.5 w-3.5" /> : <IconQr className="h-3.5 w-3.5" />}
+                  {resultsLink.pending ? 'Organize frame' : 'Open gallery'}
                 </a>
               )}
               <button
@@ -1195,6 +1232,13 @@ export const AdminSessionsScreen: React.FC = () => {
                 </div>
               </div>
 
+              {resultsLink.pending && (
+                <p className="rounded-lg border border-pbx-ui-secondary/40 bg-pbx-ui-secondary/10 px-4 py-3 text-sm text-pbx-line">
+                  The guest has not finished organizing this frame yet. Use <b>Organize frame</b> to arrange it for them;
+                  once it is sent, the session shows the gallery.
+                </p>
+              )}
+
               {resultsSession.files.length === 0 && (
                 <p className="rounded-lg border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-300">
                   This session has no uploaded files on record — try Re-upload.
@@ -1217,7 +1261,7 @@ export const AdminSessionsScreen: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-center text-[0.9rem] font-black uppercase tracking-[0.14em] text-pbx-ink">
-              Scan untuk unduh
+              {resultsLink.pending ? 'Scan untuk atur bingkai' : 'Scan untuk unduh'}
             </h2>
             {fullQr ? (
               <img src={fullQr} alt="Large QR code" className="h-72 w-72 rounded-[12px]" />
@@ -1226,14 +1270,14 @@ export const AdminSessionsScreen: React.FC = () => {
                 <span className="animate-spin text-xl">⏳</span>
               </div>
             )}
-            {resultsSession && galleryUrl(resultsSession.token) && (
+            {resultsLink.url && (
               <p className="max-w-full break-all text-center text-[0.6rem] font-bold text-pbx-ink">
-                {galleryUrl(resultsSession.token)}
+                {resultsLink.url}
               </p>
             )}
             <div className="flex w-full flex-wrap items-center justify-center gap-2">
               <button
-                onClick={() => fullQr && downloadDataUrl(fullQr, 'gallery-qr.png')}
+                onClick={() => fullQr && downloadDataUrl(fullQr, resultsLink.pending ? 'organize-qr.png' : 'gallery-qr.png')}
                 disabled={!fullQr}
                 className="rounded-full bg-pbx-ui-brand px-5 py-2 text-[0.7rem] font-black uppercase tracking-[0.14em] text-pbx-ui-brand-fg shadow-[0_3px_0_rgba(0,0,0,0.15)] transition-transform hover:-translate-y-0.5 disabled:opacity-60"
               >
