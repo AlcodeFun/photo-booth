@@ -3,6 +3,7 @@ import { SessionRecord, listSessions } from '../../lib/sessions';
 import { RefreshIcon, UploadBadge, PrintBadge, formatTimestamp } from '../../components/admin/StatusBadge';
 import { SkeletonTable } from '../../components/admin/Skeleton';
 import { AdminNavArea } from '../../components/admin/AdminLayout';
+import { BoothSettingsCard } from '../../components/admin/BoothSettingsCard';
 
 interface AdminDashboardScreenProps {
   onNavigate: (area: AdminNavArea) => void;
@@ -66,6 +67,8 @@ export const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ onNa
           {error}
         </div>
       )}
+
+      <BoothSettingsCard />
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total sessions" value={sessions.length} accent="bg-pbx-ui-secondary" />

@@ -236,7 +236,7 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
       uploads.push({ blob: gifBlob, name: 'result.gif' });
     }
     if (outputs.framedLive) {
-      const liveBlob = await createResultLiveFramed(frame, photoSlots, manifest.filterId);
+      const liveBlob = await createResultLiveFramed(frame, photoSlots);
       uploads.push({ blob: liveBlob, name: 'result-live.gif' });
     }
 

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useBoothConfig } from '../../store/boothConfigStore';
 import { IElectronAPIPrinterStatusResult } from '../../global';
 import { NumberStepper } from '../../components/fields/Stepper';
+import { GlobalSettingNote, useGlobalSettingsEditor } from './GlobalSettingNote';
 
 const PAPER_SIZES = [
   { value: '100x148mm', label: '4×6 — 100×148mm' },
@@ -45,6 +46,8 @@ const hasElectronPrinter = () => typeof window.electronAPI?.printer?.list === 'f
 export const PrinterSetupPanel: React.FC = () => {
   const printer = useBoothConfig((state) => state.printer);
   const updatePrinter = useBoothConfig((state) => state.updatePrinter);
+  // Print release mode is global (all booths); saved by a signed-in admin.
+  const globalEditor = useGlobalSettingsEditor();
 
   const [printers, setPrinters] = useState<string[]>([]);
   const [activeJobs, setActiveJobs] = useState(0);
@@ -203,11 +206,15 @@ export const PrinterSetupPanel: React.FC = () => {
             <div className="text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">
               Print release mode
             </div>
+            <div className="mt-1.5">
+              <GlobalSettingNote canEdit={globalEditor.canEdit} status={globalEditor.status} error={globalEditor.error} />
+            </div>
             <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => updatePrinter({ printMode: 'manual' })}
-                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
+                onClick={() => void globalEditor.save({ printMode: 'manual' })}
+                disabled={!globalEditor.canEdit || globalEditor.busy}
+                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition disabled:cursor-not-allowed ${
                   printer.printMode === 'manual'
                     ? 'border-pbx-secondary bg-pbx-tint'
                     : 'border-pbx-line bg-white hover:border-pbx-secondary'
@@ -220,8 +227,9 @@ export const PrinterSetupPanel: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => updatePrinter({ printMode: 'auto' })}
-                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition ${
+                onClick={() => void globalEditor.save({ printMode: 'auto' })}
+                disabled={!globalEditor.canEdit || globalEditor.busy}
+                className={`rounded-[10px] border-[3px] px-3 py-2 text-left transition disabled:cursor-not-allowed ${
                   printer.printMode === 'auto'
                     ? 'border-pbx-accent bg-pbx-accent-tint'
                     : 'border-pbx-line bg-white hover:border-pbx-accent'

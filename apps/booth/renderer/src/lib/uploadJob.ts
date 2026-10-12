@@ -13,7 +13,7 @@ import {
 } from '../utils/sessionUpload';
 import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
-import { getAllPhotoUrls } from '../utils/photoSlots';
+import { getKeptPhotoUrls } from '../utils/photoSlots';
 import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE } from './organize';
 import {
   cacheUploadBlob,
@@ -291,7 +291,8 @@ const run = async (job: UploadJob) => {
         return Promise.resolve([] as SessionUploadFile[]);
       }
       const files: SessionUploadFile[] = [];
-      getAllPhotoUrls(job.photoSlots).forEach((dataUrl, index) => {
+      // Retaken (unselected) shots are never uploaded outside the timed flow.
+      getKeptPhotoUrls(job.photoSlots, flowMode).forEach((dataUrl, index) => {
         const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
         const blob = dataUrlToBlob(dataUrl);
         cacheWrites.push(cacheUploadBlob(token ?? '', name, blob));
@@ -320,7 +321,7 @@ const run = async (job: UploadJob) => {
         return null;
       }
       try {
-        const blob = await createResultLiveFramed(job.frame, job.photoSlots, job.filterId);
+        const blob = await createResultLiveFramed(job.frame, job.photoSlots);
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result-live.gif', blob));
         return { blob, name: 'result-live.gif' as const };
       } catch (error) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useBoothConfig, type BoothAccessMode, type BoothAccessSettings } from '../../store/boothConfigStore';
 import { formatVoucherCode, parseVoucherPayload } from '../../lib/vouchers';
+import { GlobalSettingNote, useGlobalSettingsEditor } from './GlobalSettingNote';
 
 const MODE_OPTIONS: Array<{ mode: BoothAccessMode; icon: string; title: string; description: string }> = [
   {
@@ -26,6 +27,8 @@ const MODE_OPTIONS: Array<{ mode: BoothAccessMode; icon: string; title: string; 
 export const AccessSetupPanel: React.FC = () => {
   const access = useBoothConfig((state) => state.access);
   const updateAccess = useBoothConfig((state) => state.updateAccess);
+  // Open vs voucher is global (all booths); the scan webcam is per device.
+  const globalEditor = useGlobalSettingsEditor();
 
   const [draft, setDraft] = useState<BoothAccessSettings>(access);
   const [savedAt, setSavedAt] = useState<string | null>(null);
@@ -107,14 +110,16 @@ export const AccessSetupPanel: React.FC = () => {
 
   return (
     <div className="space-y-5">
+      <GlobalSettingNote canEdit={globalEditor.canEdit} status={globalEditor.status} error={globalEditor.error} />
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {MODE_OPTIONS.map((option) => {
-          const selected = draft.mode === option.mode;
+          const selected = access.mode === option.mode;
           return (
             <button
               key={option.mode}
               type="button"
-              onClick={() => setDraft((d) => ({ ...d, mode: option.mode }))}
+              onClick={() => void globalEditor.save({ accessMode: option.mode })}
+              disabled={!globalEditor.canEdit || globalEditor.busy || selected}
               className={`rounded-[14px] border-[4px] p-4 text-left transition-all ${
                 selected ? 'border-pbx-accent bg-pbx-paper' : 'border-pbx-secondary bg-pbx-paper hover:border-pbx-accent'
               }`}
@@ -218,7 +223,7 @@ export const AccessSetupPanel: React.FC = () => {
               : 'cursor-not-allowed bg-pbx-ink-muted opacity-70'
           }`}
         >
-          Save access
+          Save scan camera
         </button>
       </div>
     </div>

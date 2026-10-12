@@ -30,3 +30,13 @@ export const getAllPhotoUrls = (photoSlots: PhotoSlotState[]): string[] =>
   photoSlots.flatMap((slot) =>
     slot.attempts.flatMap((attempt) => (attempt.localPath ? [attempt.localPath] : [])),
   );
+
+/**
+ * The raw photos a session keeps (uploads and shows). The timed flow keeps
+ * every capture: the guest chooses later from all of them. Every other flow
+ * keeps only the photo chosen for each slot; retaken shots are discarded.
+ */
+export const getKeptPhotoUrls = (photoSlots: PhotoSlotState[], flowMode: string): string[] =>
+  flowMode === 'timed'
+    ? getAllPhotoUrls(photoSlots)
+    : getSelectedPhotoUrls(photoSlots).filter((url): url is string => Boolean(url));

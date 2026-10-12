@@ -462,11 +462,13 @@ export async function createResultGif(
  *
  * Slots without a recorded clip fall back to their still photo (kept for the
  * whole loop), so this stays correct for older sessions without live frames.
+ *
+ * The live photo is never filtered: it shows the moment as it was, the filter
+ * belongs to the print.
  */
 export async function createResultLiveFramed(
   frame: FrameConfig,
   photoSlots: PhotoSlotState[],
-  filterId: string | null | undefined,
   opts: { width?: number; frameDelay?: number; frames?: number } = {},
 ): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
@@ -478,7 +480,7 @@ export async function createResultLiveFramed(
   const photos = getSelectedPhotoUrls(photoSlots);
   const liveClips = getSelectedLiveFrames(photoSlots);
   const template = resolveFrameTemplate(frame, photoSlots.length);
-  const canvasFilter = getCanvasFilter(filterId);
+  const canvasFilter = 'none';
   const unitsToPixels = width / template.width;
   const height = Math.max(1, Math.round(template.height * unitsToPixels));
 

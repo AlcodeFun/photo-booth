@@ -5,7 +5,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { useBoothConfig } from '../store/boothConfigStore';
 import { useBoothAppearance, appearanceSurfaceStyle } from '../store/appearanceStore';
 import { withAlpha } from '../lib/appearance';
-import { getSelectedPhotoUrls, getAllPhotoUrls } from '../utils/photoSlots';
+import { getSelectedPhotoUrls, getKeptPhotoUrls } from '../utils/photoSlots';
 import { getCanvasFilter } from '../utils/filters';
 import { createResultGif, createResultLiveFramed, renderComposition } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
@@ -78,7 +78,7 @@ export const PrintQRScreen: React.FC = () => {
   const uploadState: ResultsUploadState =
     uploadStatus === 'SUCCESS' ? 'done' : uploadStatus === 'ERROR' ? 'error' : 'uploading';
   const selectedPhotos = useMemo(() => getSelectedPhotoUrls(photoSlots), [photoSlots]);
-  const allPhotos = useMemo(() => getAllPhotoUrls(photoSlots), [photoSlots]);
+  const allPhotos = useMemo(() => getKeptPhotoUrls(photoSlots, flowMode), [photoSlots, flowMode]);
   const frameFilter = getCanvasFilter(filterId);
 
   // Framed "live photo" preview — each slot plays its recorded live view clip
@@ -87,7 +87,7 @@ export const PrintQRScreen: React.FC = () => {
   useEffect(() => {
     let cancelled = false;
     if (outputs.framedLive && frame && photoSlots.length > 0) {
-      createResultLiveFramed(frame, photoSlots, filterId)
+      createResultLiveFramed(frame, photoSlots)
         .then((blob) => {
           if (!cancelled) {
             setLiveBlob(blob);

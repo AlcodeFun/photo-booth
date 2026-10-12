@@ -227,10 +227,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const updatedSlots = photoSlots.map((slot) => {
       if (slot.slotNumber === currentPhotoSlot) {
         const selectedAttempt = slot.attempts.length;
-        const updatedAttempts = slot.attempts.map((att, idx) => ({
-          ...att,
-          status: (idx + 1 === selectedAttempt ? 'SELECTED' : att.status) as 'CAPTURED' | 'SELECTED' | 'RETAKEN',
-        }));
+        // Retaken shots are dropped here: the attempt stays (so the counter is
+        // right) but its image and live clip are released and never uploaded.
+        const updatedAttempts = slot.attempts.map((att, idx) =>
+          idx + 1 === selectedAttempt
+            ? { ...att, status: 'SELECTED' as const }
+            : { ...att, localPath: '', liveFrames: undefined, status: 'RETAKEN' as const },
+        );
         return {
           ...slot,
           attempts: updatedAttempts,

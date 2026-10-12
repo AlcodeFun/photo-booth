@@ -6,6 +6,7 @@ import { startPrintListener } from './lib/printListener';
 import { startPrintQueueSync, startAutoQueueSync } from './lib/printQueueSync';
 import { useBoothAppearance } from './store/appearanceStore';
 import './index.css';
+import { startBoothSettingsSync } from './lib/boothSettings';
 
 // The hosted arrange page (/organize/:token) is a stateless customer screen —
 // no booth session, upload job, or print listener should ever boot there, and
@@ -25,6 +26,8 @@ if (!isOrganizePath && !isAdminWindow) {
   // Owns background gallery uploads independently of any mounted screen, so they
   // keep running after the customer leaves the session (store-level, not React).
   startUploadWatcher();
+  // Mirrors the admin's global access / print mode into this device's config.
+  startBoothSettingsSync();
   // Listens for arrangement requests the gallery customer makes after arranging
   // their timed-flow photos onto the frame slots, then generates + uploads the
   // framed outputs (the booth auto-queues framed.png from the Print Queue).

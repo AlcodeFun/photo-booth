@@ -3,6 +3,7 @@ import { useSessionStore } from '../store/sessionStore';
 import { useBoothAppearance } from '../store/appearanceStore';
 import { withAlpha } from '../lib/appearance';
 import { navigateToAdmin } from '../lib/navigation';
+import { refreshBoothSettings } from '../lib/boothSettings';
 import BumperView from '../components/booth/BumperView';
 import FlatJournalView from '../components/booth/startScreen/FlatJournalView';
 import CameraOverlayView from '../components/booth/startScreen/CameraOverlayView';
@@ -292,6 +293,11 @@ const Gradient3DStart: React.FC<{ onAdvance: () => void; onOpenPin: () => void }
 export const ContextBumperScreen: React.FC = () => {
   // Straight into the session, or to the voucher unlock screen when locked.
   const requestStart = useSessionStore((state) => state.requestStart);
+
+  // Re-check the global access / print mode before each new guest.
+  useEffect(() => {
+    void refreshBoothSettings();
+  }, []);
   const { copy, theme, startScreen } = useBoothAppearance((state) => state.appearance);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinDigits, setPinDigits] = useState<string[]>([]);
