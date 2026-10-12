@@ -4,6 +4,7 @@ import { getSelectedPhotoUrls, getSelectedLiveFrames } from './photoSlots';
 import { getCanvasFilter } from './filters';
 import { downloadBlob, downloadStamp } from './download';
 import { clampGifAdjust, type GifAdjust } from './gifAdjust';
+import { detectOverlayWindow, FULL_WINDOW } from './overlayWindow';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -378,25 +379,30 @@ export async function downloadFramedPhoto(
 }
 
 /**
- * Draws a photo filling the GIF canvas (`cover` crops, `contain` letterboxes),
- * then applies the guest's zoom / pan / mirror around the canvas center — the
- * same math as the CSS preview (gifAdjustTransform).
+ * Draws a photo covering the photo window (the overlay's transparent area, or
+ * the whole canvas), clipped to it, then applies the guest's zoom / pan /
+ * mirror around the window center — the same math as the CSS preview
+ * (gifAdjustTransform on a box the size of the window).
  */
 const drawGifPhoto = (
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
-  fitWidth: number,
-  fitHeight: number,
+  rect: { x: number; y: number; width: number; height: number },
   canvasFilter: string,
-  mode: 'cover' | 'contain',
   adjust: GifAdjust,
 ) => {
-  const fit = (mode === 'cover' ? Math.max : Math.min)(fitWidth / image.width, fitHeight / image.height);
+  const fit = Math.max(rect.width / image.width, rect.height / image.height);
   const drawWidth = image.width * fit;
   const drawHeight = image.height * fit;
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
   ctx.filter = canvasFilter;
-  ctx.translate(fitWidth / 2 + adjust.offsetX * fitWidth, fitHeight / 2 + adjust.offsetY * fitHeight);
+  ctx.translate(
+    rect.x + rect.width / 2 + adjust.offsetX * rect.width,
+    rect.y + rect.height / 2 + adjust.offsetY * rect.height,
+  );
   ctx.scale(adjust.scale * (adjust.flip ? -1 : 1), adjust.scale);
   ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   ctx.filter = 'none';
@@ -409,8 +415,8 @@ const drawGifPhoto = (
  * (from the first photo) and each photo is fit fully — no cropping.
  *
  * With a GIF frame (`overlayUrl`), the canvas takes the overlay's aspect
- * ratio instead: each photo fills it (cover) and the overlay PNG is drawn on
- * top, so the photo shows through the overlay's transparent window.
+ * ratio instead: each photo covers the overlay's transparent window (see
+ * overlayWindow.ts) and the overlay PNG is drawn on top.
  *
  * `adjust` (zoom / pan / mirror chosen on the GIF preview) applies to every photo.
  */
@@ -447,6 +453,14 @@ export async function createResultGif(
 
   const canvasFilter = getCanvasFilter(filterId);
   const gif = GIFEncoder();
+  // The photo fills the overlay's transparent window (or the whole canvas).
+  const photoWindow = overlay ? await detectOverlayWindow(overlayUrl) : FULL_WINDOW;
+  const photoRect = {
+    x: photoWindow.x * width,
+    y: photoWindow.y * height,
+    width: photoWindow.width * width,
+    height: photoWindow.height * height,
+  };
 
   for (const url of photos) {
     try {
@@ -454,7 +468,7 @@ export async function createResultGif(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#111111';
       ctx.fillRect(0, 0, width, height);
-      drawGifPhoto(ctx, image, width, height, canvasFilter, overlay ? 'cover' : 'contain', adjust);
+      drawGifPhoto(ctx, image, photoRect, canvasFilter, adjust);
       if (overlay) ctx.drawImage(overlay, 0, 0, width, height);
 
       const imageData = ctx.getImageData(0, 0, width, height);

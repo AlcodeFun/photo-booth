@@ -302,7 +302,13 @@ const run = async (job: UploadJob) => {
       }
       const files: SessionUploadFile[] = [];
       // Retaken (unselected) shots are never uploaded outside the timed flow.
-      getKeptPhotoUrls(job.photoSlots, flowMode).forEach((dataUrl, index) => {
+      // The photo files are the raw captures: Arrange's rotate / mirror /
+      // reorder only shape the composed outputs, never these.
+      const raws =
+        flowMode !== 'timed' && job.originalPhotos?.length
+          ? job.originalPhotos
+          : getKeptPhotoUrls(job.photoSlots, flowMode);
+      raws.forEach((dataUrl, index) => {
         const name = `photo-${String(index + 1).padStart(2, '0')}.jpg`;
         const blob = dataUrlToBlob(dataUrl);
         cacheWrites.push(cacheUploadBlob(token ?? '', name, blob));

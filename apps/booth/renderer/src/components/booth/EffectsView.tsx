@@ -12,6 +12,7 @@ import {
   type GifAdjust,
   type GifGeometry,
 } from '../../utils/gifAdjust';
+import { detectOverlayWindow, FULL_WINDOW, type OverlayWindow } from '../../utils/overlayWindow';
 
 export interface EffectsGifFrame {
   id: string;
@@ -107,9 +108,23 @@ export const GifPreview: React.FC<{
   }, [photos.length]);
   const ratio = useGifAspect(overlay, photos);
   const photoAspect = useImageAspect(photos[0]);
-  // Pan limits follow the real photo-in-box fit, so moving works without zooming.
-  const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio, mode: 'contain' });
-  geometryRef.current = { imageAspect: photoAspect ?? ratio, boxAspect: ratio, mode: overlay ? 'cover' : 'contain' };
+  // The photo covers the overlay's transparent window (same as the encoder),
+  // so the frame border never crops it and moving never shows empty space.
+  const [photoWindow, setPhotoWindow] = useState<OverlayWindow>(FULL_WINDOW);
+  useEffect(() => {
+    let alive = true;
+    setPhotoWindow(FULL_WINDOW);
+    detectOverlayWindow(overlay?.url).then((found) => alive && setPhotoWindow(found));
+    return () => {
+      alive = false;
+    };
+  }, [overlay?.url]);
+  const windowRef = useRef(photoWindow);
+  windowRef.current = photoWindow;
+  // Pan limits follow the real photo-in-window fit: it can move as far as it overflows.
+  const windowAspect = (ratio * photoWindow.width) / photoWindow.height;
+  const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio, mode: 'cover' });
+  geometryRef.current = { imageAspect: photoAspect ?? windowAspect, boxAspect: windowAspect, mode: 'cover' };
 
   const boxRef = useRef<HTMLDivElement>(null);
   const current = clampGifAdjust(adjust, geometryRef.current);
@@ -156,8 +171,9 @@ export const GifPreview: React.FC<{
     dragged.current = true;
     const a = currentRef.current;
     const next: Partial<GifAdjust> = {
-      offsetX: a.offsetX + (s.midX - g.midX) / rect.width,
-      offsetY: a.offsetY + (s.midY - g.midY) / rect.height,
+      // Offsets are fractions of the photo window, not the whole box.
+      offsetX: a.offsetX + (s.midX - g.midX) / (rect.width * windowRef.current.width),
+      offsetY: a.offsetY + (s.midY - g.midY) / (rect.height * windowRef.current.height),
     };
     if (pointers.current.size >= 2 && g.dist > 0 && s.dist > 0) next.scale = a.scale * (s.dist / g.dist);
     currentRef.current = clampGifAdjust({ ...a, ...next }, geometryRef.current);
@@ -217,13 +233,23 @@ export const GifPreview: React.FC<{
       }}
     >
       {photos[index % Math.max(1, photos.length)] && (
-        <img
-          src={photos[index % photos.length]}
-          alt=""
-          className={`absolute inset-0 h-full w-full ${overlay ? 'object-cover' : 'object-contain'}`}
-          style={{ filter, transform: gifAdjustTransform(current) }}
-          draggable={false}
-        />
+        <div
+          className="absolute overflow-hidden"
+          style={{
+            left: `${photoWindow.x * 100}%`,
+            top: `${photoWindow.y * 100}%`,
+            width: `${photoWindow.width * 100}%`,
+            height: `${photoWindow.height * 100}%`,
+          }}
+        >
+          <img
+            src={photos[index % photos.length]}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{ filter, transform: gifAdjustTransform(current) }}
+            draggable={false}
+          />
+        </div>
       )}
       {overlay && <img src={overlay.url} alt="" className="absolute inset-0 h-full w-full object-fill" draggable={false} />}
       {editable && (

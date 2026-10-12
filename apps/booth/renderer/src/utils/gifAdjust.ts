@@ -2,7 +2,8 @@
  * Position of the photos inside the animated GIF (shared by every GIF frame):
  * zoom, pan and mirror, set by the guest on the GIF preview.
  *
- * Offsets are fractions of the GIF canvas (0.1 = 10% of its width/height).
+ * Offsets are fractions of the photo window (the overlay's transparent area,
+ * or the whole GIF without an overlay): 0.1 = 10% of its width / height.
  * The same numbers drive the CSS preview (gifAdjustTransform) and the encoder
  * (createResultGif), so what the guest sees is what the GIF contains.
  */
@@ -17,7 +18,7 @@ export interface GifAdjust {
 export interface GifGeometry {
   /** Photo width / height. */
   imageAspect: number;
-  /** GIF box width / height. */
+  /** Photo window width / height (the overlay's transparent area, or the whole GIF). */
   boxAspect: number;
   /** `cover` with a GIF frame overlay, `contain` for a plain GIF. */
   mode: 'cover' | 'contain';
@@ -25,20 +26,14 @@ export interface GifGeometry {
 
 export const GIF_MAX_SCALE = 3;
 
-/**
- * Extra room (fraction of the box) beyond the photo's own overflow, so a photo
- * that fits the box exactly can still be nudged without zooming first.
- */
-const FREE_PAN = 0.2;
-
 export const DEFAULT_GIF_ADJUST: GifAdjust = { scale: 1, offsetX: 0, offsetY: 0, flip: false };
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 const finite = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 
 /**
- * Pan limits for a scale: half the difference between the drawn photo and the
- * box (its overflow when bigger, its slack when smaller) plus FREE_PAN.
+ * Pan limits for a scale: half the photo's overflow beyond the box, so the
+ * photo always covers it (never an empty edge).
  * Without geometry the limit is generous (the encoder trusts saved values).
  */
 const panLimits = (scale: number, geometry?: GifGeometry | null): { x: number; y: number } => {
@@ -47,8 +42,8 @@ const panLimits = (scale: number, geometry?: GifGeometry | null): { x: number; y
   const relWidth = pick(1, geometry.imageAspect / geometry.boxAspect);
   const relHeight = pick(1, geometry.boxAspect / geometry.imageAspect);
   return {
-    x: Math.abs(scale * relWidth - 1) / 2 + FREE_PAN,
-    y: Math.abs(scale * relHeight - 1) / 2 + FREE_PAN,
+    x: Math.max(0, scale * relWidth - 1) / 2,
+    y: Math.max(0, scale * relHeight - 1) / 2,
   };
 };
 
