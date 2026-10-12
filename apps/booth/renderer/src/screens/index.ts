@@ -9,6 +9,5 @@ export { default as PhotoCaptureScreen } from './PhotoCaptureScreen';
 export { default as PhotoReviewScreen } from './PhotoReviewScreen';
 export { default as ArrangeScreen } from './ArrangeScreen';
 export { default as EffectsScreen } from './EffectsScreen';
-export { default as FilterSelectionScreen } from './FilterSelectionScreen';
 export { default as PrintQRScreen } from './PrintQRScreen';
 export { default as CompleteScreen } from './CompleteScreen';

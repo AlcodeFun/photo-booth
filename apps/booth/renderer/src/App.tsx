@@ -13,7 +13,6 @@ import {
   BoothSetUpScreen,
   PhotoCaptureScreen,
   PhotoReviewScreen,
-  FilterSelectionScreen,
   PrintQRScreen,
   CompleteScreen,
 } from './screens';
@@ -123,8 +122,6 @@ function App() {
         return <ArrangeScreen />;
       case 'EFFECTS':
         return <EffectsScreen />;
-      case 'FILTER':
-        return <FilterSelectionScreen />;
       case 'PRINT_QR':
         return <PrintQRScreen />;
       case 'COMPLETE':

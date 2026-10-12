@@ -17,7 +17,6 @@ export type ScreenName =
   | 'READY'
   | 'PHOTO_CAPTURE'
   | 'PHOTO_REVIEW'
-  | 'FILTER'
   | 'ARRANGE'
   | 'EFFECTS'
   | 'PRINT_QR'
@@ -71,6 +70,8 @@ export interface SessionStore {
   selectFilter: (filterId: string) => void;
   /** Replaces the frame with one carrying the guest's photo move/zoom edits. */
   updateFrameLayout: (frame: FrameConfig) => void;
+  /** After the tutorial: flows 1/3 pick a frame, the timed flow starts shooting. */
+  continueAfterTutorial: () => void;
   /** Organize: trade the photos of two slots (indexes into photoSlots). */
   swapPhotos: (a: number, b: number) => void;
   /** Organize: rotate 90° or mirror the photo (and its live clip) of a slot. */
@@ -197,6 +198,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   updateFrameLayout: (frame) => set({ frame }),
+
+  continueAfterTutorial: () => {
+    if (useBoothConfig.getState().flowMode !== 'timed') {
+      set({ currentScreen: 'SELECT_FRAME' });
+      return;
+    }
+    // Timed flow: no frame at the booth (the guest picks it on the organize
+    // page). One virtual slot holds every capture of the time budget.
+    set({
+      frame: null,
+      photoSlots: [{ slotNumber: 1, maxAttempts: 100000, attempts: [] }],
+      currentPhotoSlot: 1,
+      currentScreen: 'PHOTO_CAPTURE',
+    });
+  },
 
   swapPhotos: (a, b) => {
     const { photoSlots } = get();

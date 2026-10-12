@@ -386,8 +386,7 @@ const run = async (job: UploadJob) => {
       token &&
       baseOk &&
       useBoothConfig.getState().flowMode === 'timed' &&
-      outputs.allPhotos &&
-      job.frame
+      outputs.allPhotos
     ) {
       try {
         const manifest = buildOrganizeManifest(job.frame, job.photoSlots, job.filterId);

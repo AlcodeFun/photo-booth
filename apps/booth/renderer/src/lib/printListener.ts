@@ -40,6 +40,7 @@ import {
   PrintRequestFile,
 } from './organize';
 import { cacheUploadBlob, sessionFileUrl, updateSessionRecord } from './sessions';
+import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
 
 const TOKENS_KEY = 'photo-booth.print-tokens';
 const HANDLED_KEY = 'photo-booth.generated-requests';
@@ -149,15 +150,21 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     handledAdd(request.requestId);
   };
 
-  if (!manifest || !slots || slots.length !== manifest.template.photoSlots.length || slots.some((slot) => !slot)) {
+  const template = manifest?.template ?? null;
+  const frameId = manifest?.frameId ?? null;
+  if (!manifest || !template || !frameId) {
+    await fail('No frame was picked for this session.');
+    return;
+  }
+  if (!slots || slots.length !== template.photoSlots.length || slots.some((slot) => !slot)) {
     await fail('Frame arrangement is incomplete.');
     return;
   }
 
   const adjustments = request.adjustments ?? manifest.adjustments;
   const arrangedTemplate: FrameTemplateConfig = {
-    ...manifest.template,
-    photoSlots: manifest.template.photoSlots.map((placement, index) => {
+    ...template,
+    photoSlots: template.photoSlots.map((placement, index) => {
       const adjustment = adjustments?.[index];
       return adjustment
         ? {
@@ -185,28 +192,50 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     // Build one virtual photo slot per arranged photo, URL-addressable from the
     // gallery. template + filterId come from the persisted arrangement so the
     // composed sheet matches what the customer arranged and approved.
-    const photoSlots: PhotoSlotState[] = slots.map((name, index) => {
-      const placement = arrangedTemplate.photoSlots[index];
-      const clip = liveClips && name ? (liveClips[photoIndexFromName(name)] ?? []) : [];
-      return {
-        slotNumber: placement.slotNumber,
-        maxAttempts: 1,
-        attempts: name
-          ? [
-              {
-                attemptNumber: 1,
-                status: 'CAPTURED' as const,
-                localPath: fileUrl(endpoint, token, name),
-                ...(clip.length > 0 ? { liveFrames: clip } : {}),
-              },
-            ]
-          : [],
-        selectedAttempt: name ? 1 : undefined,
-      };
-    });
+    // Rotate / mirror chosen on the organize page is baked into the raw (and
+    // its live clip) once per photo, so every output below matches the page.
+    const transformed = new Map<string, Promise<{ url: string; clip: string[] }>>();
+    const photoFor = (name: string) => {
+      let job = transformed.get(name);
+      if (!job) {
+        const t = manifest.transforms?.[name];
+        const clip = liveClips ? (liveClips[photoIndexFromName(name)] ?? []) : [];
+        const url = fileUrl(endpoint, token, name);
+        job =
+          t && !isIdentityTransform(t)
+            ? Promise.all([applyPhotoTransform(url, t), Promise.all(clip.map((f) => applyPhotoTransform(f, t, 0.8)))]).then(
+                ([u, c]) => ({ url: u, clip: c }),
+              )
+            : Promise.resolve({ url, clip });
+        transformed.set(name, job);
+      }
+      return job;
+    };
+
+    const photoSlots: PhotoSlotState[] = await Promise.all(
+      slots.map(async (name, index) => {
+        const placement = arrangedTemplate.photoSlots[index];
+        const photo = name ? await photoFor(name) : null;
+        return {
+          slotNumber: placement.slotNumber,
+          maxAttempts: 1,
+          attempts: photo
+            ? [
+                {
+                  attemptNumber: 1,
+                  status: 'CAPTURED' as const,
+                  localPath: photo.url,
+                  ...(photo.clip.length > 0 ? { liveFrames: photo.clip } : {}),
+                },
+              ]
+            : [],
+          selectedAttempt: photo ? 1 : undefined,
+        };
+      }),
+    );
 
     const frame = {
-      id: manifest.frameId,
+      id: frameId,
       name: 'gallery arrangement',
       previewUrl: '',
       template: arrangedTemplate,

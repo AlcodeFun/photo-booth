@@ -672,11 +672,8 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
   },
   {
     id: 'filter',
-    label: 'Filter selection',
+    label: 'Photo gesture guide',
     fields: [
-      { key: 'filterTitle', label: 'Title' },
-      { key: 'filterEffectsLabel', label: 'Effects label' },
-      { key: 'filterApplyButton', label: 'Apply button' },
       { key: 'filterGuideMove', label: 'Guide: move' },
       { key: 'filterGuideZoom', label: 'Guide: zoom' },
       { key: 'filterGuideHint', label: 'Guide: dismiss hint' },

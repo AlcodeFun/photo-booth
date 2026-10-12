@@ -11,7 +11,6 @@ import TutorialView from '../booth/TutorialView';
 import FrameSelectionView from '../booth/FrameSelectionView';
 import CaptureView from '../booth/CaptureView';
 import ReviewView from '../booth/ReviewView';
-import FilterSelectionView from '../booth/FilterSelectionView';
 import QrResultView from '../booth/QrResultView';
 import ArrangeView from '../booth/ArrangeView';
 import EffectsView from '../booth/EffectsView';
@@ -172,22 +171,6 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
           ]),
     ]);
 
-    const filter: Slide = {
-      key: 'filter',
-      label: 'Filter',
-      render: () => (
-        <FilterSelectionView
-          copy={copy}
-          theme={theme}
-          isTimedFlow={isTimed}
-          frame={frame}
-          photoUrls={photoSlots.map(() => undefined)}
-          photoSlotCount={photoSlots.length}
-          surfaceStyle={appearanceSurfaceStyle(appearance, theme.background)}
-        />
-      ),
-    };
-
     const samplePhotos = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
 
     const arrange: Slide = {
@@ -251,11 +234,11 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
       render: () => <CompleteView copy={copy} theme={theme} />,
     };
 
-    // The timed session skips frame selection and the whole capture/review
-    // carousel: it shoots freely inside a time budget, then goes straight to
-    // the QR and the completion screen.
+    // The timed session skips frame selection, the capture/review carousel
+    // and the effects step at the booth: it shoots freely inside a time budget,
+    // then shows the QR (frame + filter are picked on the organize page).
     if (isTimed) {
-      return [bumper, unlock, tutorial, filter, results, complete];
+      return [bumper, unlock, tutorial, results, complete];
     }
     return [bumper, unlock, tutorial, frameSelect, ...captureReviewPair, arrange, effects, results, complete];
   }, [appearance, copy, theme, flowMode]);

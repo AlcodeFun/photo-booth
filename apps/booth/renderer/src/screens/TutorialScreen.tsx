@@ -8,7 +8,7 @@ import TutorialView from '../components/booth/TutorialView';
  * the admin appearance preview reuses.
  */
 export const TutorialScreen: React.FC = () => {
-  const setScreen = useSessionStore((state) => state.setScreen);
+  const continueAfterTutorial = useSessionStore((state) => state.continueAfterTutorial);
   // `appearance` is a stable reference that only changes when the saved look
   // does, so selecting it directly avoids re-render loops.
   const { copy, theme } = useBoothAppearance((state) => state.appearance);
@@ -18,7 +18,7 @@ export const TutorialScreen: React.FC = () => {
     // and `height: 100%` against an auto-height parent resolves to auto, which
     // leaves no free space for the centering to distribute.
     <div className="h-[calc(100dvh-3rem)]">
-      <TutorialView copy={copy} theme={theme} onStart={() => setScreen('SELECT_FRAME')} />
+      <TutorialView copy={copy} theme={theme} onStart={continueAfterTutorial} />
     </div>
   );
 };

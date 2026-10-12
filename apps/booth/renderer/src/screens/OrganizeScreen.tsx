@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FrameTemplateConfig } from '@photo-booth/types';
+import type { FrameConfig, FrameTemplateConfig } from '@photo-booth/types';
 import { GALLERY_URL } from '../config';
 import FrameCanvas from '../components/FrameCanvas';
 import { usePhotoGestures } from '../components/booth/usePhotoGestures';
@@ -13,11 +13,76 @@ import {
   writeJsonFile,
   type OrganizeManifest,
   type OrganizePhotoAdjustment,
+  type OrganizePhotoTransform,
   type PrintRequestFile,
 } from '../lib/organize';
-import { resolveObjectPosition } from '../utils/frameConfig';
+import { resolveFrameTemplate, resolveObjectPosition } from '../utils/frameConfig';
+import { listFrameTemplates } from '../lib/frames';
+import { FILTERS, getCanvasFilter } from '../utils/filters';
+import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+const transformKey = (name: string, t: OrganizePhotoTransform) => `${name}|${t.rotate}|${t.flip ? 1 : 0}`;
+
+/** Photos of a frame filled in capture order (repeated slots repeat photos). */
+const autoFill = (template: FrameTemplateConfig, photoNames: string[]) =>
+  template.photoSlots.map((slot) => photoNames[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1] ?? null);
+
+/**
+ * Timed flow: the guest picks the frame here (the booth no longer asks).
+ * Every frame is previewed with the guest's own photos.
+ */
+const FramePicker: React.FC<{
+  frames: FrameConfig[] | null;
+  photoUrls: string[];
+  onPick: (frame: FrameConfig) => void;
+  onClose?: () => void;
+}> = ({ frames, photoUrls, onPick, onClose }) => (
+  <section className="flex h-[100dvh] flex-col overflow-hidden bg-pbx-paper text-pbx-ink">
+    <header className="flex shrink-0 items-center justify-between gap-3 border-b-2 border-pbx-line px-4 py-3">
+      <div>
+        <h1 className="text-sm font-black uppercase tracking-[0.18em]">Pilih Bingkai</h1>
+        <p className="text-xs font-bold text-pbx-secondary-strong">Fotomu langsung terpasang, tinggal pilih yang paling kamu suka</p>
+      </div>
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Tutup"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-2 border-pbx-line bg-white text-lg font-black text-pbx-secondary-strong"
+        >
+          ×
+        </button>
+      )}
+    </header>
+    <div className="pb-scroll min-h-0 flex-1 overflow-y-auto p-4">
+      {frames === null ? (
+        <p className="py-16 text-center text-sm font-black uppercase tracking-widest opacity-60">Memuat bingkai…</p>
+      ) : frames.length === 0 ? (
+        <p className="py-16 text-center text-sm font-bold opacity-70">Belum ada bingkai. Minta bantuan petugas ya.</p>
+      ) : (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {frames.map((frame) => {
+            const template = resolveFrameTemplate(frame, Math.max(1, Math.floor(frame.photoSlots ?? 3)));
+            const photos = template.photoSlots.map((slot) => photoUrls[(slot.sourcePhotoSlot ?? slot.slotNumber) - 1]);
+            return (
+              <button
+                key={frame.id}
+                type="button"
+                onClick={() => onPick(frame)}
+                className="flex flex-col gap-2 rounded-[14px] border-[3px] border-pbx-line bg-white p-2 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-pbx-brand hover:shadow-md"
+              >
+                <FrameCanvas template={template} photos={photos} photoSlotCount={template.photoSlots.length} className="w-full !border-0" />
+                <span className="truncate px-1 text-center text-xs font-black uppercase">{frame.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </section>
+);
 
 /**
  * Flow-2 arrange page, hosted by the Vercel app at /organize/:token.
@@ -90,6 +155,12 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [status, setStatus] = useState<{ text: string; kind?: 'ok' | 'err' }>({ text: '' });
   const [panelOpen, setPanelOpen] = useState(false);
   const [canvasSize, setCanvasSize] = useState<{ width: number; height: number } | null>(null);
+  // Timed flow extras: frame + filter are chosen here; rotate / mirror per photo.
+  const [filterId, setFilterId] = useState('original');
+  const [transforms, setTransforms] = useState<Record<string, OrganizePhotoTransform>>({});
+  const [baked, setBaked] = useState<Record<string, string>>({});
+  const [frames, setFrames] = useState<FrameConfig[] | null>(null);
+  const [framePicker, setFramePicker] = useState(false);
   const arrangeRetries = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -234,6 +305,16 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
       const manifest = await readJsonFile<OrganizeManifest>(endpoint, token, ORGANIZE_FILE);
       if (manifest) {
+        setFilterId(manifest.filterId ?? 'original');
+        setTransforms(manifest.transforms ?? {});
+        if (!manifest.template && !manifest.frameId) {
+          // The booth left the frame to the guest: show the picker.
+          setOrganize(manifest);
+          setFramePicker(true);
+          arrangeRetries.current = 0;
+          setPhase('ready');
+          return;
+        }
         const resolved = await loadFrame(manifest);
         if (resolved) {
           setOrganize(manifest);
@@ -330,11 +411,70 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     [template, adjustments],
   );
 
-  const previewPhotos = useMemo(
-    () =>
-      template ? template.photoSlots.map((_, i) => (slots[i] ? fileUrl(slots[i]) : undefined)) : [],
-    [template, slots, fileUrl],
+  const photoUrlFor = useCallback(
+    (name: string) => {
+      const t = transforms[name];
+      return t && !isIdentityTransform(t) ? (baked[transformKey(name, t)] ?? fileUrl(name)) : fileUrl(name);
+    },
+    [transforms, baked, fileUrl],
   );
+
+  const previewPhotos = useMemo(
+    () => (template ? template.photoSlots.map((_, i) => (slots[i] ? photoUrlFor(slots[i]!) : undefined)) : []),
+    [template, slots, photoUrlFor],
+  );
+
+  // Bake rotate / mirror into preview images (the booth applies the same
+  // transforms to the raws when it renders the outputs).
+  useEffect(() => {
+    let alive = true;
+    for (const [name, t] of Object.entries(transforms)) {
+      const key = transformKey(name, t);
+      if (isIdentityTransform(t) || baked[key]) continue;
+      applyPhotoTransform(fileUrl(name), t)
+        .then((url) => alive && setBaked((b) => ({ ...b, [key]: url })))
+        .catch(() => undefined);
+    }
+    return () => {
+      alive = false;
+    };
+  }, [transforms, baked, fileUrl]);
+
+  // Frames for the picker, loaded the first time it opens.
+  useEffect(() => {
+    if (!framePicker || frames !== null) return;
+    listFrameTemplates()
+      .then(setFrames)
+      .catch(() => setFrames([]));
+  }, [framePicker, frames]);
+
+  const pickFrame = (frame: FrameConfig) => {
+    const resolved = resolveFrameTemplate(frame, Math.max(1, Math.floor(frame.photoSlots ?? 3)));
+    const nextSlots = autoFill(resolved, photos.map((photo) => photo.name));
+    setOrganize((current) =>
+      current ? { ...current, frameId: frame.id, template: resolved, slotCount: resolved.photoSlots.length, slots: nextSlots } : current,
+    );
+    setTemplate(resolved);
+    setSlots(nextSlots);
+    setAdjustments(Array.from({ length: resolved.photoSlots.length }, (_, i) => initialAdjustment(resolved, i)));
+    setPickSlot(null);
+    setFramePicker(false);
+  };
+
+  /** Rotate 90° clockwise, or mirror the photo as it currently looks. */
+  const transformSelected = (op: 'rotate' | 'flip') => {
+    const name = pickSlot != null ? slots[pickSlot] : null;
+    if (!name) return;
+    setTransforms((all) => {
+      const current = all[name] ?? { rotate: 0, flip: false };
+      const next =
+        op === 'rotate'
+          ? { ...current, rotate: (current.rotate + 90) % 360 }
+          : // Mirroring what is on screen = toggle mirror and reverse the turns.
+            { rotate: (360 - current.rotate) % 360, flip: !current.flip };
+      return { ...all, [name]: next };
+    });
+  };
 
   // Drag / pinch / scroll the selected photo from anywhere on the canvas
   // area (same engine as the booth's filter screen). Tapping a slot still
@@ -428,7 +568,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const saveSlots = async (): Promise<boolean> => {
     if (!organize || !endpoint) return false;
-    const manifest = { ...organize, slots: slots.slice(), adjustments: adjustments.slice() };
+    const manifest = { ...organize, slots: slots.slice(), adjustments: adjustments.slice(), filterId, transforms };
     const ok = await writeJsonFile(endpoint, token, ORGANIZE_FILE, manifest);
     if (ok) setOrganize(manifest);
     return ok;
@@ -531,6 +671,17 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
+  if (phase === 'ready' && (framePicker || !template)) {
+    return (
+      <FramePicker
+        frames={frames}
+        photoUrls={photos.map((photo) => photoUrlFor(photo.name))}
+        onPick={pickFrame}
+        onClose={template ? () => setFramePicker(false) : undefined}
+      />
+    );
+  }
+
   if (phase === 'loading' || !template || !displayTemplate) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-pbx-ui-raised-2 text-white">
@@ -585,7 +736,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     const slotTop = rect.top + (selectedPlacement.y / template.height) * rect.height;
     const slotBottom = rect.top + ((selectedPlacement.y + selectedPlacement.height) / template.height) * rect.height;
     const pillHeight = showPhotoGestureGuide ? 82 : 42;
-    const pillWidth = 208;
+    const pillWidth = 330;
     const left = clamp(centerX - pillWidth / 2, 8, Math.max(8, window.innerWidth - pillWidth - 8));
     const topAbove = slotTop - pillHeight - 8;
     const topBelow = slotBottom + 8;
@@ -605,6 +756,22 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             className="rounded-full bg-pbx-tertiary px-3 py-2 text-xs font-black text-pbx-tertiary-fg"
           >
             Ganti
+          </button>
+          <button
+            type="button"
+            onClick={() => transformSelected('rotate')}
+            className="rounded-full bg-white px-3 py-2 text-xs font-black text-pbx-ink"
+            title="Putar 90°"
+          >
+            ↻ Putar
+          </button>
+          <button
+            type="button"
+            onClick={() => transformSelected('flip')}
+            className="rounded-full bg-white px-3 py-2 text-xs font-black text-pbx-ink"
+            title="Cermin"
+          >
+            ⇋ Cermin
           </button>
           <button
             type="button"
@@ -657,6 +824,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           </span>
           <button
             type="button"
+            onClick={() => setFramePicker(true)}
+            title="Ganti bingkai"
+            className="rounded-full border-2 border-pbx-secondary bg-white px-3 py-2 text-xs font-black uppercase text-pbx-ink"
+          >
+            Bingkai
+          </button>
+          <button
+            type="button"
             onClick={unselectAllSlots}
             disabled={filled === 0}
             title="Batalkan Pilihan"
@@ -691,7 +866,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       <div className="flex min-h-0 flex-1">
         <div
           ref={areaRef}
-          className="relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden p-4 pb-20 lg:p-6 lg:pb-6"
+          className="relative flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden p-4 pb-44 lg:p-6 lg:pb-32"
           onClick={(event) => {
             if (event.target === event.currentTarget && !wasDrag()) clearCanvasSelection();
           }}
@@ -709,6 +884,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             <FrameCanvas
               template={displayTemplate}
               photos={previewPhotos}
+              filter={getCanvasFilter(filterId)}
               onSlotSelect={(slotNumber) => {
                 const i = displayTemplate.photoSlots.findIndex((slot) => slot.slotNumber === slotNumber);
                 if (i >= 0) onPickSlot(i);
@@ -736,6 +912,32 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       </div>
 
       {selectionPill}
+
+      {/* Filter rail (timed flow: the guest picks the look here) */}
+      <div className="absolute inset-x-0 bottom-14 z-[90] border-t-2 border-pbx-line bg-pbx-paper/95 backdrop-blur lg:bottom-0">
+        <div className="pb-scroll mx-auto flex max-w-5xl gap-3 overflow-x-auto px-3 py-2.5">
+          {FILTERS.map((option) => {
+            const selected = option.id === filterId;
+            const sample = photos[0] ? photoUrlFor(photos[0].name) : undefined;
+            return (
+              <button
+                key={option.id}
+                type="button"
+                onClick={() => setFilterId(option.id)}
+                aria-pressed={selected}
+                className="flex shrink-0 flex-col items-center gap-1"
+              >
+                <span
+                  className={`block h-12 w-12 overflow-hidden rounded-full border-[3px] bg-pbx-ink ${selected ? 'border-pbx-brand' : 'border-transparent'}`}
+                >
+                  {sample && <img src={sample} alt="" className="h-full w-full object-cover" style={{ filter: option.canvasFilter }} />}
+                </span>
+                <span className={`text-[0.65rem] ${selected ? 'font-black text-pbx-brand-strong' : 'font-bold text-pbx-ink/70'}`}>{option.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       <div className="absolute inset-x-0 bottom-0 z-[120] border-t-2 border-pbx-line bg-white/95 backdrop-blur lg:hidden">
         <div className="mx-auto flex h-14 max-w-3xl items-stretch gap-2 px-3 py-1.5">

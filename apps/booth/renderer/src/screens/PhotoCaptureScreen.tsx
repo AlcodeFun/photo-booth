@@ -467,7 +467,9 @@ export const PhotoCaptureScreen: React.FC = () => {
           return;
         }
         setTimedPhase('ended');
-        setScreen('FILTER');
+        // Timed flow: frame + filter are chosen later on the organize page,
+        // so go straight to upload + QR.
+        useSessionStore.getState().selectFilter('original');
         return;
       }
       const timer = setTimeout(() => setTimedRemaining((value) => value - 1), 1000);

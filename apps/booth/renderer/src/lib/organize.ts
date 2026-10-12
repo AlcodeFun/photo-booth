@@ -25,19 +25,29 @@ export const PRINT_REQUEST_FILE = 'print-request.json';
 export const PRINT_RESULT_FILE = 'print-result.json';
 export const LIVE_CLIPS_FILE = 'live-clips.json';
 
+/** Per-photo rotate / mirror chosen on the organize page (baked when rendering). */
+export interface OrganizePhotoTransform {
+  /** Clockwise quarter turns in degrees: 0, 90, 180 or 270. */
+  rotate: number;
+  flip: boolean;
+}
+
 export interface OrganizeManifest {
   version: 1;
-  frameId: string;
+  /** Null until the guest picks a frame on the organize page (timed flow). */
+  frameId: string | null;
   filterId: string | null;
   slotCount: number;
-  /** Resolved frame template for the frame's full slot capacity. */
-  template: FrameTemplateConfig;
+  /** Resolved frame template for the frame's full slot capacity (null = not picked yet). */
+  template: FrameTemplateConfig | null;
   /** Raw photo file names (photo-01.jpg …) in capture order, matching the uploads. */
   photoFiles: string[];
   /** Per-slot assignment: index i ↔ slot i+1, value = photo file name or null. */
   slots: (string | null)[];
   /** Optional customer image adjustments, kept optional for older manifests. */
   adjustments?: OrganizePhotoAdjustment[];
+  /** Rotate / mirror per raw photo file name. */
+  transforms?: Record<string, OrganizePhotoTransform>;
 }
 
 export interface OrganizePhotoAdjustment {
@@ -103,15 +113,19 @@ export const sessionUrl = (endpoint: string, token: string): string => `${endpoi
  * customer arranges.
  */
 export const buildOrganizeManifest = (
-  frame: FrameConfig,
+  frame: FrameConfig | null,
   photoSlots: PhotoSlotState[],
   filterId: string | null,
 ): OrganizeManifest => {
-  const slotCount = Math.max(1, Math.round(frame.photoSlots ?? photoSlots.length));
-  const template = resolveFrameTemplate(frame, slotCount);
   const photoFiles = Array.from({ length: getAllPhotoUrls(photoSlots).length }, (_, i) =>
     photoFileName(i),
   );
+  // Timed flow: no frame at the booth, the guest picks it on the organize page.
+  if (!frame) {
+    return { version: 1, frameId: null, filterId, slotCount: 0, template: null, photoFiles, slots: [] };
+  }
+  const slotCount = Math.max(1, Math.round(frame.photoSlots ?? photoSlots.length));
+  const template = resolveFrameTemplate(frame, slotCount);
   return {
     version: 1,
     frameId: frame.id,
