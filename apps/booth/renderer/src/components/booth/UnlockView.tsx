@@ -26,6 +26,8 @@ export interface UnlockViewProps {
   onBack?: () => void;
   /** Opens the device's image picker to read a voucher QR from a saved picture. */
   onPickImage?: () => void;
+  /** Shown when the device has more than one camera (front / back). */
+  onSwitchCamera?: () => void;
 }
 
 const CHECK_LEN = 60;
@@ -52,6 +54,7 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
   onSubmit,
   onBack,
   onPickImage,
+  onSwitchCamera,
 }) => {
   const busy = status === 'checking' || status === 'success';
   const showScan = mode === 'scan' && cameraAvailable;
@@ -87,6 +90,23 @@ export const UnlockView: React.FC<UnlockViewProps> = ({
               }}
             >
               <div className="absolute inset-0">{cameraFeed}</div>
+              {onSwitchCamera && (
+                <button
+                  type="button"
+                  onClick={onSwitchCamera}
+                  disabled={busy}
+                  title="Ganti kamera"
+                  aria-label="Ganti kamera"
+                  className="absolute right-[3cqmin] top-[3cqmin] z-10 grid h-[9cqmin] min-h-11 w-[9cqmin] min-w-11 place-items-center rounded-full border-[0.4cqmin] transition-transform enabled:hover:scale-105 disabled:opacity-50"
+                  style={{ backgroundColor: withAlpha(theme.deep, 0.7), borderColor: '#fff', color: '#fff' }}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" className="h-1/2 w-1/2" aria-hidden="true">
+                    <path d="M4 8.5h2.2l1.6-2.2h8.4l1.6 2.2H20a1 1 0 0 1 1 1V18a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5a1 1 0 0 1 1-1Z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+                    <path d="M9.2 12.4a3 3 0 0 1 5.3-.9M14.8 15.1a3 3 0 0 1-5.3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                    <path d="M14.9 9.9l-.3 1.8-1.8-.3M9.1 17.6l.3-1.8 1.8.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+              )}
               {/* Dim the edges so the target square reads as the place to aim */}
               <div
                 className="pointer-events-none absolute inset-0"

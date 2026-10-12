@@ -10,6 +10,7 @@ import {
   redeemVoucher,
   type RedeemFailure,
 } from '../lib/vouchers';
+import { createVideoQrScanner, decodeQrFromFile } from '../lib/qrDecode';
 
 /** Back to the start screen after this long without any input. */
 const IDLE_MS = 60_000;
@@ -19,43 +20,6 @@ const SAME_CODE_COOLDOWN_MS = 4_000;
 const MAX_FAILS = 5;
 const FAIL_PAUSE_MS = 30_000;
 const SCAN_INTERVAL_MS = 160;
-
-/**
- * Reads a QR from a picture (e.g. the voucher card saved on the guest's
- * phone). Tries a few scales: big photos decode faster and more reliably
- * downscaled, small screenshots need their full resolution.
- */
-const decodeQrFromImage = async (file: File): Promise<string | null> => {
-  const { default: jsQR } = await import('jsqr');
-  const url = URL.createObjectURL(file);
-  try {
-    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error('unreadable image'));
-      img.src = url;
-    });
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return null;
-    const longest = Math.max(image.naturalWidth, image.naturalHeight);
-    for (const target of [1000, 1600, 600, longest]) {
-      const scale = Math.min(1, target / longest);
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const found = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height, {
-        inversionAttempts: 'attemptBoth',
-      });
-      if (found?.data) return found.data;
-    }
-    return null;
-  } catch {
-    return null;
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-};
 
 /**
  * Voucher gate in front of the session (Booth Setup -> Access -> Voucher).
@@ -161,21 +125,35 @@ export const UnlockScreen: React.FC = () => {
     [copy, failureText, showMessage, touch, unlockWithVoucher],
   );
 
-  // ---- Webcam + QR decode loop (scan mode only) ----
+  // ---- Camera + QR decode loop (scan mode only) ----
+  // facing / deviceOverride change when the guest taps "switch camera".
+  const [facing, setFacing] = useState<'user' | 'environment'>('user');
+  const [deviceOverride, setDeviceOverride] = useState<string | null>(null);
+  const [switched, setSwitched] = useState(false);
+  const [cameraCount, setCameraCount] = useState(0);
+  const [mirrored, setMirrored] = useState(true);
+  const trackRef = useRef<MediaStreamTrack | null>(null);
+
   useEffect(() => {
     if (mode !== 'scan') return;
     let stream: MediaStream | null = null;
     let timer: number | null = null;
     let cancelled = false;
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const scan = createVideoQrScanner();
+    const base: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
+    const open = (video: MediaTrackConstraints) => navigator.mediaDevices.getUserMedia({ video, audio: false });
 
     const start = async () => {
+      // Guest's pick first, then the camera chosen in Booth Setup, then the
+      // requested side. A saved camera that is gone (unplugged, or the browser
+      // renamed its id) falls back to any camera instead of giving up.
+      const preferred: MediaTrackConstraints = deviceOverride
+        ? { ...base, deviceId: { exact: deviceOverride } }
+        : scannerDeviceId && !switched
+          ? { ...base, deviceId: { exact: scannerDeviceId } }
+          : { ...base, facingMode: { ideal: facing } };
       try {
-        const video: MediaTrackConstraints = scannerDeviceId
-          ? { deviceId: { exact: scannerDeviceId }, width: { ideal: 1280 } }
-          : { facingMode: 'user', width: { ideal: 1280 } };
-        stream = await navigator.mediaDevices.getUserMedia({ video, audio: false });
+        stream = await open(preferred).catch(() => open(base)).catch(() => open({}));
       } catch {
         if (cancelled) return;
         setCameraAvailable(false);
@@ -187,30 +165,29 @@ export const UnlockScreen: React.FC = () => {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
+      const track = stream.getVideoTracks()[0] ?? null;
+      trackRef.current = track;
+      // Mirror the selfie view only; a back camera shows the world as it is.
+      setMirrored(track?.getSettings().facingMode !== 'environment');
+      navigator.mediaDevices
+        .enumerateDevices()
+        .then((devices) => !cancelled && setCameraCount(devices.filter((d) => d.kind === 'videoinput').length))
+        .catch(() => undefined);
       const el = videoRef.current;
       if (el) {
         el.srcObject = stream;
         void el.play().catch(() => undefined);
       }
-      // Loaded on demand so the decoder never weighs on open-access booths.
-      const { default: jsQR } = await import('jsqr');
-      const tick = () => {
+      const tick = async () => {
         if (cancelled) return;
         const v = videoRef.current;
-        if (v && ctx && v.readyState >= 2 && !busyRef.current && v.videoWidth > 0) {
-          // Decode a centered square at ~480px: fast, and matches the viewfinder.
-          const side = Math.min(v.videoWidth, v.videoHeight);
-          const size = Math.min(480, side);
-          canvas.width = size;
-          canvas.height = size;
-          ctx.drawImage(v, (v.videoWidth - side) / 2, (v.videoHeight - side) / 2, side, side, 0, 0, size, size);
-          const image = ctx.getImageData(0, 0, size, size);
-          const found = jsQR(image.data, size, size, { inversionAttempts: 'attemptBoth' });
-          if (found?.data) void submit(found.data);
+        if (v && !busyRef.current) {
+          const found = await scan(v).catch(() => null);
+          if (found && !cancelled) void submit(found);
         }
-        timer = window.setTimeout(tick, SCAN_INTERVAL_MS);
+        if (!cancelled) timer = window.setTimeout(() => void tick(), SCAN_INTERVAL_MS);
       };
-      tick();
+      void tick();
     };
     void start();
 
@@ -218,15 +195,32 @@ export const UnlockScreen: React.FC = () => {
       cancelled = true;
       if (timer != null) window.clearTimeout(timer);
       stream?.getTracks().forEach((track) => track.stop());
+      trackRef.current = null;
     };
-  }, [mode, scannerDeviceId, submit, copy.unlockNoCamera, showMessage]);
+  }, [mode, scannerDeviceId, facing, deviceOverride, switched, submit, copy.unlockNoCamera, showMessage]);
+
+  /** Front <-> back on phones / tablets; next webcam on a PC with several. */
+  const switchCamera = useCallback(async () => {
+    touch();
+    setSwitched(true);
+    const settings = trackRef.current?.getSettings();
+    if (settings?.facingMode === 'user' || settings?.facingMode === 'environment') {
+      setDeviceOverride(null);
+      setFacing(settings.facingMode === 'user' ? 'environment' : 'user');
+      return;
+    }
+    const cameras = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter((d) => d.kind === 'videoinput');
+    if (cameras.length < 2) return;
+    const index = cameras.findIndex((d) => d.deviceId === settings?.deviceId);
+    setDeviceOverride(cameras[(index + 1) % cameras.length].deviceId);
+  }, [touch]);
 
   // ---- Voucher picture picked from the device (gallery / files) ----
   const fileInputRef = useRef<HTMLInputElement>(null);
   const onImagePicked = async (file: File | undefined) => {
     if (!file) return;
     touch();
-    const data = await decodeQrFromImage(file);
+    const data = await decodeQrFromFile(file);
     if (data) void submit(data);
     else showMessage(copy.unlockPickError);
   };
@@ -276,8 +270,8 @@ export const UnlockScreen: React.FC = () => {
             muted
             playsInline
             className="h-full w-full object-cover"
-            // Mirrored like the capture preview; decoding reads the raw frame.
-            style={{ transform: 'scaleX(-1)' }}
+            // Selfie camera mirrored like the capture preview; decoding reads the raw frame.
+            style={mirrored ? { transform: 'scaleX(-1)' } : undefined}
           />
         }
         onModeChange={(next) => {
@@ -293,6 +287,7 @@ export const UnlockScreen: React.FC = () => {
         // Only when the booth runs in a browser on the guest's phone/tablet:
         // on the Electron kiosk a file dialog would expose the booth PC's files.
         onPickImage={window.electronAPI ? undefined : () => fileInputRef.current?.click()}
+        onSwitchCamera={cameraCount > 1 ? () => void switchCamera() : undefined}
       />
       <input
         ref={fileInputRef}
