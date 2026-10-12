@@ -108,6 +108,41 @@ export const photoIndexFromName = (name: string): number => {
 
 export const sessionUrl = (endpoint: string, token: string): string => `${endpoint}/p/${token}`;
 
+/** Tokens whose organize page the booth's print listener watches. */
+export const PRINT_TOKENS_KEY = 'photo-booth.print-tokens';
+/** Upper bound only; tokens leave the list as soon as their request is generated. */
+const MAX_PRINT_TOKENS = 60;
+
+export const readPrintTokens = (): string[] => {
+  try {
+    const raw = localStorage.getItem(PRINT_TOKENS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+    return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const writePrintTokens = (tokens: string[]): void => {
+  try {
+    localStorage.setItem(PRINT_TOKENS_KEY, JSON.stringify(tokens.slice(0, MAX_PRINT_TOKENS)));
+  } catch {
+    // Non-fatal — the listener just loses this token if storage is unavailable.
+  }
+};
+
+/** Watch this session's organize page for a print request (newest first). */
+export const trackPrintToken = (token: string): void => {
+  if (!token) return;
+  writePrintTokens([token, ...readPrintTokens().filter((t) => t !== token)]);
+};
+
+/** Stop watching a session once its request has been generated. */
+export const untrackPrintToken = (token: string): void => {
+  const tokens = readPrintTokens();
+  if (tokens.includes(token)) writePrintTokens(tokens.filter((t) => t !== token));
+};
+
 /**
  * Builds the organizer manifest for a session. For the timed flow the live
  * session only ever has one virtual slot, so the advertised slot count (and

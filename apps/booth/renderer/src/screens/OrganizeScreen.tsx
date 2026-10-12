@@ -173,6 +173,15 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const gestureGuideTimerRef = useRef<number | null>(null);
   const [waiting, setWaiting] = useState<'busy' | 'done' | 'error' | null>(null);
+  // Generating usually takes ~15 s; past 30 s offer the gallery instead of a
+  // spinner with no way out (the outputs land there when the booth is done).
+  const [slowWait, setSlowWait] = useState(false);
+  useEffect(() => {
+    setSlowWait(false);
+    if (waiting !== 'busy') return;
+    const timer = window.setTimeout(() => setSlowWait(true), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [waiting]);
   const waitStartedRef = useRef(false);
 
   const slotCount = useMemo(() => {
@@ -699,6 +708,19 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 ? 'Membuka galeri…'
                 : 'Booth sedang membuat foto bingkai — mohon tunggu.'}
             </p>
+            {waiting === 'busy' && slowWait && (
+              <div className="mx-auto mt-6 max-w-xs">
+                <p className="text-xs text-white/60">
+                  Masih diproses. Fotomu sudah tersimpan — kamu bisa membuka galeri sekarang, hasil bingkai akan muncul di sana.
+                </p>
+                <button
+                  className="mt-3 rounded-full border-[3px] border-white px-6 py-3 text-sm font-black uppercase tracking-wide text-white"
+                  onClick={goToGallery}
+                >
+                  Buka Galeri
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -34,7 +34,10 @@ import {
   PRINT_RESULT_FILE,
   photoIndexFromName,
   readJsonFile,
+  readPrintTokens,
   sessionUrl,
+  trackPrintToken,
+  untrackPrintToken,
   writeJsonFile,
   OrganizeManifest,
   PrintRequestFile,
@@ -43,11 +46,11 @@ import { cacheUploadBlob, sessionFileUrl, updateSessionRecord } from './sessions
 import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
 import { photoSlotsFromUrls } from '../utils/photoSlots';
 
-const TOKENS_KEY = 'photo-booth.print-tokens';
 const HANDLED_KEY = 'photo-booth.generated-requests';
 const READY_TOKENS_KEY = 'photo-booth.ready-tokens';
 const POLL_INTERVAL = 4000;
-const MAX_TRACKED_TOKENS = 12;
+/** One request may take a while (GIFs), but never block the listener for good. */
+const REQUEST_TIMEOUT = 3 * 60 * 1000;
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const readStringArray = (key: string): string[] => {
@@ -57,17 +60,6 @@ const readStringArray = (key: string): string[] => {
     return Array.isArray(parsed) ? parsed.filter((entry): entry is string => typeof entry === 'string') : [];
   } catch {
     return [];
-  }
-};
-
-const trackToken = (token: string) => {
-  if (!token) return;
-  const tokens = readStringArray(TOKENS_KEY).filter((t) => t !== token);
-  tokens.unshift(token);
-  try {
-    localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens.slice(0, MAX_TRACKED_TOKENS)));
-  } catch {
-    // Non-fatal — the listener just loses this token if storage is unavailable.
   }
 };
 
@@ -315,10 +307,15 @@ const pollOnce = async () => {
   if (!GALLERY_URL || processing) {
     return;
   }
-  const tokens = readStringArray(TOKENS_KEY);
+  const tokens = readPrintTokens();
   for (const token of tokens) {
     const request = await readJsonFile<PrintRequestFile>(GALLERY_URL, token, PRINT_REQUEST_FILE);
-    if (!request || request.status !== 'requested' || handledHas(request.requestId)) {
+    if (request && (request.status === 'handled' || handledHas(request.requestId))) {
+      // Done (here or elsewhere): stop polling it so open sessions keep their place.
+      untrackPrintToken(token);
+      continue;
+    }
+    if (!request || request.status !== 'requested') {
       continue;
     }
     // The request stays queued until every slot is filled — the customer may
@@ -329,7 +326,13 @@ const pollOnce = async () => {
 
     processing = true;
     try {
-      await handleRequest(token, request);
+      await Promise.race([
+        handleRequest(token, request),
+        new Promise<never>((_, reject) =>
+          window.setTimeout(() => reject(new Error('Output generation timed out.')), REQUEST_TIMEOUT),
+        ),
+      ]);
+      untrackPrintToken(token);
     } catch (error) {
       console.error('Gallery output generation failed:', error);
       await writeJsonFile(GALLERY_URL, token, PRINT_RESULT_FILE, {
@@ -340,6 +343,7 @@ const pollOnce = async () => {
       });
       await writeJsonFile(GALLERY_URL, token, PRINT_REQUEST_FILE, { ...request, status: 'handled' });
       handledAdd(request.requestId);
+      untrackPrintToken(token);
     } finally {
       processing = false;
     }
@@ -361,12 +365,12 @@ export const startPrintListener = () => {
   // localStorage, so requests arriving after a booth reset still get generated.
   useSessionStore.subscribe((state, prev) => {
     if (state.sessionToken && state.sessionToken !== prev.sessionToken) {
-      trackToken(state.sessionToken);
+      trackPrintToken(state.sessionToken);
     }
   });
   const current = useSessionStore.getState().sessionToken;
   if (current) {
-    trackToken(current);
+    trackPrintToken(current);
   }
 
   void pollOnce();

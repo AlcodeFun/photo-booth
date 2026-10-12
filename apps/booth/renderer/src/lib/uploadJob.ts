@@ -14,7 +14,7 @@ import {
 import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
 import { getKeptPhotoUrls, photoSlotsFromUrls } from '../utils/photoSlots';
-import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE } from './organize';
+import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE, trackPrintToken } from './organize';
 import {
   cacheUploadBlob,
   createSessionRecord,
@@ -229,6 +229,9 @@ const run = async (job: UploadJob) => {
         flowMode === 'timed'
           ? `${APP_URL ?? endpoint}/organize/${token}`
           : `${endpoint}/p/${token}`;
+      // The print listener must see this token even if the booth has already
+      // moved on to the next guest (then the store below is not updated).
+      if (flowMode === 'timed') trackPrintToken(token);
       // Only publish to the store when this session is still the active one —
       // otherwise a stale job would hijack a newer session's link.
       if (stillCurrentSession(job.sessionId)) {
