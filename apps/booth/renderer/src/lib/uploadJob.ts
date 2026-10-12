@@ -14,6 +14,7 @@ import {
 import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
 import { getKeptPhotoUrls, photoSlotsFromUrls } from '../utils/photoSlots';
+import type { GifAdjust } from '../utils/gifAdjust';
 import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE, trackPrintToken } from './organize';
 import {
   cacheUploadBlob,
@@ -58,6 +59,8 @@ interface UploadJob {
   voucherId?: string | null;
   /** GIF frame overlay chosen on the effects screen. */
   gifFrameUrl?: string | null;
+  /** Zoom / pan / mirror of the GIF photos chosen on the effects screen. */
+  gifAdjust?: GifAdjust | null;
   /** Photos as captured (before Organize): the GIF's source. */
   originalPhotos?: string[];
   /** Per-token statuses accumulated by this job (survives a store reset). */
@@ -343,7 +346,7 @@ const run = async (job: UploadJob) => {
         const blob = await createResultGif(
           job.originalPhotos?.length ? photoSlotsFromUrls(job.originalPhotos) : job.photoSlots,
           null,
-          { overlayUrl: job.gifFrameUrl },
+          { overlayUrl: job.gifFrameUrl, adjust: job.gifAdjust },
         );
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result.gif', blob));
         return { blob, name: 'result.gif' as const };
@@ -429,6 +432,7 @@ const maybeStart = () => {
     filterId: store.filterId,
     voucherId: store.voucherId,
     gifFrameUrl: store.gifFrame?.url ?? null,
+    gifAdjust: store.gifAdjust,
     originalPhotos: store.originalPhotos,
     fileStates: [...(store.sessionFilesByToken[store.sessionToken ?? ''] ?? [])],
   };

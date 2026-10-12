@@ -4,6 +4,13 @@ import FrameCanvas from '../FrameCanvas';
 import { withAlpha } from '../../lib/appearance';
 import { FILTERS, getCanvasFilter } from '../../utils/filters';
 import { resolveFrameTemplate } from '../../utils/frameConfig';
+import {
+  clampGifAdjust,
+  DEFAULT_GIF_ADJUST,
+  gifAdjustTransform,
+  isDefaultGifAdjust,
+  type GifAdjust,
+} from '../../utils/gifAdjust';
 
 export interface EffectsGifFrame {
   id: string;
@@ -29,6 +36,9 @@ export interface EffectsViewProps {
   gifFrames: EffectsGifFrame[];
   filterId: string;
   gifFrameId: string | null;
+  /** Zoom / pan / mirror of the photos inside the GIF. */
+  gifAdjust?: GifAdjust | null;
+  onGifAdjustChange?: (adjust: GifAdjust) => void;
   onFilterChange?: (filterId: string) => void;
   onGifFrameChange?: (gifFrameId: string | null) => void;
   onNext?: () => void;
@@ -43,32 +53,213 @@ const NoneIcon = (
   </svg>
 );
 
-/** Animated stand-in for the GIF: the photos take turns behind the overlay. */
+/** Natural width / height of an image (null until it loads). */
+const useImageAspect = (url: string | undefined): number | null => {
+  const [aspect, setAspect] = useState<number | null>(null);
+  useEffect(() => {
+    setAspect(null);
+    if (!url) return;
+    let alive = true;
+    const image = new Image();
+    image.onload = () => {
+      if (alive && image.naturalWidth && image.naturalHeight) setAspect(image.naturalWidth / image.naturalHeight);
+    };
+    image.src = url;
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  return aspect;
+};
+
+/**
+ * Aspect ratio of the GIF: the overlay's, else the photos' own (the encoder
+ * sizes a plain GIF from the first photo), so the preview crops exactly like
+ * the file does.
+ */
+export const useGifAspect = (overlay: EffectsGifFrame | null, photos: string[]): number => {
+  const photoAspect = useImageAspect(photos[0]);
+  if (overlay && overlay.width && overlay.height) return overlay.width / overlay.height;
+  return photoAspect ?? 4 / 3;
+};
+
+/**
+ * Animated stand-in for the GIF: the photos take turns behind the overlay.
+ *
+ * With `onAdjustChange` it is also the place to position them: drag to move,
+ * pinch / scroll to zoom, plus mirror and reset buttons. A drag never counts
+ * as a click, so a parent "tap to enlarge" still works on a plain tap.
+ */
 export const GifPreview: React.FC<{
   photos: string[];
   filter: string;
   overlay: EffectsGifFrame | null;
   className?: string;
-}> = ({ photos, filter, overlay, className }) => {
+  adjust?: GifAdjust | null;
+  onAdjustChange?: (adjust: GifAdjust) => void;
+}> = ({ photos, filter, overlay, className, adjust, onAdjustChange }) => {
   const [index, setIndex] = useState(0);
   useEffect(() => {
     if (photos.length < 2) return;
     const timer = window.setInterval(() => setIndex((i) => (i + 1) % photos.length), 700);
     return () => window.clearInterval(timer);
   }, [photos.length]);
-  const ratio = overlay && overlay.width && overlay.height ? overlay.width / overlay.height : 4 / 3;
+  const ratio = useGifAspect(overlay, photos);
+
+  const boxRef = useRef<HTMLDivElement>(null);
+  const current = clampGifAdjust(adjust);
+  const currentRef = useRef(current);
+  currentRef.current = current;
+  const onChangeRef = useRef(onAdjustChange);
+  onChangeRef.current = onAdjustChange;
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{ moved: boolean; startX: number; startY: number; dist: number; midX: number; midY: number } | null>(null);
+  const dragged = useRef(false);
+  const editable = Boolean(onAdjustChange);
+
+  const emit = (next: Partial<GifAdjust>) => onChangeRef.current?.(clampGifAdjust({ ...currentRef.current, ...next }));
+
+  const snapshot = () => {
+    const pts = [...pointers.current.values()];
+    const midX = pts.reduce((sum, p) => sum + p.x, 0) / pts.length;
+    const midY = pts.reduce((sum, p) => sum + p.y, 0) / pts.length;
+    const dist = pts.length >= 2 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0;
+    return { midX, midY, dist };
+  };
+
+  const onPointerDown = (event: React.PointerEvent) => {
+    if (!editable) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const s = snapshot();
+    if (pointers.current.size === 1) dragged.current = false;
+    gesture.current = { moved: gesture.current?.moved ?? false, startX: s.midX, startY: s.midY, ...s };
+    try {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is a nicety (drags that leave the box); the gesture works without it.
+    }
+  };
+
+  const onPointerMove = (event: React.PointerEvent) => {
+    if (!editable || !pointers.current.has(event.pointerId) || !gesture.current || !boxRef.current) return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    const rect = boxRef.current.getBoundingClientRect();
+    const s = snapshot();
+    const g = gesture.current;
+    if (!g.moved && Math.hypot(s.midX - g.startX, s.midY - g.startY) < 4 && pointers.current.size < 2) return;
+    g.moved = true;
+    dragged.current = true;
+    const a = currentRef.current;
+    const next: Partial<GifAdjust> = {
+      offsetX: a.offsetX + (s.midX - g.midX) / rect.width,
+      offsetY: a.offsetY + (s.midY - g.midY) / rect.height,
+    };
+    if (pointers.current.size >= 2 && g.dist > 0 && s.dist > 0) next.scale = a.scale * (s.dist / g.dist);
+    currentRef.current = clampGifAdjust({ ...a, ...next });
+    emit(currentRef.current);
+    g.midX = s.midX;
+    g.midY = s.midY;
+    g.dist = s.dist;
+  };
+
+  const onPointerUp = (event: React.PointerEvent) => {
+    pointers.current.delete(event.pointerId);
+    if (pointers.current.size === 0) {
+      gesture.current = null;
+      return;
+    }
+    const s = snapshot();
+    if (gesture.current) Object.assign(gesture.current, { midX: s.midX, midY: s.midY, dist: s.dist });
+  };
+
+  // Scroll / trackpad pinch zooms (needs a non-passive listener to stop the page scrolling).
+  useEffect(() => {
+    const box = boxRef.current;
+    if (!box || !editable) return;
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      // No dragged flag: a wheel never ends in a click, so the flag would only
+      // swallow the next real tap (e.g. on Mirror).
+      currentRef.current = clampGifAdjust({ ...currentRef.current, scale: currentRef.current.scale * Math.exp(-event.deltaY * 0.0015) });
+      onChangeRef.current?.(currentRef.current);
+    };
+    box.addEventListener('wheel', onWheel, { passive: false });
+    return () => box.removeEventListener('wheel', onWheel);
+  }, [editable]);
+
+  const stop = (event: React.SyntheticEvent) => event.stopPropagation();
+  const toolButton =
+    'pointer-events-auto grid h-8 w-8 place-items-center rounded-full bg-black/60 text-sm font-black text-white shadow backdrop-blur transition hover:bg-black/80';
+
   return (
-    <div className={`relative overflow-hidden rounded-md bg-black ${className ?? ''}`} style={{ aspectRatio: `${ratio}` }}>
+    <div
+      ref={boxRef}
+      className={`relative overflow-hidden rounded-md bg-black ${editable ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${className ?? ''}`}
+      style={{ aspectRatio: `${ratio}` }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      onClickCapture={(event) => {
+        // The drag that just ended must not also open the zoom view (tool
+        // buttons are never a drag's click).
+        const onTool = (event.target as HTMLElement).closest?.('button') && event.target !== event.currentTarget;
+        if (dragged.current && !onTool) {
+          event.stopPropagation();
+          event.preventDefault();
+          dragged.current = false;
+        }
+      }}
+    >
       {photos[index % Math.max(1, photos.length)] && (
         <img
           src={photos[index % photos.length]}
           alt=""
           className={`absolute inset-0 h-full w-full ${overlay ? 'object-cover' : 'object-contain'}`}
-          style={{ filter }}
+          style={{ filter, transform: gifAdjustTransform(current) }}
           draggable={false}
         />
       )}
       {overlay && <img src={overlay.url} alt="" className="absolute inset-0 h-full w-full object-fill" draggable={false} />}
+      {editable && (
+        <>
+          <div className="pointer-events-none absolute left-1.5 top-1.5 flex gap-1.5">
+            <button
+              type="button"
+              title="Cermin"
+              aria-label="Cermin"
+              className={toolButton}
+              onPointerDown={stop}
+              onClick={(event) => {
+                stop(event);
+                emit({ flip: !current.flip });
+              }}
+            >
+              ⇋
+            </button>
+            {!isDefaultGifAdjust(current) && (
+              <button
+                type="button"
+                title="Reset"
+                aria-label="Reset"
+                className={toolButton}
+                onPointerDown={stop}
+                onClick={(event) => {
+                  stop(event);
+                  onChangeRef.current?.(DEFAULT_GIF_ADJUST);
+                }}
+              >
+                ↺
+              </button>
+            )}
+          </div>
+          {isDefaultGifAdjust(current) && (
+            <span className="pointer-events-none absolute inset-x-0 bottom-1.5 mx-auto w-max max-w-[90%] truncate rounded-full bg-black/55 px-2.5 py-1 text-[0.6rem] font-black uppercase tracking-wide text-white">
+              Geser · cubit untuk atur
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 };
@@ -114,6 +305,8 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   gifFrames,
   filterId,
   gifFrameId,
+  gifAdjust,
+  onGifAdjustChange,
   onFilterChange,
   onGifFrameChange,
   onNext,
@@ -126,6 +319,7 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   const sample = photos[0];
   const gifPhotos = gifPhotoUrls?.length ? gifPhotoUrls : photos;
   const overlay = gifFrames.find((f) => f.id === gifFrameId) ?? null;
+  const gifAspect = useGifAspect(overlay, gifPhotos);
 
   const framed = (withFilter: boolean, className = '') => (
     <FrameCanvas
@@ -154,12 +348,19 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
    * A labelled output that opens larger on tap. `perRow` tiles share the
    * preview area: each is sized "contain" against it via container units.
    */
-  const previewTile = (kind: Exclude<Zoomed, null>, label: string, content: React.ReactNode, aspect: number, perRow = 1) => (
-    <button
-      type="button"
-      onClick={() => setZoomed(kind)}
+  const previewTile = (
+    kind: Exclude<Zoomed, null>,
+    label: string,
+    content: React.ReactNode,
+    aspect: number,
+    perRow = 1,
+    interactive = false,
+  ) => {
+    const Wrapper = interactive ? 'div' : 'button';
+    return (
+    <Wrapper
+      {...(interactive ? {} : { type: 'button' as const, onClick: () => setZoomed(kind), title: copy.effectsTapToZoom })}
       className="group flex min-w-0 shrink-0 flex-col items-center gap-1.5"
-      title={copy.effectsTapToZoom}
     >
       <span className="text-xs font-black uppercase tracking-[0.12em] opacity-80 sm:text-sm">{label}</span>
       <span
@@ -170,16 +371,30 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
         }}
       >
         {content}
-        <span
-          className="absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full text-sm opacity-90"
-          style={{ backgroundColor: withAlpha(theme.deep, 0.75), color: '#fff' }}
-          aria-hidden="true"
-        >
-          ⤢
-        </span>
+        {interactive ? (
+          <button
+            type="button"
+            onClick={() => setZoomed(kind)}
+            title={copy.effectsTapToZoom}
+            aria-label={copy.effectsTapToZoom}
+            className="absolute bottom-1.5 right-1.5 grid h-8 w-8 place-items-center rounded-full text-sm opacity-90"
+            style={{ backgroundColor: withAlpha(theme.deep, 0.75), color: '#fff' }}
+          >
+            ⤢
+          </button>
+        ) : (
+          <span
+            className="absolute bottom-1.5 right-1.5 grid h-7 w-7 place-items-center rounded-full text-sm opacity-90"
+            style={{ backgroundColor: withAlpha(theme.deep, 0.75), color: '#fff' }}
+            aria-hidden="true"
+          >
+            ⤢
+          </span>
+        )}
       </span>
-    </button>
-  );
+    </Wrapper>
+    );
+  };
 
   const panelClass = 'flex min-h-0 flex-col overflow-hidden rounded-[24px] border-[3px]';
   const panelStyle: React.CSSProperties = {
@@ -258,9 +473,17 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
                 {previewTile(
                   'gif',
                   copy.effectsGifLabel,
-                  <GifPreview photos={gifPhotos} filter="none" overlay={overlay} className="!aspect-auto h-full w-full" />,
-                  overlay && overlay.width && overlay.height ? overlay.width / overlay.height : 4 / 3,
+                  <GifPreview
+                    photos={gifPhotos}
+                    filter="none"
+                    overlay={overlay}
+                    adjust={gifAdjust}
+                    onAdjustChange={onGifAdjustChange}
+                    className="!aspect-auto h-full w-full"
+                  />,
+                  gifAspect,
                   1,
+                  Boolean(onGifAdjustChange),
                 )}
               </div>
             </div>
@@ -340,7 +563,14 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {zoomed === 'gif' ? (
-              <GifPreview photos={gifPhotos} filter="none" overlay={overlay} className="max-h-[85dvh] w-full" />
+              <GifPreview
+                photos={gifPhotos}
+                filter="none"
+                overlay={overlay}
+                adjust={gifAdjust}
+                onAdjustChange={onGifAdjustChange}
+                className="max-h-[85dvh] w-full"
+              />
             ) : (
               <div style={{ aspectRatio: `${ratio}`, height: `min(85dvh, 90vw / ${ratio})` }}>
                 {zoomed === 'live' ? liveContent(true) : framed(true, 'h-full w-full')}

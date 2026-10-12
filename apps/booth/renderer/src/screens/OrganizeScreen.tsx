@@ -24,6 +24,7 @@ import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransfor
 import { listActiveGifFrames } from '../lib/gifFrames';
 import { GifPreview, type EffectsGifFrame } from '../components/booth/EffectsView';
 import { useBoothAppearance } from '../store/appearanceStore';
+import { clampGifAdjust, DEFAULT_GIF_ADJUST, isDefaultGifAdjust, type GifAdjust } from '../utils/gifAdjust';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
 
@@ -168,6 +169,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const [step, setStep] = useState<'arrange' | 'gif'>('arrange');
   const [gifFrames, setGifFrames] = useState<EffectsGifFrame[] | null>(null);
   const [gifFrameId, setGifFrameId] = useState<string | null>(null);
+  const [gifAdjust, setGifAdjust] = useState<GifAdjust>(DEFAULT_GIF_ADJUST);
   const arrangeRetries = useRef(0);
   const areaRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
@@ -324,6 +326,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         setFilterId(manifest.filterId ?? 'original');
         setTransforms(manifest.transforms ?? {});
         if (manifest.gifFrameUrl) setGifFrameId(manifest.gifFrameUrl);
+        if (manifest.gifAdjust) setGifAdjust(clampGifAdjust(manifest.gifAdjust));
         if (!manifest.template && !manifest.frameId) {
           // The booth left the frame to the guest: show the picker.
           setOrganize(manifest);
@@ -621,6 +624,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       filterId,
       transforms,
       gifFrameUrl: chosenGifFrame?.url ?? null,
+      gifAdjust: isDefaultGifAdjust(gifAdjust) ? null : gifAdjust,
     };
     const ok = await writeJsonFile(endpoint, token, ORGANIZE_FILE, manifest);
     if (ok) setOrganize(manifest);
@@ -780,6 +784,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             photos={gifPhotoUrls}
             filter="none"
             overlay={chosenGifFrame}
+            adjust={gifAdjust}
+            onAdjustChange={setGifAdjust}
             className="max-h-full w-full max-w-md shadow-[0_20px_50px_rgb(var(--pbx-ink-rgb)/0.35)]"
           />
         </div>

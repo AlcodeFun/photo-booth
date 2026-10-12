@@ -19,6 +19,7 @@ import { FrameConfig, FrameTemplateConfig, PhotoSlotState } from '@photo-booth/t
 import { resolveFrameTemplate } from '../utils/frameConfig';
 import { getAllPhotoUrls } from '../utils/photoSlots';
 import { uploadSessionFile } from '../utils/sessionUpload';
+import type { GifAdjust } from '../utils/gifAdjust';
 
 export const ORGANIZE_FILE = 'organize.json';
 export const PRINT_REQUEST_FILE = 'print-request.json';
@@ -50,6 +51,8 @@ export interface OrganizeManifest {
   transforms?: Record<string, OrganizePhotoTransform>;
   /** GIF frame overlay picked on the organize page (null = plain GIF). */
   gifFrameUrl?: string | null;
+  /** Zoom / pan / mirror of the GIF photos (absent = as captured). */
+  gifAdjust?: GifAdjust | null;
 }
 
 export interface OrganizePhotoAdjustment {

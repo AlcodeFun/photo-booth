@@ -9,6 +9,7 @@ import { useBoothConfig } from './boothConfigStore';
 import { GALLERY_URL } from '../config';
 import { getSelectedPhotoUrls } from '../utils/photoSlots';
 import { transformPhotoUrl, type PhotoTransform } from '../utils/photoTransform';
+import type { GifAdjust } from '../utils/gifAdjust';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
@@ -45,6 +46,9 @@ export interface SessionStore {
   /** Overlay picked for the animated GIF (null = plain GIF). */
   gifFrame: { id: string; url: string } | null;
   setGifFrame: (gifFrame: { id: string; url: string } | null) => void;
+  /** Zoom / pan / mirror of the photos inside the GIF (null = as captured). */
+  gifAdjust: GifAdjust | null;
+  setGifAdjust: (gifAdjust: GifAdjust | null) => void;
 
   // Print & Sync Simulation States
   printStatus: BoothPrintStatus;
@@ -116,6 +120,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   originalPhotos: [],
   gifFrame: null,
   setGifFrame: (gifFrame) => set({ gifFrame }),
+  gifAdjust: null,
+  setGifAdjust: (gifAdjust) => set({ gifAdjust }),
 
   printStatus: 'IDLE',
   uploadStatus: 'IDLE',
@@ -137,6 +143,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       voucherId: null,
       originalPhotos: [],
       gifFrame: null,
+      gifAdjust: null,
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
       downloadUrl: null,

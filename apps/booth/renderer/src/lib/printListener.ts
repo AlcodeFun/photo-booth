@@ -261,6 +261,7 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
         .map((name) => fileUrl(endpoint, token, name));
       const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null, {
         overlayUrl: manifest.gifFrameUrl ?? null,
+        adjust: manifest.gifAdjust ?? null,
       });
       uploads.push({ blob: gifBlob, name: 'result.gif' });
     }

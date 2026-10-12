@@ -3,6 +3,7 @@ import { resolveFrameTemplate, resolveObjectPosition } from './frameConfig';
 import { getSelectedPhotoUrls, getSelectedLiveFrames } from './photoSlots';
 import { getCanvasFilter } from './filters';
 import { downloadBlob, downloadStamp } from './download';
+import { clampGifAdjust, type GifAdjust } from './gifAdjust';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -376,37 +377,28 @@ export async function downloadFramedPhoto(
   await downloadCanvasAsJpeg(canvas, `photo-booth-${downloadStamp()}-result.jpg`);
 }
 
-const drawContain = (
+/**
+ * Draws a photo filling the GIF canvas (`cover` crops, `contain` letterboxes),
+ * then applies the guest's zoom / pan / mirror around the canvas center — the
+ * same math as the CSS preview (gifAdjustTransform).
+ */
+const drawGifPhoto = (
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
   fitWidth: number,
   fitHeight: number,
   canvasFilter: string,
+  mode: 'cover' | 'contain',
+  adjust: GifAdjust,
 ) => {
-  const scale = Math.min(fitWidth / image.width, fitHeight / image.height);
-  const drawWidth = image.width * scale;
-  const drawHeight = image.height * scale;
+  const fit = (mode === 'cover' ? Math.max : Math.min)(fitWidth / image.width, fitHeight / image.height);
+  const drawWidth = image.width * fit;
+  const drawHeight = image.height * fit;
   ctx.save();
   ctx.filter = canvasFilter;
-  ctx.drawImage(image, (fitWidth - drawWidth) / 2, (fitHeight - drawHeight) / 2, drawWidth, drawHeight);
-  ctx.filter = 'none';
-  ctx.restore();
-};
-
-/** Fills the whole canvas with the image, cropping the overflow (CSS cover). */
-const drawCover = (
-  ctx: CanvasRenderingContext2D,
-  image: HTMLImageElement,
-  fitWidth: number,
-  fitHeight: number,
-  canvasFilter: string,
-) => {
-  const scale = Math.max(fitWidth / image.width, fitHeight / image.height);
-  const drawWidth = image.width * scale;
-  const drawHeight = image.height * scale;
-  ctx.save();
-  ctx.filter = canvasFilter;
-  ctx.drawImage(image, (fitWidth - drawWidth) / 2, (fitHeight - drawHeight) / 2, drawWidth, drawHeight);
+  ctx.translate(fitWidth / 2 + adjust.offsetX * fitWidth, fitHeight / 2 + adjust.offsetY * fitHeight);
+  ctx.scale(adjust.scale * (adjust.flip ? -1 : 1), adjust.scale);
+  ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   ctx.filter = 'none';
   ctx.restore();
 };
@@ -419,13 +411,16 @@ const drawCover = (
  * With a GIF frame (`overlayUrl`), the canvas takes the overlay's aspect
  * ratio instead: each photo fills it (cover) and the overlay PNG is drawn on
  * top, so the photo shows through the overlay's transparent window.
+ *
+ * `adjust` (zoom / pan / mirror chosen on the GIF preview) applies to every photo.
  */
 export async function createResultGif(
   photoSlots: PhotoSlotState[],
   filterId: string | null | undefined,
-  opts: { width?: number; delay?: number; overlayUrl?: string | null } = {},
+  opts: { width?: number; delay?: number; overlayUrl?: string | null; adjust?: Partial<GifAdjust> | null } = {},
 ): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
+  const adjust = clampGifAdjust(opts.adjust);
 
   const photos = getSelectedPhotoUrls(photoSlots).filter((url): url is string => Boolean(url));
   if (photos.length === 0) {
@@ -459,12 +454,8 @@ export async function createResultGif(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#111111';
       ctx.fillRect(0, 0, width, height);
-      if (overlay) {
-        drawCover(ctx, image, width, height, canvasFilter);
-        ctx.drawImage(overlay, 0, 0, width, height);
-      } else {
-        drawContain(ctx, image, width, height, canvasFilter);
-      }
+      drawGifPhoto(ctx, image, width, height, canvasFilter, overlay ? 'cover' : 'contain', adjust);
+      if (overlay) ctx.drawImage(overlay, 0, 0, width, height);
 
       const imageData = ctx.getImageData(0, 0, width, height);
       // Palette comes from the clean frame; dithering is applied afterwards so

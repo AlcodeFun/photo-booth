@@ -6,21 +6,24 @@ import { getSelectedPhotoUrls } from '../utils/photoSlots';
 import { createResultLiveFramed } from '../utils/resultExport';
 import { listActiveGifFrames } from '../lib/gifFrames';
 import EffectsView, { type EffectsGifFrame } from '../components/booth/EffectsView';
+import { DEFAULT_GIF_ADJUST, isDefaultGifAdjust, type GifAdjust } from '../utils/gifAdjust';
 
 /** Flows 1 and 3, step 2: pick the photo filter and the GIF frame, then the QR. */
 export const EffectsScreen: React.FC = () => {
-  const { photoSlots, originalPhotos, frame, selectFilter, setGifFrame } = useSessionStore((state) => ({
+  const { photoSlots, originalPhotos, frame, selectFilter, setGifFrame, setGifAdjust } = useSessionStore((state) => ({
     photoSlots: state.photoSlots,
     originalPhotos: state.originalPhotos,
     frame: state.frame,
     selectFilter: state.selectFilter,
     setGifFrame: state.setGifFrame,
+    setGifAdjust: state.setGifAdjust,
   }));
   const outputs = useBoothConfig((state) => state.outputs);
   const active = useBoothAppearance((state) => state.appearance);
 
   const [filterId, setFilterId] = useState('original');
   const [gifFrameId, setGifFrameId] = useState<string | null>(null);
+  const [gifAdjust, setGifAdjustLocal] = useState<GifAdjust>(DEFAULT_GIF_ADJUST);
   const [gifFrames, setGifFrames] = useState<EffectsGifFrame[]>([]);
   const [liveUrl, setLiveUrl] = useState<string | null>(null);
 
@@ -73,9 +76,12 @@ export const EffectsScreen: React.FC = () => {
         gifFrameId={gifFrameId}
         onFilterChange={setFilterId}
         onGifFrameChange={setGifFrameId}
+        gifAdjust={gifAdjust}
+        onGifAdjustChange={setGifAdjustLocal}
         onNext={() => {
           const chosen = gifFrames.find((f) => f.id === gifFrameId);
           setGifFrame(chosen ? { id: chosen.id, url: chosen.url } : null);
+          setGifAdjust(isDefaultGifAdjust(gifAdjust) ? null : gifAdjust);
           // Starts printing + upload and moves on to the QR screen.
           selectFilter(filterId);
         }}
