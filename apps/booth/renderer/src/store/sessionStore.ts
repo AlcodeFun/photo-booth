@@ -7,6 +7,7 @@ import {
 import { BoothPrintStatus, SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
 import { useBoothConfig } from './boothConfigStore';
 import { GALLERY_URL } from '../config';
+import { getSelectedPhotoUrls } from '../utils/photoSlots';
 import { transformPhotoUrl, type PhotoTransform } from '../utils/photoTransform';
 
 export type ScreenName =
@@ -36,6 +37,11 @@ export interface SessionStore {
   paymentConfirmed: boolean;
   /** Voucher redeemed to start this session (voucher-locked booths only). */
   voucherId: string | null;
+  /**
+   * The photos exactly as captured (selected shot per slot, capture order),
+   * taken before Organize rotates / mirrors / reorders them. The GIF uses these.
+   */
+  originalPhotos: string[];
   /** Overlay picked for the animated GIF (null = plain GIF). */
   gifFrame: { id: string; url: string } | null;
   setGifFrame: (gifFrame: { id: string; url: string } | null) => void;
@@ -107,6 +113,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   photoSlots: [],
   paymentConfirmed: false,
   voucherId: null,
+  originalPhotos: [],
   gifFrame: null,
   setGifFrame: (gifFrame) => set({ gifFrame }),
 
@@ -128,6 +135,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       photoSlots: [],
       paymentConfirmed: false,
       voucherId: null,
+      originalPhotos: [],
       gifFrame: null,
       printStatus: 'IDLE',
       uploadStatus: 'IDLE',
@@ -313,6 +321,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       // Flows 1 and 3: arrange the photos on the frame, then pick effects.
       set({
         photoSlots: updatedSlots,
+        originalPhotos: getSelectedPhotoUrls(updatedSlots).filter((url): url is string => Boolean(url)),
         currentScreen: 'ARRANGE',
       });
     } else {

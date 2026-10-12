@@ -40,3 +40,12 @@ export const getKeptPhotoUrls = (photoSlots: PhotoSlotState[], flowMode: string)
   flowMode === 'timed'
     ? getAllPhotoUrls(photoSlots)
     : getSelectedPhotoUrls(photoSlots).filter((url): url is string => Boolean(url));
+
+/** One selected attempt per URL: feeds renderers that take photo slots. */
+export const photoSlotsFromUrls = (urls: string[]): PhotoSlotState[] =>
+  urls.map((localPath, i) => ({
+    slotNumber: i + 1,
+    maxAttempts: 1,
+    attempts: [{ attemptNumber: 1, localPath, status: 'SELECTED' as const }],
+    selectedAttempt: 1,
+  }));

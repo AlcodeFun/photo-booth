@@ -18,6 +18,8 @@ export interface EffectsViewProps {
   theme: BoothTheme;
   frame: FrameConfig | null;
   photoUrls: Array<string | undefined>;
+  /** Photos as captured (before Organize); the GIF uses these, unfiltered. */
+  gifPhotoUrls?: string[];
   photoSlotCount: number;
   surfaceStyle?: React.CSSProperties;
   /** Framed live photo (animated, never filtered); null while it renders. */
@@ -103,6 +105,7 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   theme,
   frame,
   photoUrls,
+  gifPhotoUrls,
   photoSlotCount,
   surfaceStyle,
   liveUrl,
@@ -121,6 +124,7 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   const filter = getCanvasFilter(filterId);
   const photos = photoUrls.filter((url): url is string => Boolean(url));
   const sample = photos[0];
+  const gifPhotos = gifPhotoUrls?.length ? gifPhotoUrls : photos;
   const overlay = gifFrames.find((f) => f.id === gifFrameId) ?? null;
 
   const framed = (withFilter: boolean, className = '') => (
@@ -254,7 +258,7 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
                 {previewTile(
                   'gif',
                   copy.effectsGifLabel,
-                  <GifPreview photos={photos} filter={filter} overlay={overlay} className="!aspect-auto h-full w-full" />,
+                  <GifPreview photos={gifPhotos} filter="none" overlay={overlay} className="!aspect-auto h-full w-full" />,
                   overlay && overlay.width && overlay.height ? overlay.width / overlay.height : 4 / 3,
                   1,
                 )}
@@ -336,7 +340,7 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             {zoomed === 'gif' ? (
-              <GifPreview photos={photos} filter={filter} overlay={overlay} className="max-h-[85dvh] w-full" />
+              <GifPreview photos={gifPhotos} filter="none" overlay={overlay} className="max-h-[85dvh] w-full" />
             ) : (
               <div style={{ aspectRatio: `${ratio}`, height: `min(85dvh, 90vw / ${ratio})` }}>
                 {zoomed === 'live' ? liveContent(true) : framed(true, 'h-full w-full')}

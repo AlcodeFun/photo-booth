@@ -9,8 +9,9 @@ import EffectsView, { type EffectsGifFrame } from '../components/booth/EffectsVi
 
 /** Flows 1 and 3, step 2: pick the photo filter and the GIF frame, then the QR. */
 export const EffectsScreen: React.FC = () => {
-  const { photoSlots, frame, selectFilter, setGifFrame } = useSessionStore((state) => ({
+  const { photoSlots, originalPhotos, frame, selectFilter, setGifFrame } = useSessionStore((state) => ({
     photoSlots: state.photoSlots,
+    originalPhotos: state.originalPhotos,
     frame: state.frame,
     selectFilter: state.selectFilter,
     setGifFrame: state.setGifFrame,
@@ -61,6 +62,7 @@ export const EffectsScreen: React.FC = () => {
         theme={active.theme}
         frame={frame}
         photoUrls={getSelectedPhotoUrls(photoSlots)}
+        gifPhotoUrls={originalPhotos}
         photoSlotCount={photoSlots.length}
         surfaceStyle={appearanceSurfaceStyle(active, active.theme.background)}
         liveUrl={liveUrl}

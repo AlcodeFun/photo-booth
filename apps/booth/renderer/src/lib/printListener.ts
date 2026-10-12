@@ -41,6 +41,7 @@ import {
 } from './organize';
 import { cacheUploadBlob, sessionFileUrl, updateSessionRecord } from './sessions';
 import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
+import { photoSlotsFromUrls } from '../utils/photoSlots';
 
 const TOKENS_KEY = 'photo-booth.print-tokens';
 const HANDLED_KEY = 'photo-booth.generated-requests';
@@ -261,7 +262,12 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     uploads.push({ blob: framedBlob, name: 'framed.png' });
 
     if (outputs.gif) {
-      const gifBlob = await createResultGif(photoSlots, manifest.filterId);
+      // GIF = original raws placed on the frame, in capture order, without the
+      // organize rotate/mirror and without the filter.
+      const originals = [...new Set(slots.filter((name): name is string => Boolean(name)))]
+        .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
+        .map((name) => fileUrl(endpoint, token, name));
+      const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null);
       uploads.push({ blob: gifBlob, name: 'result.gif' });
     }
     if (outputs.framedLive) {

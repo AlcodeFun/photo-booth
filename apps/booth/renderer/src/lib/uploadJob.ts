@@ -13,7 +13,7 @@ import {
 } from '../utils/sessionUpload';
 import { renderComposition, canvasToJpegBlob, createResultGif, createResultLiveFramed } from '../utils/resultExport';
 import { generateQrDataUrl } from '../utils/qr';
-import { getKeptPhotoUrls } from '../utils/photoSlots';
+import { getKeptPhotoUrls, photoSlotsFromUrls } from '../utils/photoSlots';
 import { buildOrganizeManifest, uploadOrganizeManifest, buildLiveClips, LIVE_CLIPS_FILE } from './organize';
 import {
   cacheUploadBlob,
@@ -58,6 +58,8 @@ interface UploadJob {
   voucherId?: string | null;
   /** GIF frame overlay chosen on the effects screen. */
   gifFrameUrl?: string | null;
+  /** Photos as captured (before Organize): the GIF's source. */
+  originalPhotos?: string[];
   /** Per-token statuses accumulated by this job (survives a store reset). */
   fileStates: SessionFileState[];
 }
@@ -335,7 +337,11 @@ const run = async (job: UploadJob) => {
     const gifResult = (async () => {
       if (flowMode === 'timed' || !outputs.gif || job.photoSlots.length === 0) return null;
       try {
-        const blob = await createResultGif(job.photoSlots, job.filterId, { overlayUrl: job.gifFrameUrl });
+        const blob = await createResultGif(
+          job.originalPhotos?.length ? photoSlotsFromUrls(job.originalPhotos) : job.photoSlots,
+          null,
+          { overlayUrl: job.gifFrameUrl },
+        );
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result.gif', blob));
         return { blob, name: 'result.gif' as const };
       } catch (error) {
@@ -420,6 +426,7 @@ const maybeStart = () => {
     filterId: store.filterId,
     voucherId: store.voucherId,
     gifFrameUrl: store.gifFrame?.url ?? null,
+    originalPhotos: store.originalPhotos,
     fileStates: [...(store.sessionFilesByToken[store.sessionToken ?? ''] ?? [])],
   };
   runningJobs.set(sessionId, job);
