@@ -6,6 +6,8 @@ import { OrganizeScreen } from './screens/OrganizeScreen';
 import {
   ContextBumperScreen,
   UnlockScreen,
+  ArrangeScreen,
+  EffectsScreen,
   TutorialScreen,
   FrameSelectionScreen,
   BoothSetUpScreen,
@@ -117,6 +119,10 @@ function App() {
         return <PhotoCaptureScreen />;
       case 'PHOTO_REVIEW':
         return <PhotoReviewScreen />;
+      case 'ARRANGE':
+        return <ArrangeScreen />;
+      case 'EFFECTS':
+        return <EffectsScreen />;
       case 'FILTER':
         return <FilterSelectionScreen />;
       case 'PRINT_QR':

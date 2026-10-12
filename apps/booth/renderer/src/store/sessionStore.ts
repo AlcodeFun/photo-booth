@@ -7,6 +7,7 @@ import {
 import { BoothPrintStatus, SessionFileState, normalizePrintStatus, normalizeUploadStatus, updateSessionRecord } from '../lib/sessions';
 import { useBoothConfig } from './boothConfigStore';
 import { GALLERY_URL } from '../config';
+import { transformPhotoUrl, type PhotoTransform } from '../utils/photoTransform';
 
 export type ScreenName =
   | 'CONTEXT_BUMPER'
@@ -17,6 +18,8 @@ export type ScreenName =
   | 'PHOTO_CAPTURE'
   | 'PHOTO_REVIEW'
   | 'FILTER'
+  | 'ARRANGE'
+  | 'EFFECTS'
   | 'PRINT_QR'
   | 'COMPLETE';
 
@@ -68,6 +71,10 @@ export interface SessionStore {
   selectFilter: (filterId: string) => void;
   /** Replaces the frame with one carrying the guest's photo move/zoom edits. */
   updateFrameLayout: (frame: FrameConfig) => void;
+  /** Organize: trade the photos of two slots (indexes into photoSlots). */
+  swapPhotos: (a: number, b: number) => void;
+  /** Organize: rotate 90° or mirror the photo (and its live clip) of a slot. */
+  transformPhoto: (index: number, op: PhotoTransform) => Promise<void>;
   startCaptureFlow: () => void;
   
   // Capture & Review Actions
@@ -191,6 +198,41 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   updateFrameLayout: (frame) => set({ frame }),
 
+  swapPhotos: (a, b) => {
+    const { photoSlots } = get();
+    if (a === b || !photoSlots[a] || !photoSlots[b]) return;
+    // Slots keep their number; only the captured photos trade places.
+    const next = photoSlots.slice();
+    next[a] = { ...photoSlots[a], attempts: photoSlots[b].attempts, selectedAttempt: photoSlots[b].selectedAttempt };
+    next[b] = { ...photoSlots[b], attempts: photoSlots[a].attempts, selectedAttempt: photoSlots[a].selectedAttempt };
+    set({ photoSlots: next });
+  },
+
+  transformPhoto: async (index, op) => {
+    const slot = get().photoSlots[index];
+    const selected = slot?.selectedAttempt
+      ? slot.attempts.find((attempt) => attempt.attemptNumber === slot.selectedAttempt)
+      : slot?.attempts[slot.attempts.length - 1];
+    if (!slot || !selected?.localPath) return;
+    const [localPath, liveFrames] = await Promise.all([
+      transformPhotoUrl(selected.localPath, op),
+      selected.liveFrames ? Promise.all(selected.liveFrames.map((frame) => transformPhotoUrl(frame, op, 0.8))) : undefined,
+    ]);
+    // Re-read: the guest may have reordered while the image was re-encoding.
+    set((state) => ({
+      photoSlots: state.photoSlots.map((s) =>
+        s.attempts.includes(selected)
+          ? {
+              ...s,
+              attempts: s.attempts.map((attempt) =>
+                attempt === selected ? { ...attempt, localPath, ...(liveFrames ? { liveFrames } : {}) } : attempt,
+              ),
+            }
+          : s,
+      ),
+    }));
+  },
+
   selectFilter: (filterId) => {
     set({ filterId });
     get().startPrinting();
@@ -252,9 +294,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const isLastSlot = currentPhotoSlot >= photoSlots.length;
 
     if (isLastSlot) {
+      // Flows 1 and 3: arrange the photos on the frame, then pick effects.
       set({
         photoSlots: updatedSlots,
-        currentScreen: 'FILTER',
+        currentScreen: 'ARRANGE',
       });
     } else {
       set({

@@ -117,6 +117,20 @@ export const usePhotoAdjustments = (
 
   const reset = useCallback(() => setAdjustments(initial), [initial]);
 
+  /** Puts one slot back to its template framing. */
+  const resetSlot = useCallback(
+    (index: number) => setAdjustments((all) => all.map((a, i) => (i === index ? initial[i] : a))),
+    [initial],
+  );
+
+  /** Selects a slot from outside the canvas (e.g. the photo order strip). */
+  const selectSlot = useCallback(
+    (index: number) => {
+      if (photoIndexes.includes(index)) setSelectedIndex(index);
+    },
+    [photoIndexes],
+  );
+
   const interacted = useRef(false);
   const { surfaceHandlers } = usePhotoGestures({
     template,
@@ -151,6 +165,8 @@ export const usePhotoAdjustments = (
     adjustedFrame,
     isDirty,
     reset,
+    resetSlot,
+    selectSlot,
     photoIndexes,
     selectedIndex,
     selectedRect: selectedIndex >= 0 ? slotRects[selectedIndex] : null,

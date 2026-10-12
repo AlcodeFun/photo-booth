@@ -105,6 +105,8 @@ export type BoothCopyGroupId =
   | 'capture'
   | 'review'
   | 'filter'
+  | 'organize'
+  | 'effects'
   | 'results'
   | 'complete';
 
@@ -195,6 +197,26 @@ export interface BoothCopywriting {
   filterGuideHint: string;
   filterReset: string;
   filterSelectHint: string;
+
+  organizeEyebrow: string;
+  organizeTitle: string;
+  organizeHint: string;
+  organizeOrderLabel: string;
+  organizeMoveEarlier: string;
+  organizeMoveLater: string;
+  organizeRotate: string;
+  organizeFlip: string;
+  organizeReset: string;
+  organizeNextButton: string;
+  effectsEyebrow: string;
+  effectsPhotoTitle: string;
+  effectsLiveLabel: string;
+  effectsPrintLabel: string;
+  effectsGifTitle: string;
+  effectsGifLabel: string;
+  effectsNone: string;
+  effectsTapToZoom: string;
+  effectsNextButton: string;
 
   resultsTitle: string;
   resultsSubtitle: string;
@@ -404,6 +426,26 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     filterReset: 'Reset posisi',
     filterSelectHint: 'Tap foto lain buat pilih',
 
+    organizeEyebrow: 'Langkah 1 dari 2',
+    organizeTitle: 'Atur fotomu',
+    organizeHint: 'Tap foto untuk pilih · geser & cubit untuk atur',
+    organizeOrderLabel: 'Urutan foto',
+    organizeMoveEarlier: 'Geser ke kiri',
+    organizeMoveLater: 'Geser ke kanan',
+    organizeRotate: 'Putar',
+    organizeFlip: 'Cermin',
+    organizeReset: 'Reset',
+    organizeNextButton: 'Lanjut pilih efek',
+    effectsEyebrow: 'Langkah 2 dari 2',
+    effectsPhotoTitle: 'Pilih Efek Foto',
+    effectsLiveLabel: 'Live Photo',
+    effectsPrintLabel: 'File Print',
+    effectsGifTitle: 'Pilih Template GIF',
+    effectsGifLabel: 'GIF',
+    effectsNone: 'Tanpa',
+    effectsTapToZoom: 'Tap untuk perbesar',
+    effectsNextButton: 'Selesai & ambil QR',
+
     resultsTitle: 'Yeay, fotomu jadi!',
     resultsSubtitle: 'Scan QR buat simpan semua foto, live photo & GIF-nya.',
     resultsScanMe: 'Scan aku!',
@@ -595,6 +637,37 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'reviewRetakeButton', label: 'Retake button' },
       { key: 'reviewUseButton', label: 'Use photo button' },
       { key: 'reviewNoPhoto', label: 'Empty state' },
+    ],
+  },
+  {
+    id: 'organize',
+    label: 'Organize photos',
+    fields: [
+      { key: 'organizeEyebrow', label: 'Eyebrow' },
+      { key: 'organizeTitle', label: 'Title' },
+      { key: 'organizeHint', label: 'Gesture hint' },
+      { key: 'organizeOrderLabel', label: 'Photo order label' },
+      { key: 'organizeMoveEarlier', label: 'Move earlier (a11y)' },
+      { key: 'organizeMoveLater', label: 'Move later (a11y)' },
+      { key: 'organizeRotate', label: 'Rotate button' },
+      { key: 'organizeFlip', label: 'Flip button' },
+      { key: 'organizeReset', label: 'Reset button' },
+      { key: 'organizeNextButton', label: 'Next button' },
+    ],
+  },
+  {
+    id: 'effects',
+    label: 'Effects & GIF',
+    fields: [
+      { key: 'effectsEyebrow', label: 'Eyebrow' },
+      { key: 'effectsPhotoTitle', label: 'Photo effects panel title' },
+      { key: 'effectsLiveLabel', label: 'Live photo label' },
+      { key: 'effectsPrintLabel', label: 'Print file label' },
+      { key: 'effectsGifTitle', label: 'GIF panel title' },
+      { key: 'effectsGifLabel', label: 'GIF label' },
+      { key: 'effectsNone', label: 'No filter / no GIF frame' },
+      { key: 'effectsTapToZoom', label: 'Tap to enlarge hint' },
+      { key: 'effectsNextButton', label: 'Next button' },
     ],
   },
   {

@@ -12,7 +12,9 @@ import FrameSelectionView from '../booth/FrameSelectionView';
 import CaptureView from '../booth/CaptureView';
 import ReviewView from '../booth/ReviewView';
 import FilterSelectionView from '../booth/FilterSelectionView';
-import ResultsView from '../booth/ResultsView';
+import QrResultView from '../booth/QrResultView';
+import ArrangeView from '../booth/ArrangeView';
+import EffectsView from '../booth/EffectsView';
 import CompleteView from '../booth/CompleteView';
 import UnlockView from '../booth/UnlockView';
 
@@ -186,31 +188,59 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
       ),
     };
 
+    const samplePhotos = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
+
+    const arrange: Slide = {
+      key: 'arrange',
+      label: 'Arrange photos',
+      render: () => (
+        <ArrangeView
+          copy={copy}
+          theme={theme}
+          frame={frame}
+          photoUrls={samplePhotos}
+          photoSlotCount={photoSlots.length}
+          surfaceStyle={appearanceSurfaceStyle(appearance, theme.background)}
+        />
+      ),
+    };
+
+    const effects: Slide = {
+      key: 'effects',
+      label: 'Effects & GIF',
+      render: () => (
+        <EffectsView
+          copy={copy}
+          theme={theme}
+          frame={frame}
+          photoUrls={samplePhotos}
+          photoSlotCount={photoSlots.length}
+          surfaceStyle={appearanceSurfaceStyle(appearance, theme.background)}
+          gifFrames={[]}
+          filterId="kelana"
+          gifFrameId={null}
+        />
+      ),
+    };
+
     const results: Slide = {
       key: 'results',
-      label: isTimed ? 'Scan & print' : 'Results',
+      label: isTimed ? 'Scan & arrange' : 'Scan QR',
       render: () => (
-        <ResultsView
+        <QrResultView
           copy={copy}
           theme={theme}
           isTimedFlow={isTimed}
           frame={frame}
-          photoUrls={photoSlots.map(() => undefined)}
+          photoUrls={samplePhotos}
           photoSlotCount={photoSlots.length}
-          filterStyle={getCanvasFilter('original')}
-          liveUrl={null}
-          gifUrl={null}
+          filterStyle={getCanvasFilter('kelana')}
           qrDataUrl={null}
-          showFramed={!isTimed}
-          showAllPhotos={!isTimed}
-          showLive={!isTimed}
-          showGif={!isTimed}
-          printState={isTimed ? 'off' : 'printing'}
+          printState={isTimed ? 'off' : 'queued'}
           uploadState="done"
-          allPhotoUrls={[1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`)}
           isDone
           canFinish
-          surfaceStyle={appearanceSurfaceStyle(appearance, theme.tertiary)}
+          surfaceStyle={appearanceSurfaceStyle(appearance, theme.background)}
         />
       ),
     };
@@ -227,7 +257,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
     if (isTimed) {
       return [bumper, unlock, tutorial, filter, results, complete];
     }
-    return [bumper, unlock, tutorial, frameSelect, ...captureReviewPair, filter, results, complete];
+    return [bumper, unlock, tutorial, frameSelect, ...captureReviewPair, arrange, effects, results, complete];
   }, [appearance, copy, theme, flowMode]);
 
   const safeIndex = Math.min(index, slides.length - 1);
