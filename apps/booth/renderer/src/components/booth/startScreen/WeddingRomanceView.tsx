@@ -1,9 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { BoothBackground, BoothCopywriting, BoothTheme } from '@photo-booth/types';
 import { withAlpha } from '../../../lib/appearance';
 import { KelanaLogo } from '../../brand/KelanaLogo';
 import { SetupGearButton } from './StartScreenParts';
-import { floralPaletteFrom, renderBouquetDataUrl, type FloralPalette } from '../../../utils/floralPainter';
 
 /**
  * "Wedding Romance" start screen: an invitation brought to life. A velvet
@@ -66,46 +65,25 @@ interface PetalTone {
 }
 
 /**
- * Painted bouquet (utils/floralPainter): shaded garden roses, buds, leaves,
- * eucalyptus and baby's breath, rendered once per palette + seed and cached.
+ * Real-photo bouquet (public/florals, CC0 photos, see CREDITS.md there): cream
+ * and dusty-pink roses, garden roses, a bud, a peony and leaves, cut out and
+ * arranged. Kept within gentle rotations so the photographed light stays right.
  */
-const bouquetCache = new Map<string, string>();
-const PaintedBouquet: React.FC<{
-  palette: FloralPalette;
-  paletteKey: string;
-  seed: number;
+const PhotoBouquet: React.FC<{
+  variant: 'a' | 'b' | 'c';
   className?: string;
-  style?: React.CSSProperties;
+  rotate?: number;
   flip?: boolean;
-}> = ({ palette, paletteKey, seed, className, style, flip }) => {
-  const key = `${paletteKey}|${seed}`;
-  const [src, setSrc] = useState(() => bouquetCache.get(key) ?? '');
-  useEffect(() => {
-    const cached = bouquetCache.get(key);
-    if (cached) {
-      setSrc(cached);
-      return;
-    }
-    // Paint after the first frame so the screen appears without waiting.
-    const id = window.requestAnimationFrame(() => {
-      const url = renderBouquetDataUrl(palette, seed, 520);
-      bouquetCache.set(key, url);
-      setSrc(url);
-    });
-    return () => window.cancelAnimationFrame(id);
-  }, [key, palette, seed]);
-  if (!src) return null;
-  return (
-    <img
-      src={src}
-      alt=""
-      draggable={false}
-      aria-hidden="true"
-      className={`pointer-events-none ${className ?? ''}`}
-      style={{ ...style, transform: `${style?.transform ?? ''} ${flip ? 'scaleX(-1)' : ''}` }}
-    />
-  );
-};
+}> = ({ variant, className, rotate = 0, flip }) => (
+  <img
+    src={`${import.meta.env.BASE_URL}florals/bouquet-${variant}.webp`}
+    alt=""
+    draggable={false}
+    aria-hidden="true"
+    className={`pointer-events-none select-none ${className ?? ''}`}
+    style={{ transform: `rotate(${rotate}deg)${flip ? ' scaleX(-1)' : ''}`, filter: 'drop-shadow(0 1cqmin 1.4cqmin rgba(20,2,6,0.45))' }}
+  />
+);
 
 /** Deterministic pseudo-random sequence so petals keep their places. */
 const seq = (n: number, seed: number) => {
@@ -155,8 +133,6 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
     { light: '#ffffff', base: mix(cream, theme.tertiary, 0.25), edge: mix(theme.tertiary, wine, 0.2) },
     { light: mix(theme.tertiary, wine, 0.25), base: mix(theme.tertiary, wine, 0.6), edge: mix(wine, theme.deep, 0.45) },
   ];
-  const paletteKey = `${theme.tertiary}|${cream}|${wine}`;
-  const palette = useMemo(() => floralPaletteFrom(theme.tertiary, cream, wine), [theme.tertiary, cream, wine]);
   const goldText: React.CSSProperties = {
     backgroundImage: `linear-gradient(100deg, ${mix(gold, theme.deep, 0.25)} 0%, ${goldLight} 30%, ${gold} 50%, ${goldLight} 72%, ${mix(gold, theme.deep, 0.2)} 100%)`,
     WebkitBackgroundClip: 'text',
@@ -212,10 +188,10 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
         </div>
       </div>
       {/* rose clusters on the shoulders and the base */}
-      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={77} className="absolute -left-[22%] -top-[2%] w-[72%]" style={{ transform: 'rotate(-20deg)' }} />
-      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={91} flip className="absolute -right-[24%] -top-[8%] w-[64%]" style={{ transform: 'rotate(18deg)' }} />
-      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={777} className="absolute -bottom-[16%] -left-[18%] w-[76%]" style={{ transform: 'rotate(160deg)' }} />
-      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={505} flip className="absolute -bottom-[14%] -right-[20%] w-[62%]" style={{ transform: 'rotate(-150deg)' }} />
+      <PhotoBouquet variant="a" flip rotate={-22} className="absolute -left-[38%] -top-[7%] w-[70%]" />
+      <PhotoBouquet variant="c" rotate={28} className="absolute -right-[26%] -top-[4%] w-[66%]" />
+      <PhotoBouquet variant="b" rotate={-4} className="absolute -bottom-[8%] -left-[24%] w-[92%]" />
+      <PhotoBouquet variant="c" flip rotate={-14} className="absolute -bottom-[4%] -right-[28%] w-[58%]" />
     </div>
   );
 
