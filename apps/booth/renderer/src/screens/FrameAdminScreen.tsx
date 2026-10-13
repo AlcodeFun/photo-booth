@@ -1488,7 +1488,7 @@ const nudgeRef = useRef(false);
 
   return (
     <div
-      className="flex h-screen w-screen flex-col gap-4 bg-[#d9f85a]"
+      className="flex h-screen w-screen flex-col gap-4 bg-pbx-paper text-pbx-ink"
       onDragOver={onWindowDragOver}
       onDragEnter={(event) => {
         if (Array.from(event.dataTransfer.types).includes('Files')) {
@@ -1510,8 +1510,8 @@ const nudgeRef = useRef(false);
       }}
     >
       {dragActive ? (
-        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-[#140b26]/70">
-          <div className="flex items-center gap-3 rounded-[16px] border-[3px] border-dashed border-[#d9f85a] bg-[#4d2d85]/90 px-6 py-4 text-xl font-black uppercase tracking-[0.12em] text-[#d9f85a] shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
+        <div className="pointer-events-none fixed inset-0 z-[200] flex items-center justify-center bg-pbx-ink/70">
+          <div className="flex items-center gap-3 rounded-[16px] border-[3px] border-dashed border-pbx-brand bg-pbx-ink/90 px-6 py-4 text-xl font-black uppercase tracking-[0.12em] text-pbx-paper shadow-[0_20px_60px_rgba(0,0,0,0.4)]">
             <svg viewBox="0 0 24 24" fill="none" className="h-7 w-7" aria-hidden="true">
               <path
                 d="M5 12h14M12 5v14"
@@ -1527,7 +1527,7 @@ const nudgeRef = useRef(false);
       {status ? (
         <div className="pointer-events-none fixed inset-x-0 top-2 z-[120] flex justify-center px-4">
           <div
-            className={`flex items-center gap-2 rounded-full border-2 border-[#a35ef6] bg-[#140b26] px-4 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-[#d9f85a] shadow-[0_10px_30px_rgba(0,0,0,0.35)] ${
+            className={`flex items-center gap-2 rounded-full border-2 border-pbx-brand bg-pbx-ink px-4 py-1.5 text-xs font-black uppercase tracking-[0.12em] text-pbx-paper shadow-[0_10px_30px_rgba(0,0,0,0.35)] ${
               snackbarLeaving ? 'pb-snackbar-out' : 'pb-snackbar-in'
             }`}
           >
@@ -1538,13 +1538,13 @@ const nudgeRef = useRef(false);
           </div>
         </div>
       ) : null}
-      <header className="flex shrink-0 flex-wrap justify-between items-center gap-2 border-b-2 border-[#4d2d85]/20 px-3 py-1.5">
+      <header className="flex shrink-0 flex-wrap justify-between items-center gap-2 border-b-2 border-pbx-line px-3 py-1.5">
       <div className="flex items-center gap-2">
            <button
           type="button"
           onClick={handleBack}
           title="Back"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 border-[#4d2d85] bg-[#4d2d85] text-[#d9f85a] transition-all hover:bg-[#5b3aa8] active:scale-95"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border-2 border-pbx-brand bg-pbx-brand text-pbx-brand-fg transition-all hover:bg-pbx-brand-strong active:scale-95"
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
             <path
@@ -1557,7 +1557,7 @@ const nudgeRef = useRef(false);
           </svg>
         </button>
 
-          <h1 className="text-base font-black uppercase tracking-[-0.04em] text-[#4d2d85]">
+          <h1 className="text-base font-black uppercase tracking-[-0.04em] text-pbx-ink">
           {isNewFrame ? 'Add Frame' : 'Edit Frame'}
         </h1>
 </div>
@@ -1567,7 +1567,7 @@ const nudgeRef = useRef(false);
             type="button"
             onClick={handleResetDraft}
             title="Reset draft"
-            className="rounded-md border-2 border-[#ff9ecb] bg-[#ffe0ef] px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-[#b3206e] transition-all hover:bg-white active:scale-95"
+            className="rounded-md border-2 border-pbx-brand-soft bg-pbx-brand-tint px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-pbx-brand-strong transition-all hover:bg-white active:scale-95"
           >
             Reset Draft
           </button>
@@ -1575,7 +1575,7 @@ const nudgeRef = useRef(false);
             type="button"
             onClick={handleSave}
             title="Save frame"
-            className="rounded-md border-2 border-[#a35ef6] bg-[#d9f85a] px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-[#4d2d85] transition-all hover:bg-[#e9ff9e] active:scale-95"
+            className="rounded-md border-2 border-pbx-secondary bg-pbx-tertiary px-2.5 py-1 text-[0.65rem] font-black uppercase tracking-[0.1em] text-pbx-tertiary-fg transition-all hover:bg-pbx-tertiary-soft active:scale-95"
           >
             Save Frame
           </button>
@@ -1629,17 +1629,17 @@ const nudgeRef = useRef(false);
           onQrResizePointerLeave={handleQrResizePointerLeave}
           sidebar={
             <div className="grid gap-4">
-              <div className="grid grid-cols-1 gap-3 rounded-[12px] border-[3px] border-[#e5c9ff] bg-[#fbf3ff] p-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 rounded-[12px] border-[3px] border-pbx-line bg-pbx-tint p-4 sm:grid-cols-2">
                 <div className="flex flex-wrap items-center gap-2 sm:col-span-2">
-                  <h2 className="text-sm font-black uppercase tracking-[0.18em] text-[#4d2d85]">Frame</h2>
-                  <span className="rounded-[8px] border-2 border-[#4acaf1] bg-[#e3f6ff] px-2 py-0.5 font-mono text-xs font-black text-[#1b7fa8]">
+                  <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Frame</h2>
+                  <span className="rounded-[8px] border-2 border-pbx-accent bg-pbx-accent-tint px-2 py-0.5 font-mono text-xs font-black text-pbx-accent-strong">
                     {frameId}
                   </span>
                 </div>
 
                 <div className="sm:col-span-2">
                   <FileField label="Load Frame File" accept="image/*" onChange={handleLoadFrameFile} />
-                  <p className="mt-1.5 text-xs font-semibold leading-relaxed text-[#7a4de3]">
+                  <p className="mt-1.5 text-xs font-semibold leading-relaxed text-pbx-secondary-strong">
                     Detects the green screen areas, keys the green to transparent, and auto-places a photo slot over
                     each detected area.
                   </p>
@@ -1684,10 +1684,10 @@ const nudgeRef = useRef(false);
 
                 <div className="flex items-center justify-between gap-2 sm:col-span-2">
                   <div className="flex flex-col">
-                    <span className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-[#4d2d85]">
+                    <span className="mb-1 text-xs font-black uppercase tracking-[0.14em] text-pbx-ink">
                       Canvas Size
                     </span>
-                    <span className="font-mono text-xs font-bold text-[#7a4de3]">
+                    <span className="font-mono text-xs font-bold text-pbx-secondary-strong">
                       {draftTemplate.width < draftTemplate.height
                         ? '100.0 × 148.0 mm (3.94 × 5.83 in.)'
                         : '148.0 × 100.0 mm (5.83 × 3.94 in.)'}
@@ -1697,7 +1697,7 @@ const nudgeRef = useRef(false);
                     type="button"
                     onClick={rotateTemplate}
                     title="Rotate between landscape and portrait"
-                    className="rounded-[10px] border-[3px] border-[#8f6fee] bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-[#5b3aa8] transition hover:bg-[#efe8ff]"
+                    className="rounded-[10px] border-[3px] border-pbx-secondary bg-white px-3 py-2 text-xs font-black uppercase tracking-[0.12em] text-pbx-secondary-strong transition hover:bg-pbx-tint"
                   >
                     {draftTemplate.width < draftTemplate.height ? '↻ Landscape' : '↺ Portrait'}
                   </button>

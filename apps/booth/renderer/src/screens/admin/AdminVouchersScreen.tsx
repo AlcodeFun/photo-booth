@@ -185,8 +185,9 @@ export const AdminVouchersScreen: React.FC = () => {
     }
     setBusy(true);
     try {
-      if (active.length === 1) await downloadVoucherCard(active[0], eventNameOf(active[0]));
-      else await downloadVoucherCardsZip(active, eventNameOf, `vouchers-${new Date().toISOString().slice(0, 10)}.zip`);
+      const { theme } = useBoothAppearance.getState().appearance;
+      if (active.length === 1) await downloadVoucherCard(active[0], eventNameOf(active[0]), theme);
+      else await downloadVoucherCardsZip(active, eventNameOf, `vouchers-${new Date().toISOString().slice(0, 10)}.zip`, theme);
       setSnackbar({
         message: active.length === 1 ? 'Voucher card downloaded' : `Downloaded ${active.length} voucher cards (ZIP)`,
         variant: 'success',
@@ -512,6 +513,7 @@ const VoucherViewModal: React.FC<{
 }> = ({ voucher, eventName, onDownload, onClose }) => {
   const [cardUrl, setCardUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const theme = useBoothAppearance((state) => state.appearance.theme);
 
   useEffect(() => {
     setCardUrl(null);
@@ -519,7 +521,7 @@ const VoucherViewModal: React.FC<{
     if (!voucher) return;
     let url: string | null = null;
     let alive = true;
-    renderVoucherCard(voucher, eventName)
+    renderVoucherCard(voucher, eventName, theme)
       .then((blob) => {
         if (!alive) return;
         url = URL.createObjectURL(blob);
@@ -530,7 +532,7 @@ const VoucherViewModal: React.FC<{
       alive = false;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [voucher, eventName]);
+  }, [voucher, eventName, theme]);
 
   const status = voucher ? voucherStatus(voucher) : null;
   return (
@@ -679,11 +681,11 @@ const VoucherPrintSheet: React.FC<{
         {items.map(({ voucher, qr }) => {
           const event = voucher.event_id ? eventsById.get(voucher.event_id) : null;
           return (
-            <div key={voucher.id} className="voucher-card" style={{ borderColor: theme.deep }}>
-              <div className="voucher-card-band" style={{ backgroundColor: theme.primary, color: theme.primaryForeground }}>
+            <div key={voucher.id} className="voucher-card" style={{ borderColor: theme.primary, backgroundColor: theme.background, color: theme.foreground }}>
+              <div className="voucher-card-band" style={{ backgroundColor: theme.action, color: theme.actionForeground }}>
                 VOUCHER PHOTOBOOTH
               </div>
-              <img src={qr} alt="" className="voucher-card-qr" />
+              <img src={qr} alt="" className="voucher-card-qr" style={{ backgroundColor: '#ffffff', padding: '1.5mm', borderRadius: '2mm' }} />
               <div className="voucher-card-code">{formatVoucherCode(voucher.code)}</div>
               <div className="voucher-card-meta">
                 Berlaku untuk 1 sesi
