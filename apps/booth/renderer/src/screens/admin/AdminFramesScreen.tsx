@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { FrameConfig } from '@photo-booth/types';
 import { FrameCanvas } from '../../components/FrameCanvas';
-import { deleteFrameTemplate, listAdminFrameTemplates } from '../../lib/frames';
+import { deleteFrameTemplate, listAdminFrameTemplates, setFrameTemplateEnabled, type AdminFrameConfig } from '../../lib/frames';
 import { resolveFrameTemplate } from '../../utils/frameConfig';
 import { navigateToAdmin } from '../../lib/navigation';
 import { ConfirmModal } from '../../components/admin/Modal';
@@ -11,7 +11,8 @@ import { IconEye, IconPencil, IconPlus, IconSearch, IconTrash } from '../../comp
 import { Snackbar, SnackbarVariant } from '../../components/admin/Snackbar';
 
 export const AdminFramesScreen: React.FC = () => {
-  const [templates, setTemplates] = useState<FrameConfig[]>([]);
+  const [templates, setTemplates] = useState<AdminFrameConfig[]>([]);
+  const [toggling, setToggling] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,23 @@ export const AdminFramesScreen: React.FC = () => {
     }
   };
 
+  const toggleShown = async (template: AdminFrameConfig, enabled: boolean) => {
+    setToggling(template.id);
+    // Optimistic: the card dims / lights up at once, reverted if the save fails.
+    setTemplates((all) => all.map((t) => (t.id === template.id ? { ...t, enabled } : t)));
+    try {
+      await setFrameTemplateEnabled(template.id, enabled);
+      setSnackbar({ message: `"${template.name}" ${enabled ? 'shown to guests' : 'hidden from guests'}`, variant: 'success' });
+    } catch (err) {
+      setTemplates((all) => all.map((t) => (t.id === template.id ? { ...t, enabled: !enabled } : t)));
+      setSnackbar({ message: `Could not update: ${err instanceof Error ? err.message : 'Unknown error'}`, variant: 'error' });
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  const shownCount = templates.filter((t) => t.enabled).length;
+
   const placeholderPhotos = (count: number): Array<string | undefined> =>
   Array.from({ length: count }, () => undefined);
 
@@ -73,7 +91,9 @@ export const AdminFramesScreen: React.FC = () => {
       <header className="flex flex-wrap items-center justify-between gap-3 p-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Frames</h1>
-          <p className="mt-0.5 text-sm text-white/50">{filteredTemplates.length} of {templates.length} frames</p>
+          <p className="mt-0.5 text-sm text-white/50">
+            {filteredTemplates.length} of {templates.length} frames · {shownCount} shown to guests
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 ">
           <div className="relative max-w-[220px]">
@@ -143,10 +163,12 @@ export const AdminFramesScreen: React.FC = () => {
             return (
               <div
                 key={template.id}
-                className="group relative overflow-hidden rounded-xl border border-white/10 bg-pbx-ui-raised shadow-lg transition hover:border-pbx-ui-brand/40"
+                className={`group relative overflow-hidden rounded-xl border bg-pbx-ui-raised shadow-lg transition hover:border-pbx-ui-brand/40 ${
+                  template.enabled ? 'border-white/10' : 'border-white/5'
+                }`}
               >
                 <div className="relative">
-                  <div className="relative z-0 flex">
+                  <div className={`relative z-0 flex transition ${template.enabled ? '' : 'opacity-40 grayscale'}`}>
                     <FrameCanvas
                       frame={template}
                       photos={placeholderPhotos(slotCount)}
@@ -178,9 +200,27 @@ export const AdminFramesScreen: React.FC = () => {
                     </button>
                   </div>
                 </div>
-                <div className="flex items-center justify-between px-4 py-3">
-                  <p className="truncate text-sm font-semibold text-white">{template.name}</p>
-                  <span className="shrink-0 text-xs text-white/40">{slotCount} slots</span>
+                {!template.enabled && (
+                  <span className="pointer-events-none absolute left-2 top-2 z-20 rounded-full border border-white/15 bg-black/70 px-2.5 py-1 text-[0.65rem] font-semibold uppercase tracking-wider text-white/80">
+                    Hidden
+                  </span>
+                )}
+                <div className="space-y-2 px-4 py-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className={`truncate text-sm font-semibold ${template.enabled ? 'text-white' : 'text-white/55'}`}>{template.name}</p>
+                    <span className="shrink-0 text-xs text-white/40">{slotCount} slots</span>
+                  </div>
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={template.enabled}
+                      disabled={toggling === template.id}
+                      onChange={(event) => void toggleShown(template, event.target.checked)}
+                      className="h-4 w-4 accent-pbx-ui-hi"
+                      aria-label={`Show ${template.name} to guests`}
+                    />
+                    {template.enabled ? 'Shown' : 'Hidden'}
+                  </label>
                 </div>
               </div>
             );
@@ -262,7 +302,7 @@ export const AdminFramesScreen: React.FC = () => {
       <ConfirmModal
         open={deleting !== null}
         title="Delete frame?"
-        message={`"${deleting?.name ?? ''}" will be removed permanently. Frames on the booth that rely on it will fall back to defaults.`}
+        message={`"${deleting?.name ?? ''}" will be removed permanently. Frames on the booth that rely on it will fall back to defaults. To only hide it from guests, untick Shown instead.`}
         confirmLabel="Delete"
         cancelLabel="Cancel"
         danger

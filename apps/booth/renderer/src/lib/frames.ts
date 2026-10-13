@@ -40,15 +40,15 @@ const requireAuthClient = async () => {
   return client;
 };
 
-const mapFrameToRow = (frame: FrameConfig): FrameTemplateRow => ({
+// enabled / sort_order are left out on purpose: a new row takes the column
+// defaults (shown, first) and saving an edit keeps whatever the admin set.
+const mapFrameToRow = (frame: FrameConfig): Omit<FrameTemplateRow, 'enabled' | 'sort_order'> => ({
   id: frame.id,
   name: frame.name,
   preview_url: frame.previewUrl,
   photo_slots: frame.photoSlots ?? null,
   template: frame.template ?? null,
   templates_by_photo_slots: (frame.templatesByPhotoSlots as Record<string, FrameTemplateConfig> | undefined) ?? null,
-  enabled: true,
-  sort_order: 0,
 });
 
 /** Loads templates shared with the booth, ordered for display. */
@@ -68,8 +68,11 @@ export const listFrameTemplates = async (): Promise<FrameConfig[]> => {
   return (data as unknown as FrameTemplateRow[] | null)?.map(mapRowToFrame) ?? [];
 };
 
-/** Admin view of the catalog — includes disabled templates, newest first. */
-export const listAdminFrameTemplates = async (): Promise<FrameConfig[]> => {
+/** A frame plus whether guests see it (admin only). */
+export type AdminFrameConfig = FrameConfig & { enabled: boolean };
+
+/** Admin view of the catalog — includes hidden templates, newest first. */
+export const listAdminFrameTemplates = async (): Promise<AdminFrameConfig[]> => {
   const client = requireSupabase();
   const { data, error } = await client
     .from('frame_templates')
@@ -81,7 +84,16 @@ export const listAdminFrameTemplates = async (): Promise<FrameConfig[]> => {
     throw new Error(error.message);
   }
 
-  return (data as unknown as FrameTemplateRow[] | null)?.map(mapRowToFrame) ?? [];
+  return (data as unknown as FrameTemplateRow[] | null)?.map((row) => ({ ...mapRowToFrame(row), enabled: row.enabled !== false })) ?? [];
+};
+
+/** Shows / hides a frame on the booth and the organize page without deleting it. */
+export const setFrameTemplateEnabled = async (id: string, enabled: boolean): Promise<void> => {
+  const client = await requireAuthClient();
+  const { error } = await client.from('frame_templates').update({ enabled }).eq('id', id);
+  if (error) {
+    throw new Error(error.message);
+  }
 };
 
 /** Upserts a template by id (insert for new ids, update for existing). */
