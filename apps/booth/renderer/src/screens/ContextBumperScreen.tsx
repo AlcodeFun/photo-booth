@@ -8,6 +8,7 @@ import BumperView from '../components/booth/BumperView';
 import FlatJournalView from '../components/booth/startScreen/FlatJournalView';
 import CameraOverlayView from '../components/booth/startScreen/CameraOverlayView';
 import StartCameraFeed from '../components/booth/startScreen/StartCameraFeed';
+import WeddingRomanceView from '../components/booth/startScreen/WeddingRomanceView';
 
 type Flavor = 'pink' | 'lime';
 
@@ -298,7 +299,7 @@ export const ContextBumperScreen: React.FC = () => {
   useEffect(() => {
     void refreshBoothSettings();
   }, []);
-  const { copy, theme, startScreen } = useBoothAppearance((state) => state.appearance);
+  const { copy, theme, startScreen, background } = useBoothAppearance((state) => state.appearance);
   const [pinOpen, setPinOpen] = useState(false);
   const [pinDigits, setPinDigits] = useState<string[]>([]);
   const [pinError, setPinError] = useState(false);
@@ -348,6 +349,15 @@ export const ContextBumperScreen: React.FC = () => {
     <div className="fixed inset-0 z-[60]">
       {startScreen.style === 'flat' ? (
         <FlatJournalView copy={copy} theme={theme} photos={PHOTOS} onAdvance={requestStart} onOpenPin={openPin} />
+      ) : startScreen.style === 'wedding' ? (
+        <WeddingRomanceView
+          copy={copy}
+          theme={theme}
+          photos={PHOTOS}
+          background={background}
+          onAdvance={requestStart}
+          onOpenPin={openPin}
+        />
       ) : startScreen.style === 'camera' ? (
         <CameraOverlayView
           copy={copy}

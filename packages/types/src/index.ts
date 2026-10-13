@@ -296,8 +296,10 @@ export interface BoothBackground {
  *  - gradient3d: animated radial gradient, balloons and a 3D polaroid collage
  *  - flat:       flat travel-journal collage (paper, tape, stamps, film strip)
  *  - camera:     fullscreen live camera behind a film / polaroid overlay
+ *  - wedding:    invitation look: velvet backdrop, falling petals, arched
+ *                photo window crowned with roses, names in gold script
  */
-export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera';
+export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera' | 'wedding';
 
 export interface BoothStartScreen {
   style: BoothStartScreenStyle;
@@ -331,6 +333,11 @@ export const BOOTH_START_SCREEN_PRESETS: BoothStartScreenPreset[] = [
     id: 'camera',
     label: 'Fullscreen Camera',
     description: 'Live camera fills the screen behind a film-grain polaroid overlay.',
+  },
+  {
+    id: 'wedding',
+    label: 'Wedding Romance',
+    description: 'Velvet backdrop, falling rose petals, an arched photo window in roses and the names in gold script.',
   },
 ];
 
@@ -890,11 +897,11 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
     copy: {
       bumperBrand: 'Firna & Ogi',
       bumperCaption1: 'The Wedding of',
-      bumperCaption2: 'Firna & Ogi',
-      bumperCaption3: 'With Love',
+      bumperCaption2: 'Abadikan momen bahagia bersama kami',
+      bumperCaption3: '15 November 2026',
+      bumperTapToStart: 'Sentuh untuk mulai',
     },
-    // Taped polaroids + wax-seal stamps read as a wedding guestbook in wine / gold.
-    startScreen: { style: 'flat' },
+    startScreen: { style: 'wedding' },
     theme: {
       // Dark, candle-lit look: cream text on wine, gold for the calls to action.
       primary: '#C9A25E',

@@ -649,6 +649,81 @@
   50% { opacity: 0.15; }
 }
 
+/* ---- Wedding Romance start screen ---- */
+.pb-wed-petal {
+  animation: pb-wed-petal-fall var(--pf-dur, 14s) linear var(--pf-delay, 0s) infinite;
+  will-change: transform;
+}
+
+@keyframes pb-wed-petal-fall {
+  from { transform: translate3d(0, -8cqh, 0); }
+  to { transform: translate3d(var(--pf-drift, 6cqw), 108cqh, 0); }
+}
+
+.pb-wed-petal-spin {
+  animation: pb-wed-petal-spin var(--ps-dur, 4s) ease-in-out infinite alternate;
+}
+
+@keyframes pb-wed-petal-spin {
+  from { transform: rotate(-35deg) rotateY(0deg) translateX(-1cqmin); }
+  to { transform: rotate(150deg) rotateY(170deg) translateX(1.4cqmin); }
+}
+
+.pb-wed-twinkle {
+  animation: pb-wed-twinkle var(--tw-dur, 4s) ease-in-out var(--tw-delay, 0s) infinite;
+}
+
+@keyframes pb-wed-twinkle {
+  0%, 100% { opacity: 0.15; transform: scale(0.85); }
+  50% { opacity: 0.9; transform: scale(1.1); }
+}
+
+.pb-wed-drift {
+  animation: pb-wed-drift 30s ease-in-out infinite alternate;
+}
+
+@keyframes pb-wed-drift {
+  from { transform: scale(1.05) translateX(0); }
+  to { transform: scale(1.12) translateX(-1.5%); }
+}
+
+.pb-wed-float {
+  animation: pb-wed-float 7s ease-in-out infinite alternate;
+}
+
+@keyframes pb-wed-float {
+  from { transform: translateY(0); }
+  to { transform: translateY(-1.2cqmin); }
+}
+
+.pb-wed-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: pb-wed-shimmer 3.6s ease-in-out infinite;
+}
+
+@keyframes pb-wed-shimmer {
+  0%, 35% { transform: translateX(-120%); }
+  75%, 100% { transform: translateX(120%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-wed-petal,
+  .pb-wed-petal-spin,
+  .pb-wed-twinkle,
+  .pb-wed-drift,
+  .pb-wed-float,
+  .pb-wed-cta::after {
+    animation: none;
+  }
+  .pb-wed-petal {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pb-grain,
   .pb-sway,

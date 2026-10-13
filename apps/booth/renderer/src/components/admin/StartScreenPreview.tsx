@@ -3,6 +3,7 @@ import type { BoothAppearance } from '@photo-booth/types';
 import BumperView from '../booth/BumperView';
 import FlatJournalView from '../booth/startScreen/FlatJournalView';
 import CameraOverlayView from '../booth/startScreen/CameraOverlayView';
+import WeddingRomanceView from '../booth/startScreen/WeddingRomanceView';
 
 const SAMPLE_PHOTOS = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
 
@@ -29,6 +30,9 @@ export const StartScreenPreview: React.FC<{
 
   if (resolved === 'flat') {
     return <FlatJournalView copy={copy} theme={theme} photos={SAMPLE_PHOTOS} />;
+  }
+  if (resolved === 'wedding') {
+    return <WeddingRomanceView copy={copy} theme={theme} photos={SAMPLE_PHOTOS} background={appearance.background} />;
   }
   if (resolved === 'camera') {
     return (

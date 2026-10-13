@@ -63,7 +63,7 @@ export const withAlpha = (hex: string, alpha: number): string => {
 
 const BACKGROUND_FITS: BoothBackgroundFit[] = ['cover', 'contain', 'repeat'];
 const BACKGROUND_TYPES: BoothBackgroundType[] = ['color', 'image'];
-const START_SCREEN_STYLES: BoothStartScreenStyle[] = ['gradient3d', 'flat', 'camera'];
+const START_SCREEN_STYLES: BoothStartScreenStyle[] = ['gradient3d', 'flat', 'camera', 'wedding'];
 
 /** Unknown/missing styles (e.g. written by a newer build) fall back to the default. */
 const normalizeStartScreen = (value: Partial<BoothStartScreen> | null | undefined): BoothStartScreen => ({
