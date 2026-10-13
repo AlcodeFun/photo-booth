@@ -22,7 +22,10 @@ import { SetupGearButton } from './StartScreenParts';
 export interface WeddingRomanceViewProps {
   copy: BoothCopywriting;
   theme: BoothTheme;
+  /** Sample photos for the window when there is no live camera (admin preview). */
   photos: string[];
+  /** Live camera shown in the arched window (the booth passes StartCameraFeed). */
+  cameraFeed?: React.ReactNode;
   /** The appearance background; an image becomes the velvet backdrop. */
   background?: BoothBackground;
   onAdvance?: () => void;
@@ -177,6 +180,7 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
   copy,
   theme,
   photos,
+  cameraFeed,
   background,
   onAdvance,
   onOpenPin,
@@ -197,10 +201,10 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
   }, []);
 
   useEffect(() => {
-    if (photos.length < 2) return;
+    if (cameraFeed || photos.length < 2) return;
     const timer = window.setInterval(() => setSlide((i) => (i + 1) % photos.length), 4800);
     return () => window.clearInterval(timer);
-  }, [photos.length]);
+  }, [photos.length, cameraFeed]);
 
   const gold = theme.primary;
   const goldLight = theme.accent;
@@ -229,7 +233,7 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
       <div
         className="absolute inset-0 overflow-hidden"
         style={{
-          borderRadius: '999px 999px 2.2cqmin 2.2cqmin',
+          borderRadius: '50% 50% 2.2cqmin 2.2cqmin / 34% 34% 2.2cqmin 2.2cqmin',
           background: `radial-gradient(120% 80% at 30% 20%, #ffffff 0%, ${cream} 55%, ${mix(cream, gold, 0.18)} 100%)`,
           padding: '2.2cqmin',
         }}
@@ -243,12 +247,12 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
         <div
           className="relative h-full w-full overflow-hidden"
           style={{
-            borderRadius: '999px 999px 1.2cqmin 1.2cqmin',
+            borderRadius: '50% 50% 1.2cqmin 1.2cqmin / 32% 32% 1.2cqmin 1.2cqmin',
             boxShadow: `0 0 0 0.35cqmin ${gold}, inset 0 0 3cqmin ${withAlpha(theme.deep, 0.45)}`,
             backgroundColor: theme.deep,
           }}
         >
-          {photos.map((src, i) => (
+          {cameraFeed ?? photos.map((src, i) => (
             <img
               key={src + i}
               src={src}
@@ -265,11 +269,12 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
           />
         </div>
       </div>
-      {/* rose clusters on the shoulders and the base */}
-      <FloralCluster tones={tones} className="absolute -left-[16%] top-[10%] w-[62%]" style={{ transform: 'rotate(-28deg)' }} />
-      <FloralCluster tones={tones} flip className="absolute -right-[18%] top-[3%] w-[54%]" style={{ transform: 'rotate(24deg)' }} />
-      <FloralCluster tones={tones} className="absolute -bottom-[9%] -left-[10%] w-[66%]" style={{ transform: 'rotate(8deg)' }} />
-      <FloralCluster tones={tones} flip className="absolute -bottom-[7%] -right-[12%] w-[52%]" style={{ transform: 'rotate(-12deg)' }} />
+      {/* rose clusters in the four corners only, clear of faces: the top pair
+          sits in the empty space outside the arch curve */}
+      <FloralCluster tones={tones} className="absolute -left-[9%] -top-[9%] w-[34%]" style={{ transform: 'rotate(-35deg)' }} />
+      <FloralCluster tones={tones} flip className="absolute -right-[9%] -top-[9%] w-[34%]" style={{ transform: 'rotate(35deg)' }} />
+      <FloralCluster tones={tones} className="absolute -bottom-[12%] -left-[10%] w-[32%]" style={{ transform: 'rotate(150deg)' }} />
+      <FloralCluster tones={tones} flip className="absolute -bottom-[12%] -right-[10%] w-[32%]" style={{ transform: 'rotate(-150deg)' }} />
     </div>
   );
 
@@ -293,7 +298,7 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
         style={{
           ...goldText,
           fontFamily: SCRIPT_FONT,
-          fontSize: portrait ? '15cqmin' : '14cqmin',
+          fontSize: portrait ? '15cqmin' : '12.5cqmin',
           lineHeight: 1.15,
           textShadow: 'none',
           filter: `drop-shadow(0 0.5cqmin 0.8cqmin ${withAlpha(theme.deep, 0.55)})`,
@@ -405,14 +410,19 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
       {/* layout */}
       {portrait ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-[4cqh] px-[6cqw] py-[4cqh]">
-          <div className="relative h-[40cqh] w-[min(58cqw,28cqh)] shrink-0">{arch}</div>
+          <div className="relative w-[min(82cqw,54cqh)] shrink-0" style={{ aspectRatio: '4 / 3' }}>{arch}</div>
           <div className="relative z-20">{text}</div>
           {vendorMark}
         </div>
       ) : (
         <>
-          <div className="absolute left-[7cqw] top-1/2 w-[50cqw] -translate-y-1/2">{text}</div>
-          <div className="absolute right-[9cqw] top-[9cqh] h-[78cqh] w-[min(34cqw,56cqh)]">{arch}</div>
+          <div className="absolute left-[6cqw] top-1/2 w-[40cqw] -translate-y-1/2">{text}</div>
+          <div
+            className="absolute right-[6cqw] top-1/2 w-[min(48cqw,82cqh)] -translate-y-1/2"
+            style={{ aspectRatio: '4 / 3' }}
+          >
+            {arch}
+          </div>
         </>
       )}
 

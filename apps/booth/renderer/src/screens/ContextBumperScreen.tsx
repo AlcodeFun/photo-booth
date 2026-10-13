@@ -354,6 +354,7 @@ export const ContextBumperScreen: React.FC = () => {
           copy={copy}
           theme={theme}
           photos={PHOTOS}
+          cameraFeed={<StartCameraFeed fallbackSrc={PHOTOS[0]} />}
           background={background}
           onAdvance={requestStart}
           onOpenPin={openPin}
