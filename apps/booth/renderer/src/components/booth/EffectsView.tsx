@@ -343,6 +343,17 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   onNext,
 }) => {
   const [zoomed, setZoomed] = useState<Zoomed>(null);
+  // Phones: one step at a time (Foto | GIF) and one photo preview at a time,
+  // so each fills the screen. Wide screens show everything side by side.
+  const [wide, setWide] = useState(() => typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setWide(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  const [mobileTab, setMobileTab] = useState<'photo' | 'gif'>('photo');
+  const [photoView, setPhotoView] = useState<'print' | 'live'>('print');
   const template = resolveFrameTemplate(frame, photoSlotCount);
   const ratio = template.width / template.height;
   const filter = getCanvasFilter(filterId);
@@ -393,12 +404,12 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
       {...(interactive ? {} : { type: 'button' as const, onClick: () => setZoomed(kind), title: copy.effectsTapToZoom })}
       className="group flex min-w-0 shrink-0 flex-col items-center gap-1.5"
     >
-      <span className="text-xs font-black uppercase tracking-[0.12em] opacity-80 sm:text-sm">{label}</span>
+      {label && <span className="text-xs font-black uppercase tracking-[0.12em] opacity-80 sm:text-sm">{label}</span>}
       <span
         className="relative block overflow-hidden transition group-hover:-translate-y-0.5"
         style={{
           aspectRatio: `${aspect}`,
-          height: `min(100cqh - 3.5rem, (100cqw - 1.5rem - ${perRow - 1} * 1rem) / ${perRow} / ${aspect})`,
+          height: `min(100cqh - ${label ? 3.5 : 1.5}rem, (100cqw - 1.5rem - ${perRow - 1} * 1rem) / ${perRow} / ${aspect})`,
         }}
       >
         {content}
@@ -446,16 +457,80 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
         >
           {copy.effectsEyebrow}
         </p>
+        {!wide && showGif && (
+          <div
+            className="mt-1.5 grid w-full max-w-xs grid-cols-2 rounded-full border-2 p-1"
+            style={{ borderColor: withAlpha(theme.foreground, 0.25), backgroundColor: withAlpha(theme.deep, 0.35) }}
+            role="tablist"
+          >
+            {(
+              [
+                ['photo', copy.effectsPhotoTitle],
+                ['gif', copy.effectsGifTitle],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={mobileTab === id}
+                onClick={() => setMobileTab(id)}
+                className="truncate rounded-full px-3 py-2 text-xs font-black transition"
+                style={
+                  mobileTab === id
+                    ? { backgroundColor: theme.action, color: theme.actionForeground }
+                    : { color: theme.foreground, opacity: 0.8 }
+                }
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
       </header>
 
-      <div className={`grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-3 pb-3 sm:px-5 ${showGif ? 'lg:grid-cols-2' : ''}`}>
+      <div className={`min-h-0 flex-1 px-3 pb-3 sm:px-5 ${wide ? `grid grid-cols-1 gap-4 overflow-y-auto ${showGif ? 'grid-cols-2' : ''}` : 'flex flex-col'}`}>
         {/* ---- Left: live photo + print file, filter rail ---- */}
-        <section className={panelClass} style={{ ...panelStyle, animation: 'pb-rise-pop 0.5s ease-out both' }}>
-          <h2 className="px-4 pt-3 text-center text-lg font-black sm:text-xl">{copy.effectsPhotoTitle}</h2>
-          <div className="relative h-[46vh] min-h-0 lg:h-auto lg:flex-1" style={{ containerType: 'size' }}>
+        {(wide || !showGif || mobileTab === 'photo') && (
+        <section className={`${panelClass} ${wide ? '' : 'flex-1'}`} style={{ ...panelStyle, animation: 'pb-rise-pop 0.5s ease-out both' }}>
+          {wide && <h2 className="px-4 pt-3 text-center text-lg font-black sm:text-xl">{copy.effectsPhotoTitle}</h2>}
+          {!wide && showLive && (
+            <div className="flex justify-center gap-2 px-3 pt-3">
+              {(
+                [
+                  ['print', copy.effectsPrintLabel],
+                  ['live', copy.effectsLiveLabel],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setPhotoView(id)}
+                  aria-pressed={photoView === id}
+                  className="rounded-full border-2 px-3 py-1 text-[0.7rem] font-black uppercase tracking-[0.1em] transition"
+                  style={
+                    photoView === id
+                      ? { borderColor: theme.deep, backgroundColor: theme.tertiary, color: theme.tertiaryForeground }
+                      : { borderColor: withAlpha(theme.surfaceForeground, 0.3), color: theme.surfaceForeground }
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className={`relative min-h-0 flex-1 ${wide ? '' : 'min-h-[40dvh]'}`} style={{ containerType: 'size' }}>
             <div className="absolute inset-0 flex items-center justify-center gap-4 p-3">
-              {showLive && previewTile('live', copy.effectsLiveLabel, liveContent(false), ratio, 2)}
-              {previewTile('print', copy.effectsPrintLabel, framed(true, 'h-full w-full'), ratio, showLive ? 2 : 1)}
+              {wide ? (
+                <>
+                  {showLive && previewTile('live', copy.effectsLiveLabel, liveContent(false), ratio, 2)}
+                  {previewTile('print', copy.effectsPrintLabel, framed(true, 'h-full w-full'), ratio, showLive ? 2 : 1)}
+                </>
+              ) : showLive && photoView === 'live' ? (
+                previewTile('live', '', liveContent(false), ratio, 1)
+              ) : (
+                previewTile('print', showLive ? '' : copy.effectsPrintLabel, framed(true, 'h-full w-full'), ratio, 1)
+              )}
             </div>
           </div>
           <ChipRail theme={theme}>
@@ -494,12 +569,13 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
             })}
           </ChipRail>
         </section>
+        )}
 
         {/* ---- Right: GIF preview, GIF-frame rail ---- */}
-        {showGif && (
-          <section className={panelClass} style={{ ...panelStyle, animation: 'pb-rise-pop 0.5s ease-out 0.1s both' }}>
-            <h2 className="px-4 pt-3 text-center text-lg font-black sm:text-xl">{copy.effectsGifTitle}</h2>
-            <div className="relative h-[40vh] min-h-0 lg:h-auto lg:flex-1" style={{ containerType: 'size' }}>
+        {showGif && (wide || mobileTab === 'gif') && (
+          <section className={`${panelClass} ${wide ? '' : 'flex-1'}`} style={{ ...panelStyle, animation: 'pb-rise-pop 0.5s ease-out 0.1s both' }}>
+            {wide && <h2 className="px-4 pt-3 text-center text-lg font-black sm:text-xl">{copy.effectsGifTitle}</h2>}
+            <div className={`relative min-h-0 flex-1 ${wide ? '' : 'min-h-[40dvh]'}`} style={{ containerType: 'size' }}>
               <div className="absolute inset-0 flex items-center justify-center p-3">
                 {previewTile(
                   'gif',
