@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
-  createGifFrame,
   deleteGifFrame,
   listGifFrames,
   reorderGifFrames,
@@ -9,7 +8,8 @@ import {
 } from '../../lib/gifFrames';
 import { ConfirmModal, Modal } from '../../components/admin/Modal';
 import { Snackbar, type SnackbarVariant } from '../../components/admin/Snackbar';
-import { IconPlus, IconTrash } from '../../components/admin/AdminIcons';
+import { IconPencil, IconPlus, IconTrash } from '../../components/admin/AdminIcons';
+import { GifFrameEditor } from '../../components/admin/GifFrameEditor';
 
 const SAMPLE_PHOTO = `${import.meta.env.BASE_URL}photos/1.jpg`;
 
@@ -33,7 +33,8 @@ export const AdminGifFramesScreen: React.FC = () => {
   const [preview, setPreview] = useState<GifFrame | null>(null);
   const [toDelete, setToDelete] = useState<GifFrame | null>(null);
   const [snackbar, setSnackbar] = useState<{ message: string; variant: SnackbarVariant } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  // undefined = closed, null = adding, a frame = editing it
+  const [editing, setEditing] = useState<GifFrame | null | undefined>(undefined);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,18 +64,6 @@ export const AdminGifFramesScreen: React.FC = () => {
     }
   };
 
-  const upload = (files: FileList | null) => {
-    const list = [...(files ?? [])];
-    if (list.length === 0) return;
-    void run(async () => {
-      let order = frames.length;
-      for (const file of list) {
-        await createGifFrame(file, file.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '), order);
-        order += 1;
-      }
-    }, `Added ${list.length} GIF frame${list.length === 1 ? '' : 's'}`);
-  };
-
   const move = (index: number, delta: number) => {
     const target = index + delta;
     if (target < 0 || target >= frames.length) return;
@@ -96,30 +85,19 @@ export const AdminGifFramesScreen: React.FC = () => {
           </p>
         </div>
         <button
-          onClick={() => fileRef.current?.click()}
+          onClick={() => setEditing(null)}
           disabled={busy}
           className="inline-flex items-center gap-2 rounded-full bg-pbx-ui-hi px-4 py-2 text-sm font-semibold text-pbx-ui-hi-fg transition hover:bg-pbx-ui-hi-strong disabled:opacity-50"
         >
           <IconPlus className="h-4 w-4" />
-          {busy ? 'Working…' : 'Upload PNG'}
+          Add GIF frame
         </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/png,image/webp"
-          multiple
-          className="hidden"
-          onChange={(event) => {
-            upload(event.target.files);
-            event.target.value = '';
-          }}
-        />
       </header>
 
       <div className="mx-3 mb-4 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/65">
-        Upload a <b className="text-white">PNG with a transparent window</b> (for example 1200 × 900). The GIF takes the
-        PNG&apos;s shape, the guest&apos;s photos fill it from behind and show through the transparent part. Turn a frame
-        off to hide it from guests without deleting it.
+        Add a <b className="text-white">PNG with a transparent window</b>, or any image with the photo area painted{' '}
+        <b className="text-white">green</b> (it is removed automatically, like frames). The GIF takes the image&apos;s shape
+        and the guest&apos;s photos fill the window. Turn a frame off to hide it from guests without deleting it.
       </div>
 
       {error && (
@@ -133,7 +111,7 @@ export const AdminGifFramesScreen: React.FC = () => {
       ) : frames.length === 0 ? (
         <div className="mx-3 rounded-2xl border border-white/10 bg-pbx-ui-raised px-8 py-14 text-center">
           <p className="text-lg font-semibold text-white">No GIF frames yet</p>
-          <p className="mt-1 text-sm text-white/45">Upload a PNG overlay to offer it on the booth.</p>
+          <p className="mt-1 text-sm text-white/45">Add a GIF frame to offer it on the booth.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 px-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -173,6 +151,15 @@ export const AdminGifFramesScreen: React.FC = () => {
                     />
                     {frame.is_active ? 'Shown' : 'Hidden'}
                   </label>
+                  <button
+                    onClick={() => setEditing(frame)}
+                    disabled={busy}
+                    title="Edit"
+                    aria-label={`Edit ${frame.name}`}
+                    className="grid h-8 w-8 place-items-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
+                  >
+                    <IconPencil className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => move(index, -1)}
                     disabled={busy || index === 0}
@@ -220,6 +207,18 @@ export const AdminGifFramesScreen: React.FC = () => {
           const frame = toDelete;
           setToDelete(null);
           if (frame) void run(() => deleteGifFrame(frame), 'Deleted');
+        }}
+      />
+
+      <GifFrameEditor
+        open={editing !== undefined}
+        frame={editing ?? null}
+        nextSortOrder={frames.length}
+        onClose={() => setEditing(undefined)}
+        onSaved={(message) => {
+          setEditing(undefined);
+          setSnackbar({ message, variant: 'success' });
+          void refresh();
         }}
       />
 

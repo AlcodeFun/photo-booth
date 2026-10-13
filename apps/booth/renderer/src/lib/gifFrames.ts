@@ -62,8 +62,8 @@ const readImageSize = (file: File) =>
     image.src = url;
   });
 
-/** Uploads a PNG/WebP overlay and creates its row at the end of the list. */
-export const createGifFrame = async (file: File, name: string, sortOrder: number): Promise<GifFrame> => {
+/** Uploads an overlay image to the bucket; returns its path, public URL and size. */
+const uploadOverlay = async (file: File) => {
   if (!/^image\/(png|webp)$/.test(file.type)) throw new Error('Use a PNG (or WebP) with a transparent window');
   if (file.size > GIF_FRAME_MAX_BYTES) throw new Error('Image is larger than 10 MB');
   const { width, height } = await readImageSize(file);
@@ -76,10 +76,24 @@ export const createGifFrame = async (file: File, name: string, sortOrder: number
     cacheControl: '31536000',
   });
   if (uploadError) throw new Error(uploadError.message);
-  const imageUrl = client.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return { path, width, height, imageUrl: client.storage.from(BUCKET).getPublicUrl(path).data.publicUrl };
+};
+
+/** Uploads a PNG/WebP overlay and creates its row at the end of the list. */
+export const createGifFrame = async (file: File, name: string, sortOrder: number, isActive = true): Promise<GifFrame> => {
+  const client = requireSupabase();
+  const { path, width, height, imageUrl } = await uploadOverlay(file);
   const { data, error } = await client
     .from('gif_frames')
-    .insert({ name: name.trim() || 'GIF frame', image_url: imageUrl, storage_path: path, width, height, sort_order: sortOrder })
+    .insert({
+      name: name.trim() || 'GIF frame',
+      image_url: imageUrl,
+      storage_path: path,
+      width,
+      height,
+      sort_order: sortOrder,
+      is_active: isActive,
+    })
     .select('*')
     .single();
   if (error) {
@@ -92,6 +106,21 @@ export const createGifFrame = async (file: File, name: string, sortOrder: number
 export const updateGifFrame = async (id: string, patch: Partial<Pick<GifFrame, 'name' | 'is_active' | 'sort_order'>>) => {
   const { error } = await requireSupabase().from('gif_frames').update(patch).eq('id', id);
   if (error) throw new Error(error.message);
+};
+
+/** Swaps a frame's overlay image; the old file is removed once the row points at the new one. */
+export const replaceGifFrameImage = async (frame: GifFrame, file: File): Promise<void> => {
+  const client = requireSupabase();
+  const { path, width, height, imageUrl } = await uploadOverlay(file);
+  const { error } = await client
+    .from('gif_frames')
+    .update({ image_url: imageUrl, storage_path: path, width, height })
+    .eq('id', frame.id);
+  if (error) {
+    await client.storage.from(BUCKET).remove([path]);
+    throw new Error(error.message);
+  }
+  if (frame.storage_path) await client.storage.from(BUCKET).remove([frame.storage_path]);
 };
 
 /** Persists a new order (index = sort_order). */
