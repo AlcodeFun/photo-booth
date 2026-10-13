@@ -218,6 +218,8 @@ export interface BoothCopywriting {
   effectsNone: string;
   effectsTapToZoom: string;
   effectsNextButton: string;
+  effectsNextStepButton: string;
+  effectsBackButton: string;
 
   resultsTitle: string;
   resultsSubtitle: string;
@@ -454,6 +456,8 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
     effectsNone: 'Tanpa',
     effectsTapToZoom: 'Tap untuk perbesar',
     effectsNextButton: 'Selesai & ambil QR',
+    effectsNextStepButton: 'Lanjut: pilih template GIF',
+    effectsBackButton: 'Kembali',
 
     resultsTitle: 'Yeay, fotomu jadi!',
     resultsSubtitle: 'Scan QR buat simpan semua foto, live photo & GIF-nya.',
@@ -678,6 +682,8 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'effectsNone', label: 'No filter / no GIF frame' },
       { key: 'effectsTapToZoom', label: 'Tap to enlarge hint' },
       { key: 'effectsNextButton', label: 'Next button' },
+      { key: 'effectsNextStepButton', label: 'Phone step 1 button (to the GIF step)' },
+      { key: 'effectsBackButton', label: 'Phone step 2 back button' },
     ],
   },
   {

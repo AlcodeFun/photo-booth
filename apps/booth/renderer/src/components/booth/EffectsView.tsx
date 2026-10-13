@@ -354,6 +354,8 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
   }, []);
   const [mobileTab, setMobileTab] = useState<'photo' | 'gif'>('photo');
   const [photoView, setPhotoView] = useState<'print' | 'live'>('print');
+  // Phones: filter first, then the (optional) GIF frame, so nobody misses it.
+  const twoStep = !wide && showGif;
   const template = resolveFrameTemplate(frame, photoSlotCount);
   const ratio = template.width / template.height;
   const filter = getCanvasFilter(filterId);
@@ -465,8 +467,8 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
           >
             {(
               [
-                ['photo', copy.effectsPhotoTitle],
-                ['gif', copy.effectsGifTitle],
+                ['photo', `1 · ${copy.effectsPhotoTitle}`],
+                ['gif', `2 · ${copy.effectsGifTitle}`],
               ] as const
             ).map(([id, label]) => (
               <button
@@ -636,23 +638,52 @@ export const EffectsView: React.FC<EffectsViewProps> = ({
         )}
       </div>
 
-      <footer className="flex shrink-0 justify-center px-4 pb-4 pt-1">
-        <button
-          type="button"
-          onClick={onNext}
-          className="min-h-12 w-full max-w-md rounded-xl border-2 px-6 py-3 text-sm font-black uppercase tracking-[0.12em] shadow-[0_4px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
-          style={
-            {
-              borderColor: theme.deep,
-              backgroundColor: theme.action,
-              color: theme.actionForeground,
-              '--glow': withAlpha(theme.action, 0.55),
-              animation: 'pb-cta-breathe 2.4s ease-in-out 2s infinite',
-            } as React.CSSProperties
-          }
-        >
-          {copy.effectsNextButton} →
-        </button>
+      <footer className="flex shrink-0 justify-center gap-2 px-4 pb-4 pt-1">
+        {twoStep && mobileTab === 'gif' && (
+          <button
+            type="button"
+            onClick={() => setMobileTab('photo')}
+            className="min-h-12 shrink-0 rounded-xl border-2 px-4 py-3 text-sm font-black uppercase tracking-[0.08em]"
+            style={{ borderColor: withAlpha(theme.foreground, 0.4), color: theme.foreground }}
+          >
+            ← {copy.effectsBackButton}
+          </button>
+        )}
+        {twoStep && mobileTab === 'photo' ? (
+          <button
+            type="button"
+            onClick={() => setMobileTab('gif')}
+            className="min-h-12 w-full max-w-md rounded-xl border-2 px-6 py-3 text-sm font-black uppercase tracking-[0.12em] shadow-[0_4px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            style={
+              {
+                borderColor: theme.deep,
+                backgroundColor: theme.action,
+                color: theme.actionForeground,
+                '--glow': withAlpha(theme.action, 0.55),
+                animation: 'pb-cta-breathe 2.4s ease-in-out 2s infinite',
+              } as React.CSSProperties
+            }
+          >
+            {copy.effectsNextStepButton} →
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onNext}
+            className="min-h-12 w-full max-w-md rounded-xl border-2 px-6 py-3 text-sm font-black uppercase tracking-[0.12em] shadow-[0_4px_0_rgba(0,0,0,0.18)] transition-transform hover:-translate-y-0.5 active:translate-y-0"
+            style={
+              {
+                borderColor: theme.deep,
+                backgroundColor: theme.action,
+                color: theme.actionForeground,
+                '--glow': withAlpha(theme.action, 0.55),
+                animation: 'pb-cta-breathe 2.4s ease-in-out 2s infinite',
+              } as React.CSSProperties
+            }
+          >
+            {copy.effectsNextButton} →
+          </button>
+        )}
       </footer>
 
       {/* Larger view of any output */}

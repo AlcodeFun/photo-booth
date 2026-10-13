@@ -69,7 +69,10 @@ export interface PrintRequestFile {
   slots: (string | null)[];
   adjustments?: OrganizePhotoAdjustment[];
   by: string;
-  status: 'requested' | 'handled';
+  /** requested → (a booth picks it up) processing → handled. */
+  status: 'requested' | 'processing' | 'handled';
+  /** When a booth started generating (lets another booth retry a stalled one). */
+  processingAt?: number;
 }
 
 export interface PrintResultFile {

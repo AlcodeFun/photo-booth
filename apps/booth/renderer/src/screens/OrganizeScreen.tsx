@@ -176,6 +176,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   // Generating usually takes ~15 s; past 30 s offer the gallery instead of a
   // spinner with no way out (the outputs land there when the booth is done).
   const [slowWait, setSlowWait] = useState(false);
+  // True once a booth has picked the request up (status 'processing').
+  const [boothSeen, setBoothSeen] = useState(false);
   useEffect(() => {
     setSlowWait(false);
     if (waiting !== 'busy') return;
@@ -217,6 +219,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       await sleep(2000);
       try {
         const request = await readJsonFile<PrintRequestFile>(endpoint, token, PRINT_REQUEST_FILE);
+        if (request?.status === 'processing') setBoothSeen(true);
         if (!request || request.status !== 'handled') continue;
         const result = await readJsonFile<{ status?: string }>(endpoint, token, PRINT_RESULT_FILE);
         if (result && result.status === 'error') {
@@ -297,7 +300,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           goToGallery();
           return;
         }
-        if (request.status === 'requested') {
+        if (request.status === 'requested' || request.status === 'processing') {
+          if (request.status === 'processing') setBoothSeen(true);
           setWaiting('busy');
           void waitForCompletion();
           return;
@@ -409,9 +413,31 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     setSlots(nextSlots);
   }, []);
 
-  // FrameCanvas maps each photo by sourcePhotoSlot, but the arrange manifest
-  // assigns one photo per frame slot. Force every area to read its own slot
-  // position so the canvas shows exactly what each slot holds.
+  // Frame slots that show the same source photo (e.g. two identical strips:
+  // 6 slots fed by 3 photos) are one choice for the guest: picking, removing
+  // and zooming a photo applies to every slot of that source. groupOf[i] is
+  // the source index of slot i; groups[g] lists its slots.
+  const sourceGroups = useMemo(() => {
+    if (!template) return { groupOf: [] as number[], groups: [] as number[][] };
+    const order: number[] = [];
+    const groupOf = template.photoSlots.map((slot) => {
+      const src = slot.sourcePhotoSlot ?? slot.slotNumber;
+      let g = order.indexOf(src);
+      if (g < 0) {
+        order.push(src);
+        g = order.length - 1;
+      }
+      return g;
+    });
+    const groups = order.map((_, g) => groupOf.flatMap((x, i) => (x === g ? [i] : [])));
+    return { groupOf, groups };
+  }, [template]);
+  const siblingsOf = useCallback(
+    (index: number) => sourceGroups.groups[sourceGroups.groupOf[index]] ?? [index],
+    [sourceGroups],
+  );
+
+  // The canvas reads each area's photo by sourcePhotoSlot: one per source group.
   const displayTemplate = useMemo(
     () =>
       template
@@ -421,7 +447,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
               const adjustment = adjustments[i] ?? initialAdjustment(template, i);
               return {
                 ...slot,
-                sourcePhotoSlot: i + 1,
+                sourcePhotoSlot: (sourceGroups.groupOf[i] ?? i) + 1,
                 objectPosition: `${adjustment.x * 100}% ${adjustment.y * 100}%`,
                 photoScale: adjustment.scale,
                 photoOffsetX: adjustment.offsetX ?? 0,
@@ -430,7 +456,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             }),
           }
         : null,
-    [template, adjustments],
+    [template, adjustments, sourceGroups],
   );
 
   const photoUrlFor = useCallback(
@@ -442,8 +468,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   );
 
   const previewPhotos = useMemo(
-    () => (template ? template.photoSlots.map((_, i) => (slots[i] ? photoUrlFor(slots[i]!) : undefined)) : []),
-    [template, slots, photoUrlFor],
+    () => sourceGroups.groups.map((g) => (slots[g[0]] ? photoUrlFor(slots[g[0]]!) : undefined)),
+    [sourceGroups, slots, photoUrlFor],
   );
 
   // Bake rotate / mirror into preview images (the booth applies the same
@@ -535,8 +561,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     template: displayTemplate,
     getAdjustment: (index) =>
       adjustmentsRef.current[index] ?? (template ? initialAdjustment(template, index) : { x: 0.5, y: 0.5, scale: 1 }),
-    setAdjustment: (index, next) =>
-      setAdjustments((all) => all.map((adjustment, i) => (i === index ? { ...adjustment, ...next } : adjustment))),
+    setAdjustment: (index, next) => {
+      const same = siblingsOf(index);
+      setAdjustments((all) => all.map((adjustment, i) => (same.includes(i) ? { ...adjustment, ...next } : adjustment)));
+    },
     isAdjustable: (index) => Boolean(slots[index]),
     selectedIndex: pickSlot ?? -1,
     onSelect: (index) => {
@@ -581,12 +609,13 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     const target = pickSlot ?? slots.findIndex((slot) => slot == null);
     if (target < 0) return;
     const replacing = slots[target] !== name;
+    const same = siblingsOf(target);
     const next = [...slots];
-    next[target] = name;
+    for (const i of same) next[i] = name;
     repaintSlots(next);
     if (replacing && template) {
       setAdjustments((current) =>
-        current.map((adjustment, index) => index === target ? initialAdjustment(template, target) : adjustment),
+        current.map((adjustment, index) => (same.includes(index) ? initialAdjustment(template, index) : adjustment)),
       );
     }
     setPickSlot(target);
@@ -596,12 +625,14 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
 
   const deleteSelectedPhoto = () => {
     if (pickSlot == null) return;
+    const same = siblingsOf(pickSlot);
     const next = [...slots];
-    next[pickSlot] = null;
+    for (const i of same) next[i] = null;
     repaintSlots(next);
     if (template) {
-      const reset = initialAdjustment(template, pickSlot);
-      setAdjustments((current) => current.map((adjustment, index) => index === pickSlot ? reset : adjustment));
+      setAdjustments((current) =>
+        current.map((adjustment, index) => (same.includes(index) ? initialAdjustment(template, index) : adjustment)),
+      );
     }
     setPanelOpen(false);
     hidePhotoGestureGuide();
@@ -716,7 +747,9 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
             {waiting === 'busy' && slowWait && (
               <div className="mx-auto mt-6 max-w-xs">
                 <p className="text-xs text-white/60">
-                  Masih diproses. Fotomu sudah tersimpan — kamu bisa membuka galeri sekarang, hasil bingkai akan muncul di sana.
+                  {boothSeen
+                    ? 'Masih diproses. Fotomu sudah tersimpan — kamu bisa membuka galeri sekarang, hasil bingkai akan muncul di sana.'
+                    : 'Booth belum menerima permintaanmu. Pastikan booth menyala atau minta bantuan petugas. Fotomu sudah tersimpan di galeri.'}
                 </p>
                 <button
                   className="mt-3 rounded-full border-[3px] border-white px-6 py-3 text-sm font-black uppercase tracking-wide text-white"
@@ -834,8 +867,9 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     );
   }
 
-  const filled = slots.filter(Boolean).length;
-  const allAssigned = filled === slotCount && slotCount > 0;
+  const sourceCount = sourceGroups.groups.length;
+  const filled = sourceGroups.groups.filter((g) => g.every((i) => slots[i])).length;
+  const allAssigned = sourceCount > 0 && filled === sourceCount;
   const sendReady = allAssigned && !sent;
 
   const sendButtonClass =
@@ -950,7 +984,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           </h1>
           <p className="truncate text-xs font-bold text-pbx-secondary-strong">
             {pickSlot != null
-              ? `Slot ${pickSlot + 1} dipilih`
+              ? `Foto ${(sourceGroups.groupOf[pickSlot] ?? pickSlot) + 1} dipilih`
               : 'Pilih slot bingkai untuk menambahkan foto'}
           </p>
         </div>
@@ -962,7 +996,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
                 : 'border-pbx-line bg-white text-pbx-secondary-strong'
             }`}
           >
-            {filled}/{slotCount}
+            {filled}/{sourceCount}
           </span>
           <button
             type="button"
@@ -1130,7 +1164,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           <div>
             <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Semua Foto</h2>
             <p className="text-xs font-bold text-pbx-secondary-strong">
-              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
+              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Foto ${(sourceGroups.groupOf[pickSlot] ?? pickSlot) + 1}`}
             </p>
           </div>
           <button
@@ -1156,7 +1190,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           <div>
             <h2 className="text-sm font-black uppercase tracking-[0.18em] text-pbx-ink">Semua Foto</h2>
             <p className="text-xs font-bold text-pbx-secondary-strong">
-              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Slot ${pickSlot + 1}`}
+              {pickSlot == null ? 'Pilih slot bingkai terlebih dahulu' : `Foto ${(sourceGroups.groupOf[pickSlot] ?? pickSlot) + 1}`}
             </p>
           </div>
           <button

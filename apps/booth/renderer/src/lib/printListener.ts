@@ -316,7 +316,10 @@ const pollOnce = async () => {
       untrackPrintToken(token);
       continue;
     }
-    if (!request || request.status !== 'requested') {
+    // 'processing' that has stalled (booth closed mid-way) is picked up again.
+    const stalled =
+      request?.status === 'processing' && Date.now() - (request.processingAt ?? 0) > REQUEST_TIMEOUT + 60_000;
+    if (!request || (request.status !== 'requested' && !stalled)) {
       continue;
     }
     // The request stays queued until every slot is filled — the customer may
@@ -326,6 +329,8 @@ const pollOnce = async () => {
     }
 
     processing = true;
+    // Tell the guest's page a booth has it (it shows "booth not reachable" otherwise).
+    await writeJsonFile(GALLERY_URL, token, PRINT_REQUEST_FILE, { ...request, status: 'processing', processingAt: Date.now() });
     try {
       await Promise.race([
         handleRequest(token, request),
