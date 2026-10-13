@@ -65,6 +65,7 @@ function App() {
   // Admin-editable booth look. Only the customer-facing shell uses it, so the
   // dashboard and the hosted arrange page keep their own fixed styling.
   const appearance = useBoothAppearance((state) => state.appearance);
+  const appearanceReady = useBoothAppearance((state) => state.ready);
 
   useEffect(() => {
     const updateRoute = () => {
@@ -130,6 +131,21 @@ function App() {
         return <ContextBumperScreen />;
     }
   };
+
+  // First visit on this device (no cached theme): a neutral splash until the
+  // saved theme arrives, so the default colors never flash first.
+  if (!appearanceReady) {
+    return (
+      <div
+        className="flex h-[100dvh] w-full items-center justify-center"
+        style={{ backgroundColor: '#141214' }}
+        aria-busy="true"
+        aria-label="Loading"
+      >
+        <span className="h-9 w-9 animate-spin rounded-full border-[3px] border-white/15 border-t-white/60" />
+      </div>
+    );
+  }
 
   // The hosted arrange page renders standalone, before any booth session logic.
   if (organizeToken) {

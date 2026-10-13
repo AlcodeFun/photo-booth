@@ -81,6 +81,14 @@ export interface BoothAppearanceState {
   appearance: BoothAppearance;
   /** True until the first Supabase read settles. */
   loading: boolean;
+  /**
+   * True once the screen may be painted with `appearance`: right away when
+   * this device has a cached copy of the saved theme, otherwise once the saved
+   * theme has loaded (or after a short timeout when offline, falling back to
+   * the default). Until then the app shows a neutral splash instead of the
+   * shipped default colors.
+   */
+  ready: boolean;
   /** Last error from a background refresh or a save. */
   error: string | null;
 
@@ -91,21 +99,28 @@ export interface BoothAppearanceState {
 
 // Apply the saved appearance before React mounts so the booth never flashes the
 // shipped default (or the CSS defaults) on top of the operator's real theme.
-const initial = getCachedAppearance() ?? DEFAULT_BOOTH_APPEARANCE;
+const cached = getCachedAppearance();
+const initial = cached ?? DEFAULT_BOOTH_APPEARANCE;
+/** No cached theme on this device: never paint the default first. */
+const READY_TIMEOUT_MS = 5000;
 
 applyAppearanceToDocument(initial);
 
 export const useBoothAppearance = create<BoothAppearanceState>((set) => ({
   appearance: initial,
   loading: true,
+  ready: Boolean(cached),
   error: null,
 
   loadAppearance: async () => {
+    // Offline / slow network on a device without a cache: stop waiting after a
+    // moment and run with the default rather than a blank screen.
+    const timer = window.setTimeout(() => set({ ready: true }), READY_TIMEOUT_MS);
     try {
       const appearance = await getBoothAppearance();
       cacheAppearance(appearance);
       applyAppearanceToDocument(appearance);
-      set({ appearance, loading: false, error: null });
+      set({ appearance, loading: false, ready: true, error: null });
     } catch (err) {
       // Offline / unconfigured Supabase: keep whatever the cache gave us so the
       // booth still runs with its last known appearance.
@@ -114,8 +129,11 @@ export const useBoothAppearance = create<BoothAppearanceState>((set) => ({
       set({
         appearance: fallback,
         loading: false,
+        ready: true,
         error: err instanceof Error ? err.message : 'Failed to load booth appearance',
       });
+    } finally {
+      window.clearTimeout(timer);
     }
   },
 
