@@ -1,8 +1,9 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { BoothBackground, BoothCopywriting, BoothTheme } from '@photo-booth/types';
 import { withAlpha } from '../../../lib/appearance';
 import { KelanaLogo } from '../../brand/KelanaLogo';
 import { SetupGearButton } from './StartScreenParts';
+import { floralPaletteFrom, renderBouquetDataUrl, type FloralPalette } from '../../../utils/floralPainter';
 
 /**
  * "Wedding Romance" start screen: an invitation brought to life. A velvet
@@ -57,109 +58,52 @@ const mix = (a: string, b: string, t: number): string => {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 };
 
-const LEAF = '#8E9C7C';
-const LEAF_DEEP = '#5F6E52';
-const EUCALYPTUS = '#A3B5A6';
-
-interface RoseTone {
+/** Falling-petal colors. */
+interface PetalTone {
   light: string;
   base: string;
   edge: string;
 }
 
-/** A cupped garden rose drawn in SVG units around (0,0), radius ~50. */
-const Rose: React.FC<{ tone: RoseTone; x: number; y: number; r: number; rot: number }> = ({ tone, x, y, r, rot }) => {
-  const id = useId().replace(/:/g, '');
-  const rings: Array<[number, number, number]> = [
-    // [petals, distance, petal radius]
-    [8, 25, 24],
-    [7, 16, 19],
-    [6, 9, 14],
-    [5, 4, 9],
-  ];
+/**
+ * Painted bouquet (utils/floralPainter): shaded garden roses, buds, leaves,
+ * eucalyptus and baby's breath, rendered once per palette + seed and cached.
+ */
+const bouquetCache = new Map<string, string>();
+const PaintedBouquet: React.FC<{
+  palette: FloralPalette;
+  paletteKey: string;
+  seed: number;
+  className?: string;
+  style?: React.CSSProperties;
+  flip?: boolean;
+}> = ({ palette, paletteKey, seed, className, style, flip }) => {
+  const key = `${paletteKey}|${seed}`;
+  const [src, setSrc] = useState(() => bouquetCache.get(key) ?? '');
+  useEffect(() => {
+    const cached = bouquetCache.get(key);
+    if (cached) {
+      setSrc(cached);
+      return;
+    }
+    // Paint after the first frame so the screen appears without waiting.
+    const id = window.requestAnimationFrame(() => {
+      const url = renderBouquetDataUrl(palette, seed, 520);
+      bouquetCache.set(key, url);
+      setSrc(url);
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [key, palette, seed]);
+  if (!src) return null;
   return (
-    <g transform={`translate(${x} ${y}) rotate(${rot}) scale(${r / 50})`}>
-      <defs>
-        <radialGradient id={`p-${id}`} cx="35%" cy="40%" r="75%">
-          <stop offset="0%" stopColor={tone.light} />
-          <stop offset="60%" stopColor={tone.base} />
-          <stop offset="100%" stopColor={tone.edge} />
-        </radialGradient>
-      </defs>
-      <circle r="44" fill={tone.edge} opacity="0.35" />
-      {rings.map(([count, dist, pr], ri) =>
-        Array.from({ length: count }, (_, i) => {
-          const a = (360 / count) * i + ri * 23;
-          return (
-            <ellipse
-              key={`${ri}-${i}`}
-              cx={dist}
-              cy={0}
-              rx={pr}
-              ry={pr * 0.82}
-              transform={`rotate(${a})`}
-              fill={`url(#p-${id})`}
-              stroke={tone.edge}
-              strokeOpacity="0.35"
-              strokeWidth="0.8"
-            />
-          );
-        }),
-      )}
-      <path
-        d="M-2 -6 C 6 -8, 9 2, 2 6 C -5 9, -9 0, -4 -3 C 0 -5, 4 -1, 1 2"
-        fill="none"
-        stroke={tone.edge}
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        opacity="0.8"
-      />
-    </g>
-  );
-};
-
-const Leaf: React.FC<{ x: number; y: number; len: number; rot: number; color: string }> = ({ x, y, len, rot, color }) => (
-  <g transform={`translate(${x} ${y}) rotate(${rot})`}>
-    <path
-      d={`M0 0 C ${len * 0.3} ${-len * 0.34}, ${len * 0.75} ${-len * 0.28}, ${len} 0 C ${len * 0.75} ${len * 0.28}, ${len * 0.3} ${len * 0.34}, 0 0 Z`}
-      fill={color}
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      aria-hidden="true"
+      className={`pointer-events-none ${className ?? ''}`}
+      style={{ ...style, transform: `${style?.transform ?? ''} ${flip ? 'scaleX(-1)' : ''}` }}
     />
-    <path d={`M${len * 0.06} 0 Q ${len * 0.5} ${-len * 0.04} ${len * 0.9} 0`} stroke="#ffffff" strokeOpacity="0.3" strokeWidth="0.9" fill="none" />
-  </g>
-);
-
-/** Rose cluster with greenery and baby's breath, in a 200 x 150 box. */
-const FloralCluster: React.FC<{ tones: RoseTone[]; className?: string; style?: React.CSSProperties; flip?: boolean }> = ({
-  tones,
-  className,
-  style,
-  flip,
-}) => {
-  const [blush, cream, deep] = tones;
-  return (
-    <svg viewBox="0 0 200 150" className={className} style={style} aria-hidden="true">
-      <g transform={flip ? 'translate(200 0) scale(-1 1)' : undefined}>
-        <Leaf x={92} y={82} len={74} rot={-160} color={LEAF} />
-        <Leaf x={100} y={78} len={66} rot={-115} color={EUCALYPTUS} />
-        <Leaf x={110} y={84} len={78} rot={-20} color={LEAF_DEEP} />
-        <Leaf x={104} y={90} len={70} rot={25} color={LEAF} />
-        <Leaf x={96} y={92} len={62} rot={150} color={EUCALYPTUS} />
-        <Leaf x={120} y={70} len={56} rot={-55} color={LEAF_DEEP} />
-        {[
-          [44, 40], [52, 30], [36, 52], [150, 112], [162, 104], [158, 122], [60, 118], [48, 110],
-        ].map(([cx, cy], i) => (
-          <g key={i}>
-            <line x1={i < 3 ? 70 : i < 6 ? 132 : 78} y1={i < 3 ? 62 : i < 6 ? 100 : 104} x2={cx} y2={cy} stroke={LEAF_DEEP} strokeWidth="0.8" opacity="0.6" />
-            <circle cx={cx} cy={cy} r="3.2" fill="#FBF5EE" />
-          </g>
-        ))}
-        <Rose tone={deep} x={140} y={66} r={22} rot={20} />
-        <Rose tone={cream} x={66} y={86} r={27} rot={-30} />
-        <Rose tone={blush} x={104} y={78} r={36} rot={10} />
-        <Rose tone={blush} x={140} y={98} r={20} rot={70} />
-        <Rose tone={deep} x={84} y={112} r={15} rot={-60} />
-      </g>
-    </svg>
   );
 };
 
@@ -206,11 +150,13 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
   const goldLight = theme.accent;
   const cream = theme.card;
   const wine = theme.secondary;
-  const tones: RoseTone[] = [
+  const tones: PetalTone[] = [
     { light: mix(theme.tertiary, '#ffffff', 0.55), base: theme.tertiary, edge: mix(theme.tertiary, wine, 0.45) },
     { light: '#ffffff', base: mix(cream, theme.tertiary, 0.25), edge: mix(theme.tertiary, wine, 0.2) },
     { light: mix(theme.tertiary, wine, 0.25), base: mix(theme.tertiary, wine, 0.6), edge: mix(wine, theme.deep, 0.45) },
   ];
+  const paletteKey = `${theme.tertiary}|${cream}|${wine}`;
+  const palette = useMemo(() => floralPaletteFrom(theme.tertiary, cream, wine), [theme.tertiary, cream, wine]);
   const goldText: React.CSSProperties = {
     backgroundImage: `linear-gradient(100deg, ${mix(gold, theme.deep, 0.25)} 0%, ${goldLight} 30%, ${gold} 50%, ${goldLight} 72%, ${mix(gold, theme.deep, 0.2)} 100%)`,
     WebkitBackgroundClip: 'text',
@@ -266,10 +212,10 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
         </div>
       </div>
       {/* rose clusters on the shoulders and the base */}
-      <FloralCluster tones={tones} className="absolute -left-[16%] top-[10%] w-[62%]" style={{ transform: 'rotate(-28deg)' }} />
-      <FloralCluster tones={tones} flip className="absolute -right-[18%] top-[3%] w-[54%]" style={{ transform: 'rotate(24deg)' }} />
-      <FloralCluster tones={tones} className="absolute -bottom-[9%] -left-[10%] w-[66%]" style={{ transform: 'rotate(8deg)' }} />
-      <FloralCluster tones={tones} flip className="absolute -bottom-[7%] -right-[12%] w-[52%]" style={{ transform: 'rotate(-12deg)' }} />
+      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={77} className="absolute -left-[22%] -top-[2%] w-[72%]" style={{ transform: 'rotate(-20deg)' }} />
+      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={91} flip className="absolute -right-[24%] -top-[8%] w-[64%]" style={{ transform: 'rotate(18deg)' }} />
+      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={777} className="absolute -bottom-[16%] -left-[18%] w-[76%]" style={{ transform: 'rotate(160deg)' }} />
+      <PaintedBouquet palette={palette} paletteKey={paletteKey} seed={505} flip className="absolute -bottom-[14%] -right-[20%] w-[62%]" style={{ transform: 'rotate(-150deg)' }} />
     </div>
   );
 
