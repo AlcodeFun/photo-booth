@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import type { BoothBackground, BoothCopywriting, BoothTheme } from '@photo-booth/types';
 import { withAlpha } from '../../../lib/appearance';
 import { KelanaLogo } from '../../brand/KelanaLogo';
@@ -57,33 +57,111 @@ const mix = (a: string, b: string, t: number): string => {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 };
 
-/** Falling-petal colors. */
-interface PetalTone {
+const LEAF = '#8E9C7C';
+const LEAF_DEEP = '#5F6E52';
+const EUCALYPTUS = '#A3B5A6';
+
+interface RoseTone {
   light: string;
   base: string;
   edge: string;
 }
 
-/**
- * Real-photo bouquet (public/florals, CC0 photos, see CREDITS.md there): cream
- * and dusty-pink roses, garden roses, a bud, a peony and leaves, cut out and
- * arranged. Kept within gentle rotations so the photographed light stays right.
- */
-const PhotoBouquet: React.FC<{
-  variant: 'a' | 'b' | 'c';
-  className?: string;
-  rotate?: number;
-  flip?: boolean;
-}> = ({ variant, className, rotate = 0, flip }) => (
-  <img
-    src={`${import.meta.env.BASE_URL}florals/bouquet-${variant}.webp`}
-    alt=""
-    draggable={false}
-    aria-hidden="true"
-    className={`pointer-events-none select-none ${className ?? ''}`}
-    style={{ transform: `rotate(${rotate}deg)${flip ? ' scaleX(-1)' : ''}`, filter: 'drop-shadow(0 1cqmin 1.4cqmin rgba(20,2,6,0.45))' }}
-  />
+/** A cupped garden rose drawn in SVG units around (0,0), radius ~50. */
+const Rose: React.FC<{ tone: RoseTone; x: number; y: number; r: number; rot: number }> = ({ tone, x, y, r, rot }) => {
+  const id = useId().replace(/:/g, '');
+  const rings: Array<[number, number, number]> = [
+    // [petals, distance, petal radius]
+    [8, 25, 24],
+    [7, 16, 19],
+    [6, 9, 14],
+    [5, 4, 9],
+  ];
+  return (
+    <g transform={`translate(${x} ${y}) rotate(${rot}) scale(${r / 50})`}>
+      <defs>
+        <radialGradient id={`p-${id}`} cx="35%" cy="40%" r="75%">
+          <stop offset="0%" stopColor={tone.light} />
+          <stop offset="60%" stopColor={tone.base} />
+          <stop offset="100%" stopColor={tone.edge} />
+        </radialGradient>
+      </defs>
+      <circle r="44" fill={tone.edge} opacity="0.35" />
+      {rings.map(([count, dist, pr], ri) =>
+        Array.from({ length: count }, (_, i) => {
+          const a = (360 / count) * i + ri * 23;
+          return (
+            <ellipse
+              key={`${ri}-${i}`}
+              cx={dist}
+              cy={0}
+              rx={pr}
+              ry={pr * 0.82}
+              transform={`rotate(${a})`}
+              fill={`url(#p-${id})`}
+              stroke={tone.edge}
+              strokeOpacity="0.35"
+              strokeWidth="0.8"
+            />
+          );
+        }),
+      )}
+      <path
+        d="M-2 -6 C 6 -8, 9 2, 2 6 C -5 9, -9 0, -4 -3 C 0 -5, 4 -1, 1 2"
+        fill="none"
+        stroke={tone.edge}
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        opacity="0.8"
+      />
+    </g>
+  );
+};
+
+const Leaf: React.FC<{ x: number; y: number; len: number; rot: number; color: string }> = ({ x, y, len, rot, color }) => (
+  <g transform={`translate(${x} ${y}) rotate(${rot})`}>
+    <path
+      d={`M0 0 C ${len * 0.3} ${-len * 0.34}, ${len * 0.75} ${-len * 0.28}, ${len} 0 C ${len * 0.75} ${len * 0.28}, ${len * 0.3} ${len * 0.34}, 0 0 Z`}
+      fill={color}
+    />
+    <path d={`M${len * 0.06} 0 Q ${len * 0.5} ${-len * 0.04} ${len * 0.9} 0`} stroke="#ffffff" strokeOpacity="0.3" strokeWidth="0.9" fill="none" />
+  </g>
 );
+
+/** Rose cluster with greenery and baby's breath, in a 200 x 150 box. */
+const FloralCluster: React.FC<{ tones: RoseTone[]; className?: string; style?: React.CSSProperties; flip?: boolean }> = ({
+  tones,
+  className,
+  style,
+  flip,
+}) => {
+  const [blush, cream, deep] = tones;
+  return (
+    <svg viewBox="0 0 200 150" className={className} style={style} aria-hidden="true">
+      <g transform={flip ? 'translate(200 0) scale(-1 1)' : undefined}>
+        <Leaf x={92} y={82} len={74} rot={-160} color={LEAF} />
+        <Leaf x={100} y={78} len={66} rot={-115} color={EUCALYPTUS} />
+        <Leaf x={110} y={84} len={78} rot={-20} color={LEAF_DEEP} />
+        <Leaf x={104} y={90} len={70} rot={25} color={LEAF} />
+        <Leaf x={96} y={92} len={62} rot={150} color={EUCALYPTUS} />
+        <Leaf x={120} y={70} len={56} rot={-55} color={LEAF_DEEP} />
+        {[
+          [44, 40], [52, 30], [36, 52], [150, 112], [162, 104], [158, 122], [60, 118], [48, 110],
+        ].map(([cx, cy], i) => (
+          <g key={i}>
+            <line x1={i < 3 ? 70 : i < 6 ? 132 : 78} y1={i < 3 ? 62 : i < 6 ? 100 : 104} x2={cx} y2={cy} stroke={LEAF_DEEP} strokeWidth="0.8" opacity="0.6" />
+            <circle cx={cx} cy={cy} r="3.2" fill="#FBF5EE" />
+          </g>
+        ))}
+        <Rose tone={deep} x={140} y={66} r={22} rot={20} />
+        <Rose tone={cream} x={66} y={86} r={27} rot={-30} />
+        <Rose tone={blush} x={104} y={78} r={36} rot={10} />
+        <Rose tone={blush} x={140} y={98} r={20} rot={70} />
+        <Rose tone={deep} x={84} y={112} r={15} rot={-60} />
+      </g>
+    </svg>
+  );
+};
 
 /** Deterministic pseudo-random sequence so petals keep their places. */
 const seq = (n: number, seed: number) => {
@@ -128,7 +206,7 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
   const goldLight = theme.accent;
   const cream = theme.card;
   const wine = theme.secondary;
-  const tones: PetalTone[] = [
+  const tones: RoseTone[] = [
     { light: mix(theme.tertiary, '#ffffff', 0.55), base: theme.tertiary, edge: mix(theme.tertiary, wine, 0.45) },
     { light: '#ffffff', base: mix(cream, theme.tertiary, 0.25), edge: mix(theme.tertiary, wine, 0.2) },
     { light: mix(theme.tertiary, wine, 0.25), base: mix(theme.tertiary, wine, 0.6), edge: mix(wine, theme.deep, 0.45) },
@@ -188,10 +266,10 @@ export const WeddingRomanceView: React.FC<WeddingRomanceViewProps> = ({
         </div>
       </div>
       {/* rose clusters on the shoulders and the base */}
-      <PhotoBouquet variant="a" flip rotate={-22} className="absolute -left-[38%] -top-[7%] w-[70%]" />
-      <PhotoBouquet variant="c" rotate={28} className="absolute -right-[26%] -top-[4%] w-[66%]" />
-      <PhotoBouquet variant="b" rotate={-4} className="absolute -bottom-[8%] -left-[24%] w-[92%]" />
-      <PhotoBouquet variant="c" flip rotate={-14} className="absolute -bottom-[4%] -right-[28%] w-[58%]" />
+      <FloralCluster tones={tones} className="absolute -left-[16%] top-[10%] w-[62%]" style={{ transform: 'rotate(-28deg)' }} />
+      <FloralCluster tones={tones} flip className="absolute -right-[18%] top-[3%] w-[54%]" style={{ transform: 'rotate(24deg)' }} />
+      <FloralCluster tones={tones} className="absolute -bottom-[9%] -left-[10%] w-[66%]" style={{ transform: 'rotate(8deg)' }} />
+      <FloralCluster tones={tones} flip className="absolute -bottom-[7%] -right-[12%] w-[52%]" style={{ transform: 'rotate(-12deg)' }} />
     </div>
   );
 
