@@ -20,6 +20,9 @@ const SAME_CODE_COOLDOWN_MS = 4_000;
 const MAX_FAILS = 5;
 const FAIL_PAUSE_MS = 30_000;
 const SCAN_INTERVAL_MS = 160;
+/** Camera names phones / tablets give their rear and front cameras (incl. Indonesian). */
+const BACK_CAMERA_RE = /back|rear|environment|belakang|facing back/i;
+const FRONT_CAMERA_RE = /front|user|depan|facing front|selfie/i;
 
 /**
  * Voucher gate in front of the session (Booth Setup -> Access -> Voucher).
@@ -130,7 +133,7 @@ export const UnlockScreen: React.FC = () => {
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
   const [deviceOverride, setDeviceOverride] = useState<string | null>(null);
   const [switched, setSwitched] = useState(false);
-  const [cameraCount, setCameraCount] = useState(0);
+  const [hasBackCamera, setHasBackCamera] = useState(false);
   const [mirrored, setMirrored] = useState(true);
   const trackRef = useRef<MediaStreamTrack | null>(null);
 
@@ -167,11 +170,20 @@ export const UnlockScreen: React.FC = () => {
       }
       const track = stream.getVideoTracks()[0] ?? null;
       trackRef.current = track;
+      const reported = track?.getSettings().facingMode;
+      // Some browsers do not report facingMode: then trust the side we asked for.
+      const onBack = reported ? reported === 'environment' : (switched || !scannerDeviceId) && facing === 'environment';
       // Mirror the selfie view only; a back camera shows the world as it is.
-      setMirrored(track?.getSettings().facingMode !== 'environment');
+      setMirrored(!onBack);
+      // The switch is only offered when there is a back camera to switch to
+      // (phones / tablets); a PC's webcams never show it.
       navigator.mediaDevices
         .enumerateDevices()
-        .then((devices) => !cancelled && setCameraCount(devices.filter((d) => d.kind === 'videoinput').length))
+        .then((devices) => {
+          if (cancelled) return;
+          const back = devices.some((d) => d.kind === 'videoinput' && BACK_CAMERA_RE.test(d.label));
+          setHasBackCamera(back || onBack);
+        })
         .catch(() => undefined);
       const el = videoRef.current;
       if (el) {
@@ -199,21 +211,24 @@ export const UnlockScreen: React.FC = () => {
     };
   }, [mode, scannerDeviceId, facing, deviceOverride, switched, submit, copy.unlockNoCamera, showMessage]);
 
-  /** Front <-> back on phones / tablets; next webcam on a PC with several. */
+  /** Front <-> back (only offered when the device has a back camera). */
   const switchCamera = useCallback(async () => {
     touch();
     setSwitched(true);
     const settings = trackRef.current?.getSettings();
-    if (settings?.facingMode === 'user' || settings?.facingMode === 'environment') {
+    const current = settings?.facingMode ?? (mirrored ? 'user' : 'environment');
+    const next = current === 'environment' ? 'user' : 'environment';
+    setFacing(next);
+    if (settings?.facingMode) {
+      // The browser understands facingMode: asking for the side is enough.
       setDeviceOverride(null);
-      setFacing(settings.facingMode === 'user' ? 'environment' : 'user');
       return;
     }
+    // Otherwise pick the camera by its name.
     const cameras = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter((d) => d.kind === 'videoinput');
-    if (cameras.length < 2) return;
-    const index = cameras.findIndex((d) => d.deviceId === settings?.deviceId);
-    setDeviceOverride(cameras[(index + 1) % cameras.length].deviceId);
-  }, [touch]);
+    const target = cameras.find((d) => (next === 'environment' ? BACK_CAMERA_RE : FRONT_CAMERA_RE).test(d.label));
+    setDeviceOverride(target?.deviceId ?? null);
+  }, [touch, mirrored]);
 
   // ---- Voucher picture picked from the device (gallery / files) ----
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -298,7 +313,7 @@ export const UnlockScreen: React.FC = () => {
         // Only when the booth runs in a browser on the guest's phone/tablet:
         // on the Electron kiosk a file dialog would expose the booth PC's files.
         onPickImage={window.electronAPI ? undefined : () => fileInputRef.current?.click()}
-        onSwitchCamera={cameraCount > 1 ? () => void switchCamera() : undefined}
+        onSwitchCamera={hasBackCamera ? () => void switchCamera() : undefined}
         picking={picking}
       />
       <input
