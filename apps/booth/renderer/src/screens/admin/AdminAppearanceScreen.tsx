@@ -163,11 +163,15 @@ export const AdminAppearanceScreen: React.FC = () => {
     setDraft((current) => ({
       ...current,
       theme: { ...preset.theme },
-      // A flat color background matches the preset; an uploaded image is kept.
-      background:
-        current.background.type === 'image'
+      // An event preset brings its own background image; otherwise a flat
+      // color background matches the preset and an uploaded image is kept.
+      background: preset.background
+        ? { ...current.background, color: preset.backgroundColor, ...preset.background }
+        : current.background.type === 'image'
           ? current.background
           : { ...current.background, color: preset.backgroundColor },
+      copy: preset.copy ? { ...current.copy, ...preset.copy } : current.copy,
+      startScreen: preset.startScreen ?? current.startScreen,
     }));
   }, []);
 

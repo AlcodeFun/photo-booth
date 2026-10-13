@@ -750,6 +750,12 @@ export interface BoothThemePreset {
   theme: BoothTheme;
   /** Suggested flat background color to pair with the theme. */
   backgroundColor: string;
+  /** Event presets only: a background image applied with the colors. */
+  background?: Partial<BoothBackground>;
+  /** Event presets only: wording applied with the colors (e.g. the couple's names). */
+  copy?: Partial<BoothCopywriting>;
+  /** Event presets only: start screen style applied with the colors. */
+  startScreen?: BoothStartScreen;
 }
 
 /**
@@ -865,6 +871,59 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
       bumperAltInner: '#FFC34A',
       bumperAltMid: '#F07842',
       bumperAltOuter: '#29251F',
+    },
+  },
+  {
+    id: 'wedding-firna-ogi',
+    label: 'Wedding · Firna & Ogi',
+    // Moodboard: burgundy velvet drapes, antique gold, cream torn paper, dusty rose.
+    swatches: ['#6B1A28', '#C9A25E', '#F5EADB', '#E7B9B6', '#24050C'],
+    backgroundColor: '#3A0B15',
+    // Event preset: also brings its drape background and the couple's wording.
+    background: {
+      type: 'image',
+      imageUrl:
+        'https://wxctgsodatmqnizchadn.supabase.co/storage/v1/object/public/booth-appearance/backgrounds/1791887179000-wedding-firna-ogi-drape.jpg',
+      fit: 'cover',
+      position: 'center',
+    },
+    copy: {
+      bumperBrand: 'Firna & Ogi',
+      bumperCaption1: 'The Wedding of',
+      bumperCaption2: 'Firna & Ogi',
+      bumperCaption3: 'With Love',
+    },
+    // Taped polaroids + wax-seal stamps read as a wedding guestbook in wine / gold.
+    startScreen: { style: 'flat' },
+    theme: {
+      // Dark, candle-lit look: cream text on wine, gold for the calls to action.
+      primary: '#C9A25E',
+      primaryForeground: '#2A0710',
+      secondary: '#8C2C3B',
+      secondaryForeground: '#F5EADB',
+      tertiary: '#E7B9B6',
+      tertiaryForeground: '#3A0C14',
+      accent: '#E7CF97',
+      accentForeground: '#3A0C14',
+      action: '#D4AE6A',
+      actionForeground: '#2A0710',
+      background: '#3A0B15',
+      foreground: '#F5EADB',
+      card: '#F5EADB',
+      cardForeground: '#3A0C14',
+      surface: '#4A1420',
+      surfaceForeground: '#F5EADB',
+      muted: '#7A4A52',
+      mutedForeground: '#F5EADB',
+      destructive: '#C8414B',
+      destructiveForeground: '#FFF7F0',
+      deep: '#24050C',
+      bumperInner: '#8C2C3B',
+      bumperMid: '#4A0F1A',
+      bumperOuter: '#1C0308',
+      bumperAltInner: '#C9A25E',
+      bumperAltMid: '#6B1A28',
+      bumperAltOuter: '#1C0308',
     },
   },
 ];
