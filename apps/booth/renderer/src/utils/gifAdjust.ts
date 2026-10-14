@@ -2,8 +2,11 @@
  * Position of the photos inside the animated GIF (shared by every GIF frame):
  * zoom, pan and mirror, set by the guest on the GIF preview.
  *
- * Offsets are fractions of the photo window (the overlay's transparent area,
- * or the whole GIF without an overlay): 0.1 = 10% of its width / height.
+ * The photo is drawn over the WHOLE GIF canvas (cover with a GIF frame,
+ * contain without) and the frame overlay goes on top; it is never clipped.
+ * Offsets are fractions of the canvas (0.1 = 10% of its width / height).
+ * Moving is limited so the photo always covers the frame's transparent
+ * window, so no empty (black) area can show through it.
  * The same numbers drive the CSS preview (gifAdjustTransform) and the encoder
  * (createResultGif), so what the guest sees is what the GIF contains.
  */
@@ -18,10 +21,12 @@ export interface GifAdjust {
 export interface GifGeometry {
   /** Photo width / height. */
   imageAspect: number;
-  /** Photo window width / height (the overlay's transparent area, or the whole GIF). */
+  /** GIF canvas width / height. */
   boxAspect: number;
   /** `cover` with a GIF frame overlay, `contain` for a plain GIF. */
   mode: 'cover' | 'contain';
+  /** The frame's transparent window, as fractions of the canvas (default: whole canvas). */
+  window?: { x: number; y: number; width: number; height: number };
 }
 
 export const GIF_MAX_SCALE = 3;
@@ -32,19 +37,26 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const finite = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 
 /**
- * Pan limits for a scale: half the photo's overflow beyond the box, so the
- * photo always covers it (never an empty edge).
- * Without geometry the limit is generous (the encoder trusts saved values).
+ * Allowed offset range on one axis: the photo (size `rel` of the canvas,
+ * centred at 0.5 + offset) must cover the window [start, start + size].
+ * A photo smaller than the window (plain GIF, contain) stays centred on it.
  */
-const panLimits = (scale: number, geometry?: GifGeometry | null): { x: number; y: number } => {
-  if (!geometry || !(geometry.imageAspect > 0) || !(geometry.boxAspect > 0)) return { x: scale, y: scale };
+const axisRange = (rel: number, start: number, size: number): [number, number] => {
+  const lo = start + size - 0.5 - rel / 2;
+  const hi = start - 0.5 + rel / 2;
+  return lo <= hi ? [lo, hi] : [(lo + hi) / 2, (lo + hi) / 2];
+};
+
+/** Pan limits for a scale. Without geometry they are generous (the encoder trusts saved values). */
+const panLimits = (scale: number, geometry?: GifGeometry | null): { x: [number, number]; y: [number, number] } => {
+  if (!geometry || !(geometry.imageAspect > 0) || !(geometry.boxAspect > 0)) {
+    return { x: [-scale, scale], y: [-scale, scale] };
+  }
   const pick = geometry.mode === 'cover' ? Math.max : Math.min;
-  const relWidth = pick(1, geometry.imageAspect / geometry.boxAspect);
-  const relHeight = pick(1, geometry.boxAspect / geometry.imageAspect);
-  return {
-    x: Math.max(0, scale * relWidth - 1) / 2,
-    y: Math.max(0, scale * relHeight - 1) / 2,
-  };
+  const relWidth = pick(1, geometry.imageAspect / geometry.boxAspect) * scale;
+  const relHeight = pick(1, geometry.boxAspect / geometry.imageAspect) * scale;
+  const w = geometry.window ?? { x: 0, y: 0, width: 1, height: 1 };
+  return { x: axisRange(relWidth, w.x, w.width), y: axisRange(relHeight, w.y, w.height) };
 };
 
 export const clampGifAdjust = (adjust: Partial<GifAdjust> | null | undefined, geometry?: GifGeometry | null): GifAdjust => {
@@ -52,8 +64,8 @@ export const clampGifAdjust = (adjust: Partial<GifAdjust> | null | undefined, ge
   const limit = panLimits(scale, geometry);
   return {
     scale,
-    offsetX: clamp(finite(adjust?.offsetX, 0), -limit.x, limit.x),
-    offsetY: clamp(finite(adjust?.offsetY, 0), -limit.y, limit.y),
+    offsetX: clamp(finite(adjust?.offsetX, 0), limit.x[0], limit.x[1]),
+    offsetY: clamp(finite(adjust?.offsetY, 0), limit.y[0], limit.y[1]),
     flip: Boolean(adjust?.flip),
   };
 };

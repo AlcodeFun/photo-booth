@@ -24,6 +24,9 @@ import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransfor
 import { listActiveGifFrames } from '../lib/gifFrames';
 import { GifPreview, type EffectsGifFrame } from '../components/booth/EffectsView';
 import { useBoothAppearance } from '../store/appearanceStore';
+import { buildArrangedOutputs } from '../lib/arrangedOutputs';
+import { updateSessionRecord } from '../lib/sessions';
+import { uploadSessionFiles } from '../utils/sessionUpload';
 import { clampGifAdjust, DEFAULT_GIF_ADJUST, isDefaultGifAdjust, type GifAdjust } from '../utils/gifAdjust';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
@@ -647,8 +650,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     hidePhotoGestureGuide();
   };
 
-  const saveSlots = async (): Promise<boolean> => {
-    if (!organize || !endpoint) return false;
+  const saveSlots = async (): Promise<OrganizeManifest | null> => {
+    if (!organize || !endpoint) return null;
     const manifest = {
       ...organize,
       slots: slots.slice(),
@@ -660,7 +663,7 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     };
     const ok = await writeJsonFile(endpoint, token, ORGANIZE_FILE, manifest);
     if (ok) setOrganize(manifest);
-    return ok;
+    return ok ? manifest : null;
   };
 
   const sendToPrint = async () => {
@@ -668,7 +671,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
     setSent(true);
     setStatus({ text: 'Mengirim bingkai …' });
     try {
-      if (!(await saveSlots())) throw new Error('gagal menyimpan susunan');
+      const saved = await saveSlots();
+      if (!saved) throw new Error('gagal menyimpan susunan');
       const reqId =
         'req_' +
         (typeof crypto !== 'undefined' && crypto.randomUUID
@@ -680,7 +684,10 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         slots: slots.slice(),
         adjustments: adjustments.slice(),
         by: 'organize',
-        status: 'requested' as const,
+        // This page renders the outputs itself; 'processing' keeps the booth
+        // from doing the same work at the same time.
+        status: 'processing' as const,
+        processingAt: Date.now(),
       };
       if (!(await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, payload))) {
         throw new Error('permintaan cetak gagal');
@@ -690,13 +697,50 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       await fetch(`${endpoint}/api/sessions/${encodeURIComponent(token)}/ready`, {
         method: 'POST',
       }).catch(() => {});
-      // From here the booth generates the framed outputs; keep the customer on
-      // a "Preparing your prints…" screen until every output is generated AND
-      // uploaded (request flips to 'handled'), then hand them to the gallery.
       setStatus({ text: 'Menyiapkan cetakan…', kind: 'ok' });
-      waitStartedRef.current = false;
+      setBoothSeen(true);
       setWaiting('busy');
-      void waitForCompletion();
+      // Render + upload the print, GIF and live GIF right here, from exactly
+      // what the guest chose, so nobody has to wait for the booth screen. The
+      // booth picks the finished print up for its queue. If this device cannot
+      // (old phone, no memory), hand the request back to the booth.
+      try {
+        const uploads = await buildArrangedOutputs(
+          endpoint,
+          token,
+          saved,
+          payload.slots,
+          payload.adjustments,
+          saved.outputs ?? { gif: true, framedLive: true },
+        );
+        const results = await uploadSessionFiles(uploads, endpoint, token);
+        const ok = results.every((result) => result.ok);
+        if (!ok) throw new Error('upload failed');
+        await writeJsonFile(endpoint, token, PRINT_RESULT_FILE, {
+          requestId: reqId,
+          printedAt: Date.now(),
+          status: 'ok',
+          message: 'Outputs generated on the organize page.',
+        });
+        await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...payload, status: 'handled' });
+        updateSessionRecord(token, {
+          files: uploads.map((file) => ({
+            name: file.name,
+            uploaded: true,
+            size: file.blob.size,
+            url: `${endpoint}/d/${token}/${file.name}`,
+          })),
+        });
+        setWaiting('done');
+        setStatus({ text: 'Foto Anda siap ✦', kind: 'ok' });
+        window.setTimeout(goToGallery, 900);
+      } catch (error) {
+        console.error('Generating on this device failed, the booth takes over:', error);
+        setBoothSeen(false);
+        await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...payload, status: 'requested' });
+        waitStartedRef.current = false;
+        void waitForCompletion();
+      }
     } catch {
       setSent(false);
       setStatus({ text: 'Tidak dapat mengirim. Coba lagi.', kind: 'err' });

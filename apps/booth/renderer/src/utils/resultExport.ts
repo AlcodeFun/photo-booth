@@ -390,14 +390,12 @@ const drawGifPhoto = (
   rect: { x: number; y: number; width: number; height: number },
   canvasFilter: string,
   adjust: GifAdjust,
+  mode: 'cover' | 'contain' = 'cover',
 ) => {
-  const fit = Math.max(rect.width / image.width, rect.height / image.height);
+  const fit = (mode === 'cover' ? Math.max : Math.min)(rect.width / image.width, rect.height / image.height);
   const drawWidth = image.width * fit;
   const drawHeight = image.height * fit;
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(rect.x, rect.y, rect.width, rect.height);
-  ctx.clip();
   ctx.filter = canvasFilter;
   ctx.translate(
     rect.x + rect.width / 2 + adjust.offsetX * rect.width,
@@ -453,14 +451,11 @@ export async function createResultGif(
 
   const canvasFilter = getCanvasFilter(filterId);
   const gif = GIFEncoder();
-  // The photo fills the overlay's transparent window (or the whole canvas).
+  // The photo covers the whole canvas and the overlay goes on top; its
+  // position is re-checked against the overlay's window so no empty area can
+  // show through (same limits as the preview).
   const photoWindow = overlay ? await detectOverlayWindow(overlayUrl) : FULL_WINDOW;
-  const photoRect = {
-    x: photoWindow.x * width,
-    y: photoWindow.y * height,
-    width: photoWindow.width * width,
-    height: photoWindow.height * height,
-  };
+  const mode = overlay ? 'cover' : 'contain';
 
   for (const url of photos) {
     try {
@@ -468,7 +463,8 @@ export async function createResultGif(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#111111';
       ctx.fillRect(0, 0, width, height);
-      drawGifPhoto(ctx, image, photoRect, canvasFilter, adjust);
+      const safe = clampGifAdjust(adjust, { imageAspect: image.width / image.height, boxAspect: width / height, mode, window: photoWindow });
+      drawGifPhoto(ctx, image, { x: 0, y: 0, width, height }, canvasFilter, safe, mode);
       if (overlay) ctx.drawImage(overlay, 0, 0, width, height);
 
       const imageData = ctx.getImageData(0, 0, width, height);

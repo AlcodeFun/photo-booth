@@ -407,7 +407,10 @@ const run = async (job: UploadJob) => {
       outputs.allPhotos
     ) {
       try {
-        const manifest = buildOrganizeManifest(job.frame, job.photoSlots, job.filterId);
+        const manifest = {
+          ...buildOrganizeManifest(job.frame, job.photoSlots, job.filterId),
+          outputs: { gif: outputs.gif, framedLive: outputs.framedLive },
+        };
         await uploadOrganizeManifest(endpoint, token, manifest);
       } catch (error) {
         console.error('Uploading organizer manifest failed:', error);

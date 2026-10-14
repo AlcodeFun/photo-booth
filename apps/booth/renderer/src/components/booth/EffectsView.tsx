@@ -121,10 +121,15 @@ export const GifPreview: React.FC<{
   }, [overlay?.url]);
   const windowRef = useRef(photoWindow);
   windowRef.current = photoWindow;
-  // Pan limits follow the real photo-in-window fit: it can move as far as it overflows.
-  const windowAspect = (ratio * photoWindow.width) / photoWindow.height;
+  // The photo covers the whole GIF (frame drawn on top); it may move only as
+  // far as it still covers the frame's window, so no black shows through.
   const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio, mode: 'cover' });
-  geometryRef.current = { imageAspect: photoAspect ?? windowAspect, boxAspect: windowAspect, mode: 'cover' };
+  geometryRef.current = {
+    imageAspect: photoAspect ?? ratio,
+    boxAspect: ratio,
+    mode: overlay ? 'cover' : 'contain',
+    window: photoWindow,
+  };
 
   const boxRef = useRef<HTMLDivElement>(null);
   const current = clampGifAdjust(adjust, geometryRef.current);
@@ -171,9 +176,8 @@ export const GifPreview: React.FC<{
     dragged.current = true;
     const a = currentRef.current;
     const next: Partial<GifAdjust> = {
-      // Offsets are fractions of the photo window, not the whole box.
-      offsetX: a.offsetX + (s.midX - g.midX) / (rect.width * windowRef.current.width),
-      offsetY: a.offsetY + (s.midY - g.midY) / (rect.height * windowRef.current.height),
+      offsetX: a.offsetX + (s.midX - g.midX) / rect.width,
+      offsetY: a.offsetY + (s.midY - g.midY) / rect.height,
     };
     if (pointers.current.size >= 2 && g.dist > 0 && s.dist > 0) next.scale = a.scale * (s.dist / g.dist);
     currentRef.current = clampGifAdjust({ ...a, ...next }, geometryRef.current);
@@ -233,23 +237,13 @@ export const GifPreview: React.FC<{
       }}
     >
       {photos[index % Math.max(1, photos.length)] && (
-        <div
-          className="absolute overflow-hidden"
-          style={{
-            left: `${photoWindow.x * 100}%`,
-            top: `${photoWindow.y * 100}%`,
-            width: `${photoWindow.width * 100}%`,
-            height: `${photoWindow.height * 100}%`,
-          }}
-        >
-          <img
-            src={photos[index % photos.length]}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{ filter, transform: gifAdjustTransform(current) }}
-            draggable={false}
-          />
-        </div>
+        <img
+          src={photos[index % photos.length]}
+          alt=""
+          className={`absolute inset-0 h-full w-full ${overlay ? 'object-cover' : 'object-contain'}`}
+          style={{ filter, transform: gifAdjustTransform(current) }}
+          draggable={false}
+        />
       )}
       {overlay && <img src={overlay.url} alt="" className="absolute inset-0 h-full w-full object-fill" draggable={false} />}
       {editable && (

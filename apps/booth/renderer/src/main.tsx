@@ -28,13 +28,17 @@ if (!isOrganizePath && !isAdminWindow) {
   startUploadWatcher();
   // Mirrors the admin's global access / print mode into this device's config.
   startBoothSettingsSync();
-  // Listens for arrangement requests the gallery customer makes after arranging
-  // their timed-flow photos onto the frame slots, then generates + uploads the
-  // framed outputs (the booth auto-queues framed.png from the Print Queue).
-  startPrintListener();
   // Owns the main-process print queue bridge: resolves framed images for jobs
   // just-in-time and mirrors job state onto each session's print_status.
   startPrintQueueSync();
+}
+
+// Flow 2 prints: takes the prints guests' phones generated into the queue, and
+// generates them here when a phone could not. Runs in the booth AND the admin
+// window, so the booth screen does not have to stay open (a request is claimed
+// with status 'processing', so two windows never render the same one).
+if (!isOrganizePath) {
+  startPrintListener();
 }
 
 // Auto-queues ready_to_print sessions once their framed sheet exists — no

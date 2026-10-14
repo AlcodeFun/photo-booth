@@ -19,23 +19,18 @@
  * in localStorage so the listener keeps working across renderer reloads and
  * after the booth resets for the next paying customer.
  */
-import { FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
 import { useBoothConfig } from '../store/boothConfigStore';
 import { useSessionStore } from '../store/sessionStore';
 import { GALLERY_URL } from '../config';
-import { generateQrDataUrl } from '../utils/qr';
-import { canvasToJpegBlob, createResultGif, createResultLiveFramed, renderComposition } from '../utils/resultExport';
-import { SessionUploadFile, uploadSessionFiles } from '../utils/sessionUpload';
+import { buildArrangedOutputs } from './arrangedOutputs';
+import { uploadSessionFiles } from '../utils/sessionUpload';
 import {
   fileUrl,
-  LIVE_CLIPS_FILE,
   ORGANIZE_FILE,
   PRINT_REQUEST_FILE,
   PRINT_RESULT_FILE,
-  photoIndexFromName,
   readJsonFile,
   readPrintTokens,
-  sessionUrl,
   trackPrintToken,
   untrackPrintToken,
   writeJsonFile,
@@ -43,15 +38,12 @@ import {
   PrintRequestFile,
 } from './organize';
 import { cacheUploadBlob, sessionFileUrl, updateSessionRecord } from './sessions';
-import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransform';
-import { photoSlotsFromUrls } from '../utils/photoSlots';
 
 const HANDLED_KEY = 'photo-booth.generated-requests';
 const READY_TOKENS_KEY = 'photo-booth.ready-tokens';
 const POLL_INTERVAL = 4000;
 /** One request may take a while (GIFs), but never block the listener for good. */
 const REQUEST_TIMEOUT = 3 * 60 * 1000;
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
 const readStringArray = (key: string): string[] => {
   try {
@@ -143,132 +135,21 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
     handledAdd(request.requestId);
   };
 
-  const template = manifest?.template ?? null;
-  const frameId = manifest?.frameId ?? null;
-  if (!manifest || !template || !frameId) {
+  if (!manifest) {
     await fail('No frame was picked for this session.');
     return;
   }
-  if (!slots || slots.length !== template.photoSlots.length || slots.some((slot) => !slot)) {
-    await fail('Frame arrangement is incomplete.');
-    return;
-  }
-
-  const adjustments = request.adjustments ?? manifest.adjustments;
-  const arrangedTemplate: FrameTemplateConfig = {
-    ...template,
-    photoSlots: template.photoSlots.map((placement, index) => {
-      const adjustment = adjustments?.[index];
-      return adjustment
-        ? {
-            ...placement,
-            objectPosition: `${clamp(adjustment.x, 0, 1) * 100}% ${clamp(adjustment.y, 0, 1) * 100}%`,
-            photoScale: clamp(adjustment.scale, 1, 3),
-            photoOffsetX: clamp(adjustment.offsetX ?? 0, 1 - clamp(adjustment.scale, 1, 3), 0),
-            photoOffsetY: clamp(adjustment.offsetY ?? 0, 1 - clamp(adjustment.scale, 1, 3), 0),
-          }
-        : placement;
-    }),
-  };
 
   try {
     const { outputs } = useBoothConfig.getState();
-
-    // Rebuild each arranged photo with its captured pre-shutter live-view clip
-    // so the framed "live photo" GIF animates every slot (the booth persisted
-    // these next to the raws in live-clips.json). Without them the output would
-    // fall back to the still photo and look frozen.
-    const liveClips: string[][] | null = outputs.framedLive
-      ? await readJsonFile<string[][]>(endpoint, token, LIVE_CLIPS_FILE)
-      : null;
-
-    // Build one virtual photo slot per arranged photo, URL-addressable from the
-    // gallery. template + filterId come from the persisted arrangement so the
-    // composed sheet matches what the customer arranged and approved.
-    // Rotate / mirror chosen on the organize page is baked into the raw (and
-    // its live clip) once per photo, so every output below matches the page.
-    const transformed = new Map<string, Promise<{ url: string; clip: string[] }>>();
-    const photoFor = (name: string) => {
-      let job = transformed.get(name);
-      if (!job) {
-        const t = manifest.transforms?.[name];
-        const clip = liveClips ? (liveClips[photoIndexFromName(name)] ?? []) : [];
-        const url = fileUrl(endpoint, token, name);
-        job =
-          t && !isIdentityTransform(t)
-            ? Promise.all([applyPhotoTransform(url, t), Promise.all(clip.map((f) => applyPhotoTransform(f, t, 0.8)))]).then(
-                ([u, c]) => ({ url: u, clip: c }),
-              )
-            : Promise.resolve({ url, clip });
-        transformed.set(name, job);
-      }
-      return job;
-    };
-
-    const photoSlots: PhotoSlotState[] = await Promise.all(
-      slots.map(async (name, index) => {
-        const placement = arrangedTemplate.photoSlots[index];
-        const photo = name ? await photoFor(name) : null;
-        return {
-          slotNumber: placement.slotNumber,
-          maxAttempts: 1,
-          attempts: photo
-            ? [
-                {
-                  attemptNumber: 1,
-                  status: 'CAPTURED' as const,
-                  localPath: photo.url,
-                  ...(photo.clip.length > 0 ? { liveFrames: photo.clip } : {}),
-                },
-              ]
-            : [],
-          selectedAttempt: photo ? 1 : undefined,
-        };
-      }),
+    const uploads = await buildArrangedOutputs(
+      endpoint,
+      token,
+      manifest,
+      slots,
+      request.adjustments ?? manifest.adjustments,
+      outputs,
     );
-
-    const frame = {
-      id: frameId,
-      name: 'gallery arrangement',
-      previewUrl: '',
-      template: arrangedTemplate,
-    };
-
-    const qrCodeUrl = arrangedTemplate.qrSlots?.length
-      ? (await generateQrDataUrl(sessionUrl(endpoint, token), 256).catch(() => null)) ?? undefined
-      : undefined;
-
-    // Collect the booth's output toggles into concrete files. framed.png is the
-    // sheet the admin prints from, so it is always produced for a valid request
-    // even if the booth's "Framed" toggle is off — the row says ready_to_print.
-    const uploads: SessionUploadFile[] = [];
-    const canvas = await renderComposition(frame, photoSlots, manifest.filterId, {
-      includeFrame: true,
-      qrCodeUrl,
-      template: arrangedTemplate,
-    });
-    const framedBlob = await canvasToJpegBlob(canvas);
-    if (!framedBlob) {
-      throw new Error('Composing the framed sheet produced no image.');
-    }
-    uploads.push({ blob: framedBlob, name: 'framed.png' });
-
-    if (outputs.gif) {
-      // GIF = original raws placed on the frame, in capture order, without the
-      // organize rotate/mirror and without the filter.
-      const originals = [...new Set(slots.filter((name): name is string => Boolean(name)))]
-        .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
-        .map((name) => fileUrl(endpoint, token, name));
-      const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null, {
-        overlayUrl: manifest.gifFrameUrl ?? null,
-        adjust: manifest.gifAdjust ?? null,
-      });
-      uploads.push({ blob: gifBlob, name: 'result.gif' });
-    }
-    if (outputs.framedLive) {
-      const liveBlob = await createResultLiveFramed(frame, photoSlots);
-      uploads.push({ blob: liveBlob, name: 'result-live.gif' });
-    }
 
     // Mirror the outputs to IndexedDB first (admin reprint needs the blob even
     // if the current gallery state is stale or was reset), then push upstream.
@@ -304,6 +185,31 @@ const handleRequest = async (token: string, request: PrintRequestFile): Promise<
   }
 };
 
+/**
+ * A request finished by another device (the organize page renders and uploads
+ * the outputs itself): cache framed.png locally and hand the session to the
+ * auto-queue, exactly like a print generated here. True when done.
+ */
+const adoptGeneratedPrint = async (token: string, request: PrintRequestFile): Promise<boolean> => {
+  if (!GALLERY_URL) return false;
+  const result = await readJsonFile<{ requestId?: string; status?: string }>(GALLERY_URL, token, PRINT_RESULT_FILE);
+  if (!result || result.requestId !== request.requestId || result.status !== 'ok') {
+    // Failed or unrelated result: nothing to print.
+    handledAdd(request.requestId);
+    return true;
+  }
+  try {
+    const response = await fetch(`${fileUrl(GALLERY_URL, token, 'framed.png')}?ts=${Date.now()}`);
+    if (!response.ok) return false;
+    await cacheUploadBlob(token, 'framed.png', await response.blob());
+    registerReadySession(token);
+    handledAdd(request.requestId);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 const pollOnce = async () => {
   if (!GALLERY_URL || processing) {
     return;
@@ -311,8 +217,14 @@ const pollOnce = async () => {
   const tokens = readPrintTokens();
   for (const token of tokens) {
     const request = await readJsonFile<PrintRequestFile>(GALLERY_URL, token, PRINT_REQUEST_FILE);
+    if (request?.status === 'handled' && !handledHas(request.requestId)) {
+      // Generated elsewhere (normally the guest's phone): take the print into
+      // this booth's queue. Keep tracking if the download failed, to retry.
+      if (await adoptGeneratedPrint(token, request)) untrackPrintToken(token);
+      continue;
+    }
     if (request && (request.status === 'handled' || handledHas(request.requestId))) {
-      // Done (here or elsewhere): stop polling it so open sessions keep their place.
+      // Done here: stop polling it so open sessions keep their place.
       untrackPrintToken(token);
       continue;
     }
@@ -326,6 +238,17 @@ const pollOnce = async () => {
     // still be arranging. Skipping it here lets a later (complete) request win.
     if (request.slots && request.slots.some((slot) => !slot)) {
       continue;
+    }
+
+    // The booth and admin windows share localStorage: a fresh lock means the
+    // other window is already rendering this request.
+    const lockKey = `photo-booth.print-lock.${request.requestId}`;
+    try {
+      const held = Number(localStorage.getItem(lockKey) ?? 0);
+      if (Date.now() - held < REQUEST_TIMEOUT) continue;
+      localStorage.setItem(lockKey, String(Date.now()));
+    } catch {
+      // No storage: worst case both windows render the same request.
     }
 
     processing = true;

@@ -53,6 +53,8 @@ export interface OrganizeManifest {
   gifFrameUrl?: string | null;
   /** Zoom / pan / mirror of the GIF photos (absent = as captured). */
   gifAdjust?: GifAdjust | null;
+  /** The booth's output toggles, so whoever renders makes the same files. */
+  outputs?: { gif: boolean; framedLive: boolean };
 }
 
 export interface OrganizePhotoAdjustment {
