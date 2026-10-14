@@ -7,12 +7,15 @@ import { resolveFrameTemplate } from '../../utils/frameConfig';
 import {
   clampGifAdjust,
   DEFAULT_GIF_ADJUST,
-  gifAdjustTransform,
+  FULL_GIF_WINDOW,
+  gifCanvasAspect,
+  gifPhotoBase,
   isDefaultGifAdjust,
   type GifAdjust,
   type GifGeometry,
+  type GifWindow,
 } from '../../utils/gifAdjust';
-import { detectOverlayWindow, FULL_WINDOW, type OverlayWindow } from '../../utils/overlayWindow';
+import { detectOverlayWindow } from '../../utils/overlayWindow';
 
 export interface EffectsGifFrame {
   id: string;
@@ -74,15 +77,28 @@ const useImageAspect = (url: string | undefined): number | null => {
   return aspect;
 };
 
+/** The GIF frame's transparent window (whole canvas without a frame). */
+const useGifWindow = (overlay: EffectsGifFrame | null): GifWindow => {
+  const [win, setWin] = useState<GifWindow>(FULL_GIF_WINDOW);
+  useEffect(() => {
+    let alive = true;
+    setWin(FULL_GIF_WINDOW);
+    if (overlay?.url) void detectOverlayWindow(overlay.url).then((found) => alive && setWin(found));
+    return () => {
+      alive = false;
+    };
+  }, [overlay?.url]);
+  return win;
+};
+
 /**
- * Aspect ratio of the GIF: the overlay's, else the photos' own (the encoder
- * sizes a plain GIF from the first photo), so the preview crops exactly like
- * the file does.
+ * Aspect ratio of the GIF, exactly like the encoder: shaped so the frame's
+ * window has the original photo ratio (the photo's own shape without a frame).
  */
 export const useGifAspect = (overlay: EffectsGifFrame | null, photos: string[]): number => {
   const photoAspect = useImageAspect(photos[0]);
-  if (overlay && overlay.width && overlay.height) return overlay.width / overlay.height;
-  return photoAspect ?? 4 / 3;
+  const win = useGifWindow(overlay);
+  return gifCanvasAspect(photoAspect ?? 3 / 2, win);
 };
 
 /**
@@ -108,28 +124,12 @@ export const GifPreview: React.FC<{
   }, [photos.length]);
   const ratio = useGifAspect(overlay, photos);
   const photoAspect = useImageAspect(photos[0]);
-  // The photo covers the overlay's transparent window (same as the encoder),
-  // so the frame border never crops it and moving never shows empty space.
-  const [photoWindow, setPhotoWindow] = useState<OverlayWindow>(FULL_WINDOW);
-  useEffect(() => {
-    let alive = true;
-    setPhotoWindow(FULL_WINDOW);
-    detectOverlayWindow(overlay?.url).then((found) => alive && setPhotoWindow(found));
-    return () => {
-      alive = false;
-    };
-  }, [overlay?.url]);
-  const windowRef = useRef(photoWindow);
-  windowRef.current = photoWindow;
-  // The photo covers the whole GIF (frame drawn on top); it may move only as
-  // far as it still covers the frame's window, so no black shows through.
-  const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio, mode: 'cover' });
-  geometryRef.current = {
-    imageAspect: photoAspect ?? ratio,
-    boxAspect: ratio,
-    mode: overlay ? 'cover' : 'contain',
-    window: photoWindow,
-  };
+  const photoWindow = useGifWindow(overlay);
+  // Same geometry as the encoder: the photo covers the frame's window (which
+  // has the photo's own ratio) and may move only while it still covers it.
+  const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio });
+  geometryRef.current = { imageAspect: photoAspect ?? 3 / 2, boxAspect: ratio, window: photoWindow };
+  const base = gifPhotoBase(geometryRef.current);
 
   const boxRef = useRef<HTMLDivElement>(null);
   const current = clampGifAdjust(adjust, geometryRef.current);
@@ -240,8 +240,18 @@ export const GifPreview: React.FC<{
         <img
           src={photos[index % photos.length]}
           alt=""
-          className={`absolute inset-0 h-full w-full ${overlay ? 'object-cover' : 'object-contain'}`}
-          style={{ filter, transform: gifAdjustTransform(current) }}
+          className="absolute max-w-none object-cover"
+          style={{
+            left: `${(photoWindow.x + photoWindow.width / 2 - base.width / 2) * 100}%`,
+            top: `${(photoWindow.y + photoWindow.height / 2 - base.height / 2) * 100}%`,
+            width: `${base.width * 100}%`,
+            height: `${base.height * 100}%`,
+            filter,
+            // translate in % of the element: canvas fraction / element fraction
+            transform: isDefaultGifAdjust(current)
+              ? undefined
+              : `translate(${(current.offsetX / base.width) * 100}%, ${(current.offsetY / base.height) * 100}%) scale(${current.scale}) scaleX(${current.flip ? -1 : 1})`,
+          }}
           draggable={false}
         />
       )}

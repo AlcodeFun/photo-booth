@@ -2,9 +2,10 @@ import { FrameConfig, FramePhotoPlacement, FrameQRPlacement, FrameTemplateConfig
 import { resolveFrameTemplate, resolveObjectPosition } from './frameConfig';
 import { getSelectedPhotoUrls, getSelectedLiveFrames } from './photoSlots';
 import { getCanvasFilter } from './filters';
+import { filteredSource } from './canvasFilter';
 import { downloadBlob, downloadStamp } from './download';
-import { clampGifAdjust, type GifAdjust } from './gifAdjust';
-import { detectOverlayWindow, FULL_WINDOW } from './overlayWindow';
+import { clampGifAdjust, FULL_GIF_WINDOW, gifCanvasAspect, type GifAdjust, type GifWindow } from './gifAdjust';
+import { detectOverlayWindow } from './overlayWindow';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -104,7 +105,9 @@ const drawSlotImage = async (
   drawX = x + (width - drawWidth) * position.x;
   drawY = y + (height - drawHeight) * position.y;
 
-  ctx.filter = canvasFilter;
+  // Pre-filtered copy where the browser ignores ctx.filter (iPhone Safari).
+  const filtered = filteredSource(image, canvasFilter);
+  ctx.filter = filtered.ctxFilter;
   const photoScale = Math.max(1, slot.photoScale ?? 1);
   const photoOffsetX = slot.photoOffsetX ?? 0;
   const photoOffsetY = slot.photoOffsetY ?? 0;
@@ -115,7 +118,7 @@ const drawSlotImage = async (
     ctx.scale(photoScale, photoScale);
     ctx.translate(-x, -y);
   }
-  ctx.drawImage(image, drawX, drawY, drawWidth, drawHeight);
+  ctx.drawImage(filtered.image, drawX, drawY, drawWidth, drawHeight);
   ctx.filter = 'none';
   ctx.restore();
 };
@@ -349,8 +352,9 @@ export const applyPhotoFilter = (
     if (!ctx) {
       return null;
     }
-    ctx.filter = getCanvasFilter(filterId);
-    ctx.drawImage(image, 0, 0);
+    const filtered = filteredSource(image, getCanvasFilter(filterId));
+    ctx.filter = filtered.ctxFilter;
+    ctx.drawImage(filtered.image, 0, 0, image.width, image.height);
     ctx.filter = 'none';
     return canvasToJpegBlob(canvas);
   });
@@ -379,30 +383,32 @@ export async function downloadFramedPhoto(
 }
 
 /**
- * Draws a photo covering the photo window (the overlay's transparent area, or
- * the whole canvas), clipped to it, then applies the guest's zoom / pan /
- * mirror around the window center — the same math as the CSS preview
- * (gifAdjustTransform on a box the size of the window).
+ * Draws one GIF photo: covering the frame's window (which has the photo's
+ * own aspect, so at 1x the whole photo is visible), centred on the window,
+ * then the guest's zoom / pan (canvas fractions) / mirror. Not clipped: the
+ * frame overlay drawn afterwards covers whatever spills past the window.
  */
 const drawGifPhoto = (
   ctx: CanvasRenderingContext2D,
   image: HTMLImageElement,
-  rect: { x: number; y: number; width: number; height: number },
+  canvas: { width: number; height: number },
+  win: GifWindow,
   canvasFilter: string,
   adjust: GifAdjust,
-  mode: 'cover' | 'contain' = 'cover',
 ) => {
-  const fit = (mode === 'cover' ? Math.max : Math.min)(rect.width / image.width, rect.height / image.height);
+  const rect = { x: win.x * canvas.width, y: win.y * canvas.height, width: win.width * canvas.width, height: win.height * canvas.height };
+  const fit = Math.max(rect.width / image.width, rect.height / image.height);
   const drawWidth = image.width * fit;
   const drawHeight = image.height * fit;
+  const filtered = filteredSource(image, canvasFilter);
   ctx.save();
-  ctx.filter = canvasFilter;
+  ctx.filter = filtered.ctxFilter;
   ctx.translate(
-    rect.x + rect.width / 2 + adjust.offsetX * rect.width,
-    rect.y + rect.height / 2 + adjust.offsetY * rect.height,
+    rect.x + rect.width / 2 + adjust.offsetX * canvas.width,
+    rect.y + rect.height / 2 + adjust.offsetY * canvas.height,
   );
   ctx.scale(adjust.scale * (adjust.flip ? -1 : 1), adjust.scale);
-  ctx.drawImage(image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
+  ctx.drawImage(filtered.image, -drawWidth / 2, -drawHeight / 2, drawWidth, drawHeight);
   ctx.filter = 'none';
   ctx.restore();
 };
@@ -436,10 +442,12 @@ export async function createResultGif(
   // An overlay that fails to load is skipped: a plain GIF beats no GIF.
   const overlay = overlayUrl ? await loadImage(overlayUrl).catch(() => null) : null;
 
-  // Without an overlay the camera's fixed aspect ratio sizes the canvas (from
-  // the first photo) and every photo is drawn to fit without cropping.
-  const sizing = overlay ?? (await loadImage(photos[0]));
-  const height = Math.max(1, Math.round((width / sizing.width) * sizing.height));
+  // The original photo ratio shapes the GIF: the canvas is sized so the
+  // frame's window has exactly the photo's aspect (the frame stretches to
+  // fit); without a frame the GIF is simply the photo's shape.
+  const first = await loadImage(photos[0]);
+  const photoWindow: GifWindow = overlay ? await detectOverlayWindow(overlayUrl) : FULL_GIF_WINDOW;
+  const height = Math.max(1, Math.round(width / gifCanvasAspect(first.width / first.height, photoWindow)));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;
@@ -451,11 +459,6 @@ export async function createResultGif(
 
   const canvasFilter = getCanvasFilter(filterId);
   const gif = GIFEncoder();
-  // The photo covers the whole canvas and the overlay goes on top; its
-  // position is re-checked against the overlay's window so no empty area can
-  // show through (same limits as the preview).
-  const photoWindow = overlay ? await detectOverlayWindow(overlayUrl) : FULL_WINDOW;
-  const mode = overlay ? 'cover' : 'contain';
 
   for (const url of photos) {
     try {
@@ -463,8 +466,9 @@ export async function createResultGif(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.fillStyle = '#111111';
       ctx.fillRect(0, 0, width, height);
-      const safe = clampGifAdjust(adjust, { imageAspect: image.width / image.height, boxAspect: width / height, mode, window: photoWindow });
-      drawGifPhoto(ctx, image, { x: 0, y: 0, width, height }, canvasFilter, safe, mode);
+      // Saved positions are re-checked so the photo always covers the window.
+      const safe = clampGifAdjust(adjust, { imageAspect: image.width / image.height, boxAspect: width / height, window: photoWindow });
+      drawGifPhoto(ctx, image, { width, height }, photoWindow, canvasFilter, safe);
       if (overlay) ctx.drawImage(overlay, 0, 0, width, height);
 
       const imageData = ctx.getImageData(0, 0, width, height);
