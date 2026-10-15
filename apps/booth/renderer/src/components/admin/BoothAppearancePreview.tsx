@@ -243,6 +243,14 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
     return [bumper, unlock, tutorial, frameSelect, ...captureReviewPair, arrange, effects, results, complete];
   }, [appearance, copy, theme, flowMode]);
 
+  // Booth display (16:9) or a guest's phone. On a small admin screen the
+  // phone view is the readable default.
+  const [device, setDevice] = useState<'booth' | 'phone'>(() =>
+    typeof window !== 'undefined' && window.innerWidth < 640 ? 'phone' : 'booth',
+  );
+  const [enlarged, setEnlarged] = useState(false);
+  const base = device === 'phone' ? { w: 390, h: 844 } : { w: 1280, h: 720 };
+
   const safeIndex = Math.min(index, slides.length - 1);
   const current = slides[safeIndex];
 
@@ -268,7 +276,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
   return (
     <div className="flex flex-col gap-3">
       {/* Flow tabs — the customer only ever sees one of these journeys. */}
-      <div className="flex flex-wrap gap-1.5">
+      <div className="pb-scroll -mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
         {FLOW_ORDER.map((flow) => (
           <button
             key={flow}
@@ -277,7 +285,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
               setIndex(0);
               onFlowChange?.(flow);
             }}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-colors ${
+            className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-bold capitalize transition-colors ${
               flow === flowMode
                 ? 'bg-white text-slate-900'
                 : 'bg-white/10 text-white/70 hover:bg-white/20'
@@ -288,18 +296,81 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
         ))}
       </div>
 
+      {/* Device + enlarge */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-0.5" role="group" aria-label="Preview device">
+          {(['booth', 'phone'] as const).map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setDevice(d)}
+              aria-pressed={device === d}
+              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                device === d ? 'bg-white text-slate-900' : 'text-white/70 hover:text-white'
+              }`}
+            >
+              {d === 'booth' ? '🖥 Booth' : '📱 Phone'}
+            </button>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() => setEnlarged(true)}
+          className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/80 hover:bg-white/20"
+        >
+          ⤢ Enlarge
+        </button>
+      </div>
+
       <BoothPreviewStage
+        key={device}
         className="w-full"
-        frameClassName="rounded-lg border border-white/15"
+        frameClassName={`rounded-lg border border-white/15 ${device === 'phone' ? 'rounded-[22px]' : ''}`}
         // The configured booth background (color or image) paints the stage, so
         // screens without their own background show it instead of bare black.
         frameStyle={appearanceBackgroundStyle(appearance)}
+        baseWidth={base.w}
+        baseHeight={base.h}
+        maxHeightVh={device === 'phone' ? 70 : 72}
       >
         {current.render()}
       </BoothPreviewStage>
 
+      {enlarged && (
+        <div
+          className="fixed inset-0 z-[300] flex flex-col gap-3 bg-pbx-ui-bg p-3 sm:p-6"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setEnlarged(false)}
+        >
+          <div className="flex items-center justify-between gap-2 text-sm text-white" onClick={(e) => e.stopPropagation()}>
+            <span className="truncate font-semibold">
+              {current.label} · {safeIndex + 1}/{slides.length}
+            </span>
+            <div className="flex shrink-0 items-center gap-2">
+              <button type="button" onClick={() => go(safeIndex - 1)} className="rounded-md bg-white/15 px-3 py-1.5" aria-label="Previous screen">‹</button>
+              <button type="button" onClick={() => go(safeIndex + 1)} className="rounded-md bg-white/15 px-3 py-1.5" aria-label="Next screen">›</button>
+              <button type="button" onClick={() => setEnlarged(false)} className="rounded-md bg-white px-3 py-1.5 font-semibold text-slate-900">Close</button>
+            </div>
+          </div>
+          <div className="grid min-h-0 flex-1 place-items-center" onClick={(e) => e.stopPropagation()}>
+            <BoothPreviewStage
+              key={`big-${device}`}
+              className="w-full"
+              frameClassName="rounded-lg"
+              frameStyle={appearanceBackgroundStyle(appearance)}
+              baseWidth={base.w}
+              baseHeight={base.h}
+              maxHeightVh={84}
+            >
+              {current.render()}
+            </BoothPreviewStage>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5">
+        <div className="hidden items-center gap-1.5 lg:flex">
           {slides.map((slide, i) => (
             <button
               key={slide.key}
@@ -314,14 +385,23 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-white/60">
-          <span className="font-semibold">
-            {current.label} · {safeIndex + 1}/{slides.length}
-          </span>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 text-xs text-white/60 lg:flex-none">
+          <select
+            value={safeIndex}
+            onChange={(e) => setIndex(Number(e.target.value))}
+            aria-label="Preview screen"
+            className="min-w-0 flex-1 truncate rounded-md border border-white/15 bg-pbx-ui-panel px-2 py-1.5 text-xs font-semibold text-white focus:outline-none lg:flex-none"
+          >
+            {slides.map((slide, i) => (
+              <option key={slide.key} value={i}>
+                {i + 1}. {slide.label}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => go(safeIndex - 1)}
-            className="rounded-md bg-white/10 px-2 py-1 text-white/80 hover:bg-white/20"
+            className="shrink-0 rounded-md bg-white/10 px-3 py-1.5 text-white/80 hover:bg-white/20"
             aria-label="Previous screen"
           >
             ‹
@@ -329,7 +409,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
           <button
             type="button"
             onClick={() => go(safeIndex + 1)}
-            className="rounded-md bg-white/10 px-2 py-1 text-white/80 hover:bg-white/20"
+            className="shrink-0 rounded-md bg-white/10 px-3 py-1.5 text-white/80 hover:bg-white/20"
             aria-label="Next screen"
           >
             ›

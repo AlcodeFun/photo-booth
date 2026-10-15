@@ -15,6 +15,11 @@ export interface BoothPreviewStageProps {
   frameClassName?: string;
   /** Inline styles for the scaled 16:9 box — the booth background lives here. */
   frameStyle?: React.CSSProperties;
+  /** Logical screen size (default: the 1280 x 720 booth display). */
+  baseWidth?: number;
+  baseHeight?: number;
+  /** Viewport height share the preview may take (default 72vh). */
+  maxHeightVh?: number;
 }
 
 /**
@@ -37,6 +42,9 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
   className,
   frameClassName,
   frameStyle,
+  baseWidth = BASE_WIDTH,
+  baseHeight = BASE_HEIGHT,
+  maxHeightVh = 72,
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -51,7 +59,7 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
     // inside it.
     const sync = (frameWidth: number) => {
       if (frameWidth <= 0) return;
-      content.style.zoom = String(frameWidth / BASE_WIDTH);
+      content.style.zoom = String(frameWidth / baseWidth);
     };
 
     const measure = () => sync(frame.getBoundingClientRect().width);
@@ -68,7 +76,7 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
       observer.disconnect();
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [baseWidth]);
 
   return (
     <div className={className}>
@@ -80,13 +88,13 @@ export const BoothPreviewStage: React.FC<BoothPreviewStageProps> = ({
         ref={frameRef}
         className={`relative mx-auto w-full overflow-hidden ${frameClassName ?? ''}`}
         style={{
-          aspectRatio: `${BASE_WIDTH} / ${BASE_HEIGHT}`,
-          maxWidth: 'calc(72vh * 16 / 9)',
+          aspectRatio: `${baseWidth} / ${baseHeight}`,
+          maxWidth: `calc(${maxHeightVh}dvh * ${baseWidth} / ${baseHeight})`,
           contain: 'layout paint',
           ...frameStyle,
         }}
       >
-        <div ref={contentRef} style={{ width: BASE_WIDTH, height: BASE_HEIGHT }}>
+        <div ref={contentRef} style={{ width: baseWidth, height: baseHeight }}>
           {children}
         </div>
       </div>
