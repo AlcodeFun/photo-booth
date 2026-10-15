@@ -14,7 +14,7 @@ import {
   IconTemplates,
 } from './AdminIcons';
 import { ConfirmModal } from './Modal';
-import { KELANA_CREAM, KelanaLogo, KelanaMark } from '../brand/KelanaLogo';
+import { KelanaMark, KelanaWordmark } from '../brand/KelanaLogo';
 
 export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'voucher' | 'gif-frames' | 'appearance';
 
@@ -94,7 +94,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
       >
         <div className={`flex items-center gap-3 py-5 ${collapsed ? 'justify-center' : 'px-4'}`}>
           <button
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#F5EBDD] p-1 shadow-[0_0_18px_rgba(245,235,221,0.25)] transition hover:scale-105"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white p-1 shadow-[0_0_18px_rgba(255,255,255,0.2)] transition hover:scale-105"
             onClick={() => onNavigate('dashboard')}
             aria-label="Admin home"
           >
@@ -102,7 +102,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </button>
           {!collapsed && (
             <div className="leading-tight">
-              <KelanaLogo className="h-[22px] w-auto" ink={KELANA_CREAM} title="Kelana" />
+              <KelanaWordmark className="h-[15px] w-auto" variant="light" title="Kelana" />
               <p className="mt-0.5 text-[11px] font-medium uppercase tracking-widest text-pbx-ui-hi">Admin</p>
             </div>
           )}

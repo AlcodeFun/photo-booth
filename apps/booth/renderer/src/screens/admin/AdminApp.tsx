@@ -49,7 +49,7 @@ const setHash = (area: AdminArea) => {
 
 const Splash = () => (
   <div className="flex min-h-screen items-center justify-center bg-pbx-ui-bg">
-    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-[#F5EBDD] p-1.5">
+    <div className="grid h-16 w-16 animate-pulse place-items-center rounded-2xl bg-white p-1.5">
       <KelanaMark className="h-full w-full" />
     </div>
   </div>
