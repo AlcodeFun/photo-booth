@@ -191,13 +191,18 @@ export const sessionGalleryUrl = (token: string): string | null =>
 
 const IDB_NAME = 'photo-booth-uploads';
 const IDB_STORE = 'blobs';
+/** One row per session token: when its blobs were last cached (drives cleanup). */
+const IDB_TOKENS = 'tokens';
 
 const openUploadDb = (): Promise<IDBDatabase> =>
   new Promise((resolve, reject) => {
-    const request = indexedDB.open(IDB_NAME, 1);
+    const request = indexedDB.open(IDB_NAME, 2);
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(IDB_STORE)) {
         request.result.createObjectStore(IDB_STORE, { keyPath: 'key' });
+      }
+      if (!request.result.objectStoreNames.contains(IDB_TOKENS)) {
+        request.result.createObjectStore(IDB_TOKENS, { keyPath: 'token' });
       }
     };
     request.onsuccess = () => resolve(request.result);
@@ -219,13 +224,92 @@ const withStore = async <T>(
 };
 
 /** Mirrors an uploaded blob locally so a later "reupload" can push it again. */
-export const cacheUploadBlob = (token: string, name: string, blob: Blob): Promise<void> =>
-  withStore('readwrite', (store) =>
-    store.put({ key: `${token}/${name}`, name, blob }),
-  ).then(
-    () => undefined,
-    (error) => console.warn('[sessions] cache write skipped:', error),
-  );
+export const cacheUploadBlob = async (token: string, name: string, blob: Blob): Promise<void> => {
+  try {
+    const db = await openUploadDb();
+    const tx = db.transaction([IDB_STORE, IDB_TOKENS], 'readwrite');
+    tx.objectStore(IDB_STORE).put({ key: `${token}/${name}`, name, blob });
+    tx.objectStore(IDB_TOKENS).put({ token, cachedAt: Date.now() });
+    await txDone(tx);
+    db.close();
+  } catch (error) {
+    console.warn('[sessions] cache write skipped:', error);
+  }
+};
+
+const txDone = (tx: IDBTransaction): Promise<void> =>
+  new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error ?? new Error('IndexedDB transaction failed'));
+    tx.onabort = () => reject(tx.error ?? new Error('IndexedDB transaction aborted'));
+  });
+
+const tokenRange = (token: string) => IDBKeyRange.bound(`${token}/`, `${token}/￿`);
+
+/** Removes every locally cached blob of these sessions (used when sessions are deleted). */
+export const deleteUploadedBlobs = async (tokens: string[]): Promise<void> => {
+  if (tokens.length === 0) return;
+  try {
+    const db = await openUploadDb();
+    const tx = db.transaction([IDB_STORE, IDB_TOKENS], 'readwrite');
+    for (const token of tokens) {
+      tx.objectStore(IDB_STORE).delete(tokenRange(token));
+      tx.objectStore(IDB_TOKENS).delete(token);
+    }
+    await txDone(tx);
+    db.close();
+  } catch (error) {
+    console.warn('[sessions] cache delete skipped:', error);
+  }
+};
+
+/**
+ * Drops cached blobs of sessions last cached more than `maxAgeMs` ago, except
+ * those `keep` still needs (uploads not finished). Sessions cached before
+ * timestamps existed are stamped now, so they age out from today. Returns the
+ * number of sessions removed.
+ */
+export const pruneUploadCache = async (maxAgeMs: number, keep: (token: string) => boolean): Promise<number> => {
+  try {
+    const db = await openUploadDb();
+    const read = db.transaction([IDB_STORE, IDB_TOKENS], 'readonly');
+    const keysRequest = read.objectStore(IDB_STORE).getAllKeys();
+    const metaRequest = read.objectStore(IDB_TOKENS).getAll();
+    await txDone(read);
+
+    const cachedTokens = new Set<string>();
+    for (const key of keysRequest.result) {
+      const value = String(key);
+      const slash = value.indexOf('/');
+      if (slash > 0) cachedTokens.add(value.slice(0, slash));
+    }
+    const cachedAt = new Map<string, number>();
+    for (const row of metaRequest.result as { token: string; cachedAt: number }[]) {
+      cachedAt.set(row.token, row.cachedAt);
+    }
+
+    const now = Date.now();
+    const unstamped = [...cachedTokens].filter((token) => !cachedAt.has(token));
+    if (unstamped.length > 0) {
+      const stamp = db.transaction(IDB_TOKENS, 'readwrite');
+      for (const token of unstamped) stamp.objectStore(IDB_TOKENS).put({ token, cachedAt: now });
+      await txDone(stamp);
+    }
+    db.close();
+
+    const stale = [...cachedTokens].filter((token) => {
+      const at = cachedAt.get(token);
+      return at !== undefined && now - at > maxAgeMs && !keep(token);
+    });
+    // Metadata rows whose blobs are already gone.
+    const orphans = [...cachedAt.keys()].filter((token) => !cachedTokens.has(token));
+    await deleteUploadedBlobs([...stale, ...orphans]);
+    return stale.length;
+  } catch (error) {
+    console.warn('[sessions] cache cleanup skipped:', error);
+    return 0;
+  }
+};
 
 export const getUploadedBlob = async (token: string, name: string): Promise<Blob | null> => {
   try {

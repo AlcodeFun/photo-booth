@@ -20,6 +20,7 @@ import {
   cacheUploadBlob,
   createSessionRecord,
   listUploadedBlobs,
+  pruneUploadCache,
   sessionFileUrl,
   updateSessionRecord,
   SessionFileState,
@@ -496,6 +497,21 @@ const resumePendingUploads = async () => {
   }
 };
 
+/** Local copies of finished uploads are kept this long (for admin re-upload / reprint). */
+const UPLOAD_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const UPLOAD_CACHE_SWEEP_MS = 6 * 60 * 60 * 1000;
+
+/** Frees local copies of old sessions; never touches the current or a still-uploading session. */
+const pruneOldUploads = async () => {
+  const unfinished = new Set(readPendingUploads().map((record) => record.token));
+  const busy = new Set([...runningJobs.values()].map((job) => job.token));
+  const removed = await pruneUploadCache(
+    UPLOAD_CACHE_MAX_AGE_MS,
+    (token) => unfinished.has(token) || busy.has(token) || stillCurrentToken(token),
+  );
+  if (removed > 0) console.info(`[uploadJob] cleared local copies of ${removed} old session(s)`);
+};
+
 let started = false;
 
 /** Boots the upload watcher once. Call at app startup (store-level, not a component). */
@@ -504,5 +520,6 @@ export const startUploadWatcher = () => {
   started = true;
   useSessionStore.subscribe(maybeStart);
   maybeStart();
-  void resumePendingUploads();
+  void resumePendingUploads().finally(() => void pruneOldUploads());
+  setInterval(() => void pruneOldUploads(), UPLOAD_CACHE_SWEEP_MS);
 };

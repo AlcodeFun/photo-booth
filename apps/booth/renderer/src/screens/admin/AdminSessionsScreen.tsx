@@ -5,6 +5,7 @@ import {
   SessionRecord,
   SessionUploadStatus,
   deleteSessions,
+  deleteUploadedBlobs,
   getUploadedBlob,
   listSessions,
   sessionFileUrl,
@@ -672,6 +673,7 @@ export const AdminSessionsScreen: React.FC = () => {
       }
       await deleteSessions(tokens);
       dropPendingUploads(tokens);
+      await deleteUploadedBlobs(tokens);
       setSelected(new Set());
       setDeleteOpen(false);
       await refresh(true);
