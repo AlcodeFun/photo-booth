@@ -14,7 +14,7 @@ import {
   IconTemplates,
 } from './AdminIcons';
 import { ConfirmModal } from './Modal';
-import { KelanaMark, KelanaWordmark } from '../brand/KelanaLogo';
+import { KelanaMark } from '../brand/KelanaLogo';
 
 export type AdminNavArea = 'dashboard' | 'sesi' | 'templates' | 'print-queue' | 'voucher' | 'gif-frames' | 'appearance';
 
@@ -102,8 +102,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({
           </button>
           {!collapsed && (
             <div className="leading-tight">
-              <KelanaWordmark className="h-[15px] w-auto" variant="light" title="Kelana" />
-              <p className="mt-0.5 text-[11px] font-medium uppercase tracking-widest text-pbx-ui-hi">Admin</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-pbx-ui-hi">Admin</p>
             </div>
           )}
         </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KelanaMark, KelanaWordmark } from '../../components/brand/KelanaLogo';
+import { KelanaMark } from '../../components/brand/KelanaLogo';
 import { signInAdmin } from '../../lib/adminAuth';
 
 interface AdminLoginScreenProps {
@@ -36,8 +36,7 @@ export const AdminLoginScreen: React.FC<AdminLoginScreenProps> = ({ onAuthentica
             <KelanaMark className="h-full w-full" />
           </div>
           <div className="flex flex-col items-center text-center">
-            <KelanaWordmark className="h-6 w-auto" variant="light" />
-            <h1 className="mt-2 text-sm font-semibold uppercase tracking-[0.2em] text-white/70">Booth Admin</h1>
+            <h1 className="text-sm font-semibold uppercase tracking-[0.2em] text-white/70">Booth Admin</h1>
             <p className="mt-1 text-sm text-white/50">Sign in to manage sessions and frames</p>
           </div>
         </div>
