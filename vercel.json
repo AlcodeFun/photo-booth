@@ -1,5 +1,6 @@
 {
   "outputDirectory": "apps/booth/dist/renderer",
+  "trailingSlash": false,
   "rewrites": [
     { "source": "/organize/assets/:path*", "destination": "/assets/:path*" },
     { "source": "/organize/icons/:path*", "destination": "/icons/:path*" },

@@ -22,6 +22,17 @@ const isAdminWindow =
   window.location.hash.startsWith('#/admin') ||
   window.location.pathname.replace(/\/+$/, '').startsWith('/admin');
 
+// "Add to Home Screen" opens the manifest's start_url. The shared manifest
+// starts at the booth root, so the admin gets its own (start_url /admin), and
+// the organize page drops the manifest: its link carries the guest's token,
+// which no static start_url can, and without a manifest iOS saves the current URL.
+const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+if (isOrganizePath) {
+  manifestLink?.remove();
+} else if (isAdminWindow && manifestLink) {
+  manifestLink.href = '/manifest-admin.webmanifest';
+}
+
 if (!isOrganizePath && !isAdminWindow) {
   // Owns background gallery uploads independently of any mounted screen, so they
   // keep running after the customer leaves the session (store-level, not React).
