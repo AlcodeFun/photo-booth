@@ -29,9 +29,40 @@ export const applyAppearanceToDocument = (appearance: BoothAppearance): void => 
     root.style.setProperty(cssVarName(key), value);
   }
   // Admin, set-up, organize: contrast-checked tokens derived from the theme.
-  for (const [name, value] of Object.entries(themeTokenCssVars(appearance.theme))) {
+  const tokens = themeTokenCssVars(appearance.theme);
+  for (const [name, value] of Object.entries(tokens)) {
     root.style.setProperty(name, value);
   }
+  applyBrowserChromeColor(appearance, tokens);
+};
+
+/**
+ * iOS / Android browser chrome (Safari toolbar, status bar, overscroll area)
+ * takes the color of the page being shown: the admin's UI background, the
+ * organize page's paper, or the booth's own background.
+ */
+const applyBrowserChromeColor = (appearance: BoothAppearance, tokens: Record<string, string>): void => {
+  const path = window.location.pathname.replace(/\/+$/, '');
+  const isAdmin = window.location.hash.startsWith('#/admin') || path === '/admin' || path.startsWith('/admin/');
+  const isOrganize = path.split('/').filter(Boolean)[0] === 'organize';
+  const { background } = appearance;
+  const color = isAdmin
+    ? tokens['--pbx-ui-bg']
+    : isOrganize
+      ? tokens['--pbx-paper']
+      : background.type === 'color' || background.type === 'image'
+        ? background.color
+        : appearance.theme.background;
+  if (!color) return;
+  let meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+  meta.content = color;
+  document.documentElement.style.backgroundColor = color;
+  document.body.style.backgroundColor = color;
 };
 
 /** The booth shell background (image over color, or the flat color). */
