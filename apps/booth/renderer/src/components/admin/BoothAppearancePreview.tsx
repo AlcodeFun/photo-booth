@@ -82,7 +82,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
     const tutorial: Slide = {
       key: 'tutorial',
       label: 'How it works',
-      render: () => <TutorialView copy={copy} theme={theme} />,
+      render: () => <TutorialView copy={copy} theme={theme} flowMode={flowMode} />,
     };
 
     const frameSelect: Slide = {

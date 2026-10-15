@@ -14,6 +14,8 @@ import { withAlpha } from '../../lib/appearance';
 export interface TutorialViewProps {
   copy: BoothCopywriting;
   theme: BoothTheme;
+  /** Which capture flow the guest is in: each has its own three steps. */
+  flowMode?: 'retake' | 'auto' | 'timed';
   onStart?: () => void;
 }
 
@@ -62,12 +64,26 @@ const PrintIcon: React.FC<IconProps> = ({ theme }) => (
   </svg>
 );
 
-export const TutorialView: React.FC<TutorialViewProps> = ({ copy, theme, onStart }) => {
-  const steps = [
-    { step: '01', title: copy.tutorialStep1Title, body: copy.tutorialStep1Body, Icon: FrameIcon, tilt: '-1.5deg' },
-    { step: '02', title: copy.tutorialStep2Title, body: copy.tutorialStep2Body, Icon: CameraIcon, tilt: '1deg' },
-    { step: '03', title: copy.tutorialStep3Title, body: copy.tutorialStep3Body, Icon: PrintIcon, tilt: '-1deg' },
-  ];
+export const TutorialView: React.FC<TutorialViewProps> = ({ copy, theme, flowMode = 'retake', onStart }) => {
+  const steps =
+    flowMode === 'timed'
+      ? [
+          // Shoot first; the frame is picked on the guest's phone afterwards.
+          { step: '01', title: copy.tutorialTimedStep1Title, body: copy.tutorialTimedStep1Body, Icon: CameraIcon, tilt: '-1.5deg' },
+          { step: '02', title: copy.tutorialTimedStep2Title, body: copy.tutorialTimedStep2Body, Icon: FrameIcon, tilt: '1deg' },
+          { step: '03', title: copy.tutorialTimedStep3Title, body: copy.tutorialTimedStep3Body, Icon: PrintIcon, tilt: '-1deg' },
+        ]
+      : flowMode === 'auto'
+        ? [
+            { step: '01', title: copy.tutorialAutoStep1Title, body: copy.tutorialAutoStep1Body, Icon: FrameIcon, tilt: '-1.5deg' },
+            { step: '02', title: copy.tutorialAutoStep2Title, body: copy.tutorialAutoStep2Body, Icon: CameraIcon, tilt: '1deg' },
+            { step: '03', title: copy.tutorialAutoStep3Title, body: copy.tutorialAutoStep3Body, Icon: PrintIcon, tilt: '-1deg' },
+          ]
+        : [
+            { step: '01', title: copy.tutorialStep1Title, body: copy.tutorialStep1Body, Icon: FrameIcon, tilt: '-1.5deg' },
+            { step: '02', title: copy.tutorialStep2Title, body: copy.tutorialStep2Body, Icon: CameraIcon, tilt: '1deg' },
+            { step: '03', title: copy.tutorialStep3Title, body: copy.tutorialStep3Body, Icon: PrintIcon, tilt: '-1deg' },
+          ];
 
   return (
     // Scrolls instead of clipping when the stacked mobile layout is taller

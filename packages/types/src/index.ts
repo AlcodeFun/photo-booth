@@ -133,6 +133,20 @@ export interface BoothCopywriting {
   tutorialStep3Title: string;
   tutorialStep3Body: string;
   tutorialStartButton: string;
+  /** Continuous auto sequence (flow 3) steps; the plain tutorialStep* keys are the retake flow. */
+  tutorialAutoStep1Title: string;
+  tutorialAutoStep1Body: string;
+  tutorialAutoStep2Title: string;
+  tutorialAutoStep2Body: string;
+  tutorialAutoStep3Title: string;
+  tutorialAutoStep3Body: string;
+  /** Timed unlimited session (flow 2) steps. */
+  tutorialTimedStep1Title: string;
+  tutorialTimedStep1Body: string;
+  tutorialTimedStep2Title: string;
+  tutorialTimedStep2Body: string;
+  tutorialTimedStep3Title: string;
+  tutorialTimedStep3Body: string;
 
   unlockEyebrow: string;
   unlockTitle: string;
@@ -362,13 +376,28 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
 
     tutorialEyebrow: 'Panduan',
     tutorialTitle: 'How it works',
-    tutorialStep1Title: 'Pilih Gaya',
-    tutorialStep1Body: 'Pilih bingkai yang paling cocok dengan moodmu.',
-    tutorialStep2Title: 'Pose Santai',
-    tutorialStep2Body: 'Ambil 3 foto dengan hitungan mundur dan retake sampai hasilnya pas.',
-    tutorialStep3Title: 'Cetak & Simpan',
-    tutorialStep3Body: 'Lihat hasil akhir, pilih filter, dan bagikan momen lewat QR.',
+    // Retake per slot (flow 1)
+    tutorialStep1Title: 'Pilih Bingkai',
+    tutorialStep1Body: 'Pilih bingkai favoritmu untuk hasil cetak.',
+    tutorialStep2Title: 'Pose & Retake',
+    tutorialStep2Body: 'Foto satu per satu dengan hitungan mundur. Belum pas? Ulangi sampai kamu suka.',
+    tutorialStep3Title: 'Atur, Hias & Cetak',
+    tutorialStep3Body: 'Atur urutan foto, pilih filter dan bingkai GIF, lalu scan QR untuk simpan semuanya.',
     tutorialStartButton: 'Ayo mulai',
+    // Continuous auto sequence (flow 3)
+    tutorialAutoStep1Title: 'Pilih Bingkai',
+    tutorialAutoStep1Body: 'Pilih bingkai favoritmu untuk hasil cetak.',
+    tutorialAutoStep2Title: 'Pose Berturut-turut',
+    tutorialAutoStep2Body: 'Kamera memotret otomatis satu per satu. Ganti gaya di setiap hitungan mundur!',
+    tutorialAutoStep3Title: 'Atur, Hias & Cetak',
+    tutorialAutoStep3Body: 'Atur urutan foto, pilih filter dan bingkai GIF, lalu scan QR untuk simpan semuanya.',
+    // Timed unlimited session (flow 2)
+    tutorialTimedStep1Title: 'Foto Sepuasnya',
+    tutorialTimedStep1Body: 'Ambil foto sebanyak yang kamu mau sampai waktunya habis.',
+    tutorialTimedStep2Title: 'Scan & Atur di HP',
+    tutorialTimedStep2Body: 'Scan QR, lalu pilih bingkai, susun foto, pilih filter dan bingkai GIF langsung dari HP-mu.',
+    tutorialTimedStep3Title: 'Cetak & Simpan',
+    tutorialTimedStep3Body: 'Tekan Cetak di HP, ambil cetakanmu di booth, dan simpan semua foto lewat galeri.',
 
     unlockEyebrow: 'Voucher',
     unlockTitle: 'Scan voucher kamu',
@@ -593,13 +622,25 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
     fields: [
       { key: 'tutorialEyebrow', label: 'Eyebrow' },
       { key: 'tutorialTitle', label: 'Title' },
-      { key: 'tutorialStep1Title', label: 'Step 1 title' },
-      { key: 'tutorialStep1Body', label: 'Step 1 body', multiline: true },
-      { key: 'tutorialStep2Title', label: 'Step 2 title' },
-      { key: 'tutorialStep2Body', label: 'Step 2 body', multiline: true },
-      { key: 'tutorialStep3Title', label: 'Step 3 title' },
-      { key: 'tutorialStep3Body', label: 'Step 3 body', multiline: true },
+      { key: 'tutorialStep1Title', label: 'Retake flow · step 1 title' },
+      { key: 'tutorialStep1Body', label: 'Retake flow · step 1 body', multiline: true },
+      { key: 'tutorialStep2Title', label: 'Retake flow · step 2 title' },
+      { key: 'tutorialStep2Body', label: 'Retake flow · step 2 body', multiline: true },
+      { key: 'tutorialStep3Title', label: 'Retake flow · step 3 title' },
+      { key: 'tutorialStep3Body', label: 'Retake flow · step 3 body', multiline: true },
       { key: 'tutorialStartButton', label: 'Start button' },
+      { key: 'tutorialAutoStep1Title', label: 'Auto flow · step 1 title' },
+      { key: 'tutorialAutoStep1Body', label: 'Auto flow · step 1 body', multiline: true },
+      { key: 'tutorialAutoStep2Title', label: 'Auto flow · step 2 title' },
+      { key: 'tutorialAutoStep2Body', label: 'Auto flow · step 2 body', multiline: true },
+      { key: 'tutorialAutoStep3Title', label: 'Auto flow · step 3 title' },
+      { key: 'tutorialAutoStep3Body', label: 'Auto flow · step 3 body', multiline: true },
+      { key: 'tutorialTimedStep1Title', label: 'Timed flow · step 1 title' },
+      { key: 'tutorialTimedStep1Body', label: 'Timed flow · step 1 body', multiline: true },
+      { key: 'tutorialTimedStep2Title', label: 'Timed flow · step 2 title' },
+      { key: 'tutorialTimedStep2Body', label: 'Timed flow · step 2 body', multiline: true },
+      { key: 'tutorialTimedStep3Title', label: 'Timed flow · step 3 title' },
+      { key: 'tutorialTimedStep3Body', label: 'Timed flow · step 3 body', multiline: true },
     ],
   },
   {
