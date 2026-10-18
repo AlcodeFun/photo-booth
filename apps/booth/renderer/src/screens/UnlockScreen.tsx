@@ -11,6 +11,7 @@ import {
   type RedeemFailure,
 } from '../lib/vouchers';
 import { createVideoQrScanner, decodeQrFromFile } from '../lib/qrDecode';
+import { usePhotoBoothCamera } from '../hooks/usePhotoBoothCamera';
 
 /** Back to the start screen after this long without any input. */
 const IDLE_MS = 60_000;
@@ -27,7 +28,8 @@ const FRONT_CAMERA_RE = /front|user|depan|facing front|selfie/i;
 /**
  * Voucher gate in front of the session (Booth Setup -> Access -> Voucher).
  *
- * The guest holds their voucher QR up to the webcam, or types the code on the
+ * The guest holds their voucher QR up to the camera (the Canon's live view when
+ * it is connected, else the webcam), or types the code on the
  * keypad. A USB QR scanner that types like a keyboard works too: keystrokes
  * are collected and Enter submits. A valid code is consumed by the database
  * (single use) and the session starts.
@@ -128,7 +130,31 @@ export const UnlockScreen: React.FC = () => {
     [copy, failureText, showMessage, touch, unlockWithVoucher],
   );
 
-  // ---- Camera + QR decode loop (scan mode only) ----
+  /** Decodes `getSource()` every SCAN_INTERVAL_MS until the returned stop is called. */
+  const startScanLoop = useCallback(
+    (getSource: () => HTMLVideoElement | HTMLImageElement | null) => {
+      const scan = createVideoQrScanner();
+      let cancelled = false;
+      let timer: number | null = null;
+      const tick = async () => {
+        if (cancelled) return;
+        const source = getSource();
+        if (source && !busyRef.current) {
+          const found = await scan(source).catch(() => null);
+          if (found && !cancelled) void submit(found);
+        }
+        if (!cancelled) timer = window.setTimeout(() => void tick(), SCAN_INTERVAL_MS);
+      };
+      void tick();
+      return () => {
+        cancelled = true;
+        if (timer != null) window.clearTimeout(timer);
+      };
+    },
+    [submit],
+  );
+
+  // ---- Camera state (Canon or webcam) ----
   // facing / deviceOverride change when the guest taps "switch camera".
   const [facing, setFacing] = useState<'user' | 'environment'>('user');
   const [deviceOverride, setDeviceOverride] = useState<string | null>(null);
@@ -137,12 +163,56 @@ export const UnlockScreen: React.FC = () => {
   const [mirrored, setMirrored] = useState(true);
   const trackRef = useRef<MediaStreamTrack | null>(null);
 
+  // ---- Canon DSLR (Electron) ----
+  // "Automatic" scanner camera means the Canon when it is connected; a webcam
+  // picked in Booth Setup -> Access still wins.
+  const canon = usePhotoBoothCamera();
+  const canonRef = useRef(canon);
+  canonRef.current = canon;
+  const useCanon = canon.available && !scannerDeviceId;
+  const canonImgRef = useRef<HTMLImageElement>(null);
+  const startedCanonRef = useRef(false);
+
+  // Live view is only started here when idle, and stopped again when this
+  // screen stops using it (the capture screen re-engages it), like the start screen.
   useEffect(() => {
-    if (mode !== 'scan') return;
+    if (mode !== 'scan' || !useCanon) {
+      if (startedCanonRef.current) {
+        startedCanonRef.current = false;
+        void canonRef.current.stop();
+      }
+      return;
+    }
+    if (!startedCanonRef.current && (canon.status === 'READY' || canon.status === 'DISCONNECTED')) {
+      startedCanonRef.current = true;
+      void canon.start();
+    }
+  }, [mode, useCanon, canon.status, canon.start]);
+
+  useEffect(
+    () => () => {
+      if (startedCanonRef.current) void canonRef.current.stop();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (mode !== 'scan' || !useCanon) return;
+    // The Canon faces the guest: mirror it like a selfie, and there is no
+    // front / back to switch between.
+    setMirrored(true);
+    setHasBackCamera(false);
+    return startScanLoop(() => canonImgRef.current);
+  }, [mode, useCanon, startScanLoop]);
+
+  // ---- Webcam + QR decode loop (scan mode, no Canon) ----
+  useEffect(() => {
+    // Wait for the Canon check first: on a booth PC without a webcam, failing
+    // here would drop the guest to the keypad before the Canon reports in.
+    if (mode !== 'scan' || !canon.checked || useCanon) return;
     let stream: MediaStream | null = null;
-    let timer: number | null = null;
+    let stopScan: (() => void) | null = null;
     let cancelled = false;
-    const scan = createVideoQrScanner();
     const base: MediaTrackConstraints = { width: { ideal: 1280 }, height: { ideal: 720 } };
     const open = (video: MediaTrackConstraints) => navigator.mediaDevices.getUserMedia({ video, audio: false });
 
@@ -190,26 +260,28 @@ export const UnlockScreen: React.FC = () => {
         el.srcObject = stream;
         void el.play().catch(() => undefined);
       }
-      const tick = async () => {
-        if (cancelled) return;
-        const v = videoRef.current;
-        if (v && !busyRef.current) {
-          const found = await scan(v).catch(() => null);
-          if (found && !cancelled) void submit(found);
-        }
-        if (!cancelled) timer = window.setTimeout(() => void tick(), SCAN_INTERVAL_MS);
-      };
-      void tick();
+      stopScan = startScanLoop(() => videoRef.current);
     };
     void start();
 
     return () => {
       cancelled = true;
-      if (timer != null) window.clearTimeout(timer);
+      stopScan?.();
       stream?.getTracks().forEach((track) => track.stop());
       trackRef.current = null;
     };
-  }, [mode, scannerDeviceId, facing, deviceOverride, switched, submit, copy.unlockNoCamera, showMessage]);
+  }, [
+    mode,
+    canon.checked,
+    useCanon,
+    scannerDeviceId,
+    facing,
+    deviceOverride,
+    switched,
+    startScanLoop,
+    copy.unlockNoCamera,
+    showMessage,
+  ]);
 
   /** Front <-> back (only offered when the device has a back camera). */
   const switchCamera = useCallback(async () => {
@@ -291,6 +363,16 @@ export const UnlockScreen: React.FC = () => {
         code={code}
         cameraAvailable={cameraAvailable}
         cameraFeed={
+          useCanon ? (
+            <img
+              ref={canonImgRef}
+              src={canon.liveFrame ?? undefined}
+              alt=""
+              className="h-full w-full object-cover"
+              // Mirrored like the capture preview; decoding reads the raw frame.
+              style={{ transform: 'scaleX(-1)' }}
+            />
+          ) : (
           <video
             ref={videoRef}
             muted
@@ -299,6 +381,7 @@ export const UnlockScreen: React.FC = () => {
             // Selfie camera mirrored like the capture preview; decoding reads the raw frame.
             style={mirrored ? { transform: 'scaleX(-1)' } : undefined}
           />
+          )
         }
         onModeChange={(next) => {
           touch();

@@ -30,6 +30,8 @@ export function usePhotoBoothCamera() {
   const [liveFrame, setLiveFrame] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [model, setModel] = useState<string | null>(null);
+  /** The first status check finished (or there is no camera bridge at all). */
+  const [checked, setChecked] = useState(!api);
   const liveFrameUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -83,7 +85,8 @@ export function usePhotoBoothCamera() {
         setModel(nextModel);
         setAvailable(cameraIsAvailable(payload));
       })
-      .catch((err) => setError(String(err)));
+      .catch((err) => setError(String(err)))
+      .finally(() => setChecked(true));
 
     return () => {
       unsubStatus();
@@ -171,6 +174,7 @@ export function usePhotoBoothCamera() {
     liveFrame,
     error,
     model,
+    checked,
     isLiveViewing: status === 'LIVE_VIEW',
     start,
     stop,

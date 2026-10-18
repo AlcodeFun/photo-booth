@@ -148,7 +148,7 @@ export const AccessSetupPanel: React.FC = () => {
               onChange={(event) => setDraft((d) => ({ ...d, scannerDeviceId: event.target.value || null }))}
               className="w-full rounded-[10px] border-[3px] border-pbx-secondary bg-white px-3 py-2 text-sm font-bold text-pbx-ink"
             >
-              <option value="">Automatic (first camera)</option>
+              <option value="">Automatic (Canon if connected, else first camera)</option>
               {cameras.map((camera, i) => (
                 <option key={camera.deviceId} value={camera.deviceId}>
                   {camera.label || `Camera ${i + 1}`}

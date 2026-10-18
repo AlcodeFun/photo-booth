@@ -64,27 +64,30 @@ const decodeRegion = (
 };
 
 /**
- * Returns a scanner for a live <video>. Each call checks one frame; jsQR
+ * Returns a scanner for a live feed: a <video> (webcam) or an <img> showing
+ * the latest Canon live-view frame. Each call checks one frame; jsQR
  * alternates between the centre square (where guests aim) and the whole frame.
  */
 export const createVideoQrScanner = () => {
   const canvas = document.createElement('canvas');
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   let turn = 0;
-  return async (video: HTMLVideoElement): Promise<string | null> => {
-    if (video.readyState < 2 || video.videoWidth === 0) return null;
-    const native = await detectNative(video);
+  return async (source: HTMLVideoElement | HTMLImageElement): Promise<string | null> => {
+    const isVideo = source instanceof HTMLVideoElement;
+    const w = isVideo ? source.videoWidth : source.naturalWidth;
+    const h = isVideo ? source.videoHeight : source.naturalHeight;
+    if (isVideo ? source.readyState < 2 : !source.complete) return null;
+    if (w === 0 || h === 0) return null;
+    const native = await detectNative(source);
     if (native) return native;
     if ((await getNativeDetector()) || !ctx) return null;
     const jsQR = await getJsQr();
-    const w = video.videoWidth;
-    const h = video.videoHeight;
     turn += 1;
     if (turn % 2 === 1) {
       const side = Math.min(w, h);
-      return decodeRegion(jsQR, ctx, video, { x: (w - side) / 2, y: (h - side) / 2, width: side, height: side }, 560);
+      return decodeRegion(jsQR, ctx, source, { x: (w - side) / 2, y: (h - side) / 2, width: side, height: side }, 560);
     }
-    return decodeRegion(jsQR, ctx, video, { x: 0, y: 0, width: w, height: h }, 960);
+    return decodeRegion(jsQR, ctx, source, { x: 0, y: 0, width: w, height: h }, 960);
   };
 };
 
