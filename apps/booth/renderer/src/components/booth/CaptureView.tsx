@@ -28,6 +28,8 @@ export interface CaptureViewProps {
   isStarted: boolean;
   isPreparing: boolean;
   isCapturing: boolean;
+  /** One unbroken "hold still" overlay from Live View teardown until the shot lands. */
+  isHoldingStill: boolean;
   feedReady: boolean;
   cameraError?: string | null;
   isFlash: boolean;
@@ -79,6 +81,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
   isStarted,
   isPreparing,
   isCapturing,
+  isHoldingStill,
   feedReady,
   cameraError,
   isFlash,
@@ -338,7 +341,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
     </footer>
 
     {/* Held from Live View teardown until the shot lands, so guests keep still. */}
-    {(isPreparing || isCapturing) && (
+    {isHoldingStill && (
       <div
         className="absolute inset-0 z-[60] flex items-center justify-center px-6 text-center text-4xl font-bold sm:text-6xl"
         style={{ backgroundColor: theme.card, color: theme.cardForeground }}

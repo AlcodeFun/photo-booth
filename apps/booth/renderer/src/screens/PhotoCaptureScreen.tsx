@@ -48,6 +48,8 @@ export const PhotoCaptureScreen: React.FC = () => {
   const [isPreparing, setIsPreparing] = useState(false);
   /** prepareCapture finished; the countdown may tick to 0 (flash + shutter). */
   const [isArmed, setIsArmed] = useState(false);
+  /** When the last-second Live View teardown started (paces the tick to 0). */
+  const prepareStartedAtRef = useRef(0);
   const [isMirrored, setIsMirrored] = useState(true);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -374,6 +376,7 @@ export const PhotoCaptureScreen: React.FC = () => {
     // still-pending mode switch.
     if (countdown === 1 && canonRef.current.available && !isArmed) {
       let cancelled = false;
+      prepareStartedAtRef.current = Date.now();
       setIsPreparing(true);
       void (async () => {
         let armed = false;
@@ -397,8 +400,14 @@ export const PhotoCaptureScreen: React.FC = () => {
       };
     }
 
-    const interval = setInterval(() => setCountdown((value) => value - 1), 1000);
-    return () => clearInterval(interval);
+    // Once armed, the teardown already used up part of the last second: tick
+    // to 0 after only what remains of it, not another full second.
+    const delay =
+      countdown === 1 && isArmed
+        ? Math.max(0, 1000 - (Date.now() - prepareStartedAtRef.current))
+        : 1000;
+    const timer = setTimeout(() => setCountdown((value) => value - 1), delay);
+    return () => clearTimeout(timer);
   }, [countdown, isStarted, isArmed, shownError]);
 
   // Timed flow state machine: idle → starting (countdown) → active → ended.
@@ -533,6 +542,9 @@ export const PhotoCaptureScreen: React.FC = () => {
         isStarted={isStarted}
         isPreparing={isPreparing}
         isCapturing={isCapturing}
+        // Armed covers the gap between prepare resolving and the shutter, so
+        // the overlay never drops out and reappears mid-shot.
+        isHoldingStill={isPreparing || isCapturing || (isStarted && isArmed)}
         feedReady={feedReady}
         cameraError={shownError}
         isFlash={isFlash}

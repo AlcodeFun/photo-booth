@@ -126,6 +126,7 @@ export const BoothAppearancePreview: React.FC<BoothAppearancePreviewProps> = ({
             isStarted
             isPreparing={false}
             isCapturing={false}
+            isHoldingStill={false}
             feedReady
             cameraError={null}
             isFlash={false}
