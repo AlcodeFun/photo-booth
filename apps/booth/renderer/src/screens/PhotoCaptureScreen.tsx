@@ -189,11 +189,14 @@ export const PhotoCaptureScreen: React.FC = () => {
     setIsArmed(false);
   }, [flowSettings.shotCountdown, shownError]);
 
+  // Continuous flow: the guest taps to start the first shot; every later shot
+  // counts down on its own.
+  const awaitingFirstTap = isAutoFlow && currentPhotoSlot === 1;
   useEffect(() => {
-    if (isAutoFlow && !isStarted && feedReady && !shownError) {
+    if (isAutoFlow && !awaitingFirstTap && !isStarted && feedReady && !shownError) {
       setIsStarted(true);
     }
-  }, [feedReady, isAutoFlow, isStarted, shownError]);
+  }, [awaitingFirstTap, feedReady, isAutoFlow, isStarted, shownError]);
 
   // Flow-aware commit: retake mode shows the review, auto mode instantly
   // accepts and advances, timed mode stays on capture collecting more photos.
@@ -506,7 +509,7 @@ export const PhotoCaptureScreen: React.FC = () => {
       else if (timedPhase === 'active') captureNow();
       return;
     }
-    if (!isAutoFlow && !isStarted && feedReady && !shownError) setIsStarted(true);
+    if ((!isAutoFlow || awaitingFirstTap) && !isStarted && feedReady && !shownError) setIsStarted(true);
   };
   const latestPhoto = currentSlot?.attempts[currentSlot.attempts.length - 1]?.localPath;
   const timedClock = timedPhase === 'active' ? timedRemaining : flowSettings.timeBudgetSeconds;
@@ -529,6 +532,7 @@ export const PhotoCaptureScreen: React.FC = () => {
         theme={theme}
         isTimedFlow={isTimedFlow}
         isAutoFlow={isAutoFlow}
+        awaitingFirstTap={awaitingFirstTap}
         currentPhotoSlot={currentPhotoSlot}
         totalSlots={photoSlots.length}
         attemptNumber={attemptNumber}

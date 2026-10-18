@@ -15,6 +15,8 @@ export interface CaptureViewProps {
   theme: BoothTheme;
   isTimedFlow: boolean;
   isAutoFlow: boolean;
+  /** Continuous flow before the first shot: waits for a tap to start. */
+  awaitingFirstTap?: boolean;
   currentPhotoSlot: number;
   totalSlots: number;
   attemptNumber: number;
@@ -68,6 +70,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
   theme,
   isTimedFlow,
   isAutoFlow,
+  awaitingFirstTap = false,
   currentPhotoSlot,
   totalSlots,
   attemptNumber,
@@ -214,7 +217,7 @@ export const CaptureView: React.FC<CaptureViewProps> = ({
     {!isStarted &&
       feedReady &&
       !cameraError &&
-      (isTimedFlow && timedPhase === 'idle' ? (
+      ((isTimedFlow && timedPhase === 'idle') || awaitingFirstTap ? (
         <div className="pointer-events-none absolute inset-x-0 top-1/2 z-10 -translate-y-1/2 text-center">
           <p className="text-sm font-bold uppercase tracking-[0.16em] text-white/90 sm:text-base">
             {copy.captureTapToStart}
