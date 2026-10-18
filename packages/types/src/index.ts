@@ -314,8 +314,10 @@ export interface BoothBackground {
  *  - camera:     fullscreen live camera behind a film / polaroid overlay
  *  - wedding:    invitation look: velvet backdrop, falling petals, arched
  *                photo window crowned with roses, names in gold script
+ *  - halloween:  haunted night: moon, bats, ghosts and a graveyard skyline,
+ *                the camera in a gothic window guarded by jack-o'-lanterns
  */
-export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera' | 'wedding';
+export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera' | 'wedding' | 'halloween';
 
 export interface BoothStartScreen {
   style: BoothStartScreenStyle;
@@ -354,6 +356,11 @@ export const BOOTH_START_SCREEN_PRESETS: BoothStartScreenPreset[] = [
     id: 'wedding',
     label: 'Wedding Romance',
     description: 'Velvet backdrop, falling rose petals, an arched photo window in roses and the names in gold script.',
+  },
+  {
+    id: 'halloween',
+    label: 'Haunted Night',
+    description: 'Moonlit graveyard with bats, ghosts and fog; the live camera in a gothic window lit by jack-o’-lanterns.',
   },
 ];
 
@@ -978,6 +985,54 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
       bumperAltInner: '#C9A25E',
       bumperAltMid: '#6B1A28',
       bumperAltOuter: '#1C0308',
+    },
+  },
+  {
+    id: 'halloween',
+    label: 'Halloween',
+    // Pumpkin, witch purple, slime green, candle glow, midnight.
+    swatches: ['#F2711C', '#5B2A86', '#8BD346', '#FFC94A', '#120B1A'],
+    backgroundColor: '#160E20',
+    // The start screen draws its own night sky, so drop any image a previous
+    // event preset (e.g. the wedding drape) left behind.
+    background: { type: 'color' },
+    copy: {
+      bumperBrand: 'Trick or Snap!',
+      bumperCaption1: 'Happy Halloween',
+      bumperCaption2: 'Berani foto bareng hantu? Ayo pose paling seram!',
+      bumperCaption3: 'Spooky Season',
+      bumperTapToStart: 'Sentuh kalau berani',
+    },
+    startScreen: { style: 'halloween' },
+    theme: {
+      // Midnight surfaces with bone-white text; pumpkin carries the calls to action.
+      primary: '#F2711C',
+      primaryForeground: '#1A0F1F',
+      secondary: '#5B2A86',
+      secondaryForeground: '#F6EEDC',
+      tertiary: '#8BD346',
+      tertiaryForeground: '#14210A',
+      accent: '#FFC94A',
+      accentForeground: '#1A0F1F',
+      action: '#FF7A1F',
+      actionForeground: '#1A0F1F',
+      background: '#160E20',
+      foreground: '#F6EEDC',
+      card: '#F6EEDC',
+      cardForeground: '#1A0F1F',
+      surface: '#231533',
+      surfaceForeground: '#F6EEDC',
+      muted: '#5E4E6E',
+      mutedForeground: '#F6EEDC',
+      destructive: '#D7263D',
+      destructiveForeground: '#FFF5EC',
+      deep: '#0E0814',
+      bumperInner: '#F2711C',
+      bumperMid: '#5B2A86',
+      bumperOuter: '#0E0814',
+      bumperAltInner: '#8BD346',
+      bumperAltMid: '#3A1B57',
+      bumperAltOuter: '#0E0814',
     },
   },
 ];

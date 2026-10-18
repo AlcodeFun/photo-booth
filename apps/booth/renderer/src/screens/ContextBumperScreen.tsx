@@ -9,6 +9,7 @@ import FlatJournalView from '../components/booth/startScreen/FlatJournalView';
 import CameraOverlayView from '../components/booth/startScreen/CameraOverlayView';
 import StartCameraFeed from '../components/booth/startScreen/StartCameraFeed';
 import WeddingRomanceView from '../components/booth/startScreen/WeddingRomanceView';
+import HauntedNightView from '../components/booth/startScreen/HauntedNightView';
 
 type Flavor = 'pink' | 'lime';
 
@@ -351,6 +352,16 @@ export const ContextBumperScreen: React.FC = () => {
         <FlatJournalView copy={copy} theme={theme} photos={PHOTOS} onAdvance={requestStart} onOpenPin={openPin} />
       ) : startScreen.style === 'wedding' ? (
         <WeddingRomanceView
+          copy={copy}
+          theme={theme}
+          photos={PHOTOS}
+          cameraFeed={<StartCameraFeed fallbackSrc={PHOTOS[0]} />}
+          background={background}
+          onAdvance={requestStart}
+          onOpenPin={openPin}
+        />
+      ) : startScreen.style === 'halloween' ? (
+        <HauntedNightView
           copy={copy}
           theme={theme}
           photos={PHOTOS}

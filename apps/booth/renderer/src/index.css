@@ -710,6 +710,107 @@
   75%, 100% { transform: translateX(120%); }
 }
 
+/* ---- Haunted Night start screen (Halloween) ---- */
+.pb-hw-bat {
+  animation: pb-hw-bat-fly var(--bf-dur, 12s) linear var(--bf-delay, 0s) infinite;
+  will-change: transform;
+}
+
+@keyframes pb-hw-bat-fly {
+  0% { transform: translate3d(-12cqw, 0, 0); }
+  25% { transform: translate3d(22cqw, calc(var(--bf-bob, 4cqh) * -1), 0); }
+  50% { transform: translate3d(50cqw, var(--bf-bob, 4cqh), 0); }
+  75% { transform: translate3d(80cqw, calc(var(--bf-bob, 4cqh) * -0.6), 0); }
+  100% { transform: translate3d(114cqw, 0, 0); }
+}
+
+.pb-hw-flap {
+  transform-origin: 50% 60%;
+  animation: pb-hw-flap 0.32s ease-in-out infinite alternate;
+}
+
+@keyframes pb-hw-flap {
+  from { transform: scaleY(1); }
+  to { transform: scaleY(0.35) scaleX(0.92); }
+}
+
+.pb-hw-ghost {
+  animation: pb-hw-ghost var(--gh-dur, 8s) ease-in-out var(--gh-delay, 0s) infinite alternate;
+}
+
+@keyframes pb-hw-ghost {
+  0% { transform: translate(0, 0) rotate(-6deg); opacity: 0.35; }
+  50% { opacity: 0.95; }
+  100% { transform: translate(3cqmin, -2.6cqmin) rotate(6deg); opacity: 0.55; }
+}
+
+.pb-hw-flicker {
+  animation: pb-hw-flicker 2.6s steps(1) infinite;
+}
+
+@keyframes pb-hw-flicker {
+  0%, 100% { opacity: 1; }
+  12% { opacity: 0.82; }
+  20% { opacity: 1; }
+  47% { opacity: 0.9; }
+  52% { opacity: 0.7; }
+  58% { opacity: 1; }
+  83% { opacity: 0.86; }
+}
+
+.pb-hw-fog {
+  animation: pb-hw-fog var(--fog-dur, 20s) ease-in-out infinite alternate;
+}
+
+@keyframes pb-hw-fog {
+  from { transform: translateX(-4%); }
+  to { transform: translateX(4%); }
+}
+
+.pb-hw-spider {
+  transform-origin: 50% 0;
+  animation: pb-hw-spider 4.5s ease-in-out infinite alternate;
+}
+
+@keyframes pb-hw-spider {
+  from { transform: translateY(-2cqmin); }
+  to { transform: translateY(3cqmin); }
+}
+
+.pb-hw-moon {
+  animation: pb-hw-moon 6s ease-in-out infinite alternate;
+}
+
+@keyframes pb-hw-moon {
+  from { filter: brightness(0.95); }
+  to { filter: brightness(1.08); }
+}
+
+.pb-hw-cta {
+  animation: pb-hw-cta 2.4s ease-in-out infinite;
+}
+
+@keyframes pb-hw-cta {
+  0%, 100% { filter: drop-shadow(0 0 0.8cqmin var(--hw-glow, rgba(255, 200, 80, 0.5))); transform: translateY(0); }
+  50% { filter: drop-shadow(0 0 2.4cqmin var(--hw-glow, rgba(255, 200, 80, 0.5))); transform: translateY(-0.4cqmin); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-hw-bat,
+  .pb-hw-flap,
+  .pb-hw-ghost,
+  .pb-hw-flicker,
+  .pb-hw-fog,
+  .pb-hw-spider,
+  .pb-hw-moon,
+  .pb-hw-cta {
+    animation: none;
+  }
+  .pb-hw-bat {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pb-wed-petal,
   .pb-wed-petal-spin,

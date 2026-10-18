@@ -4,6 +4,7 @@ import BumperView from '../booth/BumperView';
 import FlatJournalView from '../booth/startScreen/FlatJournalView';
 import CameraOverlayView from '../booth/startScreen/CameraOverlayView';
 import WeddingRomanceView from '../booth/startScreen/WeddingRomanceView';
+import HauntedNightView from '../booth/startScreen/HauntedNightView';
 
 const SAMPLE_PHOTOS = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
 
@@ -33,6 +34,9 @@ export const StartScreenPreview: React.FC<{
   }
   if (resolved === 'wedding') {
     return <WeddingRomanceView copy={copy} theme={theme} photos={SAMPLE_PHOTOS} background={appearance.background} />;
+  }
+  if (resolved === 'halloween') {
+    return <HauntedNightView copy={copy} theme={theme} photos={SAMPLE_PHOTOS} background={appearance.background} />;
   }
   if (resolved === 'camera') {
     return (
