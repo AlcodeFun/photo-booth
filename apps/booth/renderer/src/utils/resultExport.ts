@@ -504,10 +504,10 @@ export async function createResultGif(
 export async function createResultLiveFramed(
   frame: FrameConfig,
   photoSlots: PhotoSlotState[],
-  opts: { width?: number; frameDelay?: number; frames?: number } = {},
+  opts: { width?: number; frameDelay?: number; frames?: number; qrCodeUrl?: string } = {},
 ): Promise<Blob> {
   const { GIFEncoder, quantize, applyPalette } = await import('gifenc');
-  const { width = 600, frameDelay = 160, frames = 24 } = opts;
+  const { width = 600, frameDelay = 160, frames = 24, qrCodeUrl } = opts;
   if (photoSlots.length === 0) {
     throw new Error('No photos to encode.');
   }
@@ -527,12 +527,6 @@ export async function createResultLiveFramed(
     throw new Error('2D canvas context unavailable');
   }
 
-  // Load the frame art once so it can be overlaid on every GIF frame.
-  let frameAsset: HTMLImageElement | null = null;
-  if (template.assetUrl) {
-    frameAsset = await loadImage(template.assetUrl).catch(() => null);
-  }
-
   const longestClip = Math.max(1, ...liveClips.map((clip) => clip.length));
   const total = Math.min(Math.max(2, longestClip), Math.max(2, frames));
   const finalFrameHold = 900;
@@ -540,32 +534,31 @@ export async function createResultLiveFramed(
 
   for (let t = 0; t <= total; t += 1) {
     const isFinalFrame = t === total;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = template.backgroundColor ?? '#111111';
-    ctx.fillRect(0, 0, width, height);
+    // Clips belong to photos, not slots: frames that repeat a photo in
+    // several slots (two strips per sheet) play the same clip in each.
+    const framePhotos = photos.map((photo, index) => {
+      const clip = liveClips[index] ?? [];
+      return !isFinalFrame && clip.length ? clip[t % clip.length] : photo;
+    });
 
-    // Photos in template units → scaled into the GIF canvas.
+    // Same z-ordered layering as the print (photos, QR slots, frame art),
+    // in template units scaled into the GIF canvas. Images are cached, so
+    // the frame art and QR load once for the whole GIF.
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.save();
     ctx.scale(unitsToPixels, unitsToPixels);
-    for (let i = 0; i < template.photoSlots.length; i += 1) {
-      const slot = template.photoSlots[i];
-      const photoIndex = (slot.sourcePhotoSlot ?? slot.slotNumber) - 1;
-      // Clips belong to photos, not slots: frames that repeat a photo in
-      // several slots (two strips per sheet) must play the same clip in each.
-      const clip = liveClips[photoIndex] ?? [];
-      const url = !isFinalFrame && clip.length
-        ? clip[t % clip.length]
-        : photos[photoIndex] ?? photos[i];
-      if (url) {
-        await drawSlotImage(ctx, slot, url, canvasFilter);
-      }
-    }
+    await renderTemplated(
+      ctx,
+      template.photoSlots,
+      framePhotos,
+      template,
+      canvasFilter,
+      template.width,
+      template.height,
+      true,
+      qrCodeUrl,
+    );
     ctx.restore();
-
-    // Static frame art + QR placeholders stay locked above the moving photos.
-    if (frameAsset) {
-      ctx.drawImage(frameAsset, 0, 0, width, height);
-    }
 
     const imageData = ctx.getImageData(0, 0, width, height);
     const palette = quantize(imageData.data, 256);

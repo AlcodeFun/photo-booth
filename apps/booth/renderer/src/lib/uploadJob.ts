@@ -272,6 +272,15 @@ const run = async (job: UploadJob) => {
     // toggles at job start. The framed sheet is also what the Selphy prints.
     const outputs = useBoothConfig.getState().outputs;
 
+    // The real QR (the session download link), shared by the framed sheet and
+    // the live-framed GIF so both fill the frame's QR placeholders.
+    const qrCodeUrlPromise: Promise<string | undefined> = job.downloadUrl
+      ? generateQrDataUrl(job.downloadUrl, 256).then(
+          (url) => url ?? undefined,
+          () => undefined,
+        )
+      : Promise.resolve(undefined);
+
     const framed = (async () => {
       // Timed sessions compose their framed sheet in the print listener once
       // the customer's arrangement is saved, so this job only uploads raws.
@@ -279,10 +288,7 @@ const run = async (job: UploadJob) => {
         return null;
       }
       try {
-        // Compose the real QR (the session download link) into the framed photo.
-        const qrCodeUrl = job.downloadUrl
-          ? (await generateQrDataUrl(job.downloadUrl, 256).catch(() => null)) ?? undefined
-          : undefined;
+        const qrCodeUrl = await qrCodeUrlPromise;
         const canvas = await renderComposition(job.frame, job.photoSlots, job.filterId, {
           includeFrame: true,
           qrCodeUrl,
@@ -338,7 +344,9 @@ const run = async (job: UploadJob) => {
         return null;
       }
       try {
-        const blob = await createResultLiveFramed(job.frame, job.photoSlots);
+        const blob = await createResultLiveFramed(job.frame, job.photoSlots, {
+          qrCodeUrl: await qrCodeUrlPromise,
+        });
         cacheWrites.push(cacheUploadBlob(token ?? '', 'result-live.gif', blob));
         return { blob, name: 'result-live.gif' as const };
       } catch (error) {

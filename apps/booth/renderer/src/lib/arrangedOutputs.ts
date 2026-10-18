@@ -137,7 +137,7 @@ export const buildArrangedOutputs = async (
     uploads.push({ blob: gifBlob, name: 'result.gif' });
   }
   if (outputs.framedLive) {
-    uploads.push({ blob: await createResultLiveFramed(frame, photoSlots), name: 'result-live.gif' });
+    uploads.push({ blob: await createResultLiveFramed(frame, photoSlots, { qrCodeUrl }), name: 'result-live.gif' });
   }
   return uploads;
 };
