@@ -15,7 +15,7 @@ import {
   type GifGeometry,
   type GifWindow,
 } from '../../utils/gifAdjust';
-import { detectOverlayWindow } from '../../utils/overlayWindow';
+import { resolveGifSlot } from '../../lib/gifFrames';
 
 export interface EffectsGifFrame {
   id: string;
@@ -23,6 +23,8 @@ export interface EffectsGifFrame {
   url: string;
   width: number;
   height: number;
+  /** Saved photo slot (fractions); absent = looked up / auto-detected from the URL. */
+  slot?: GifWindow | null;
 }
 
 export interface EffectsViewProps {
@@ -77,28 +79,31 @@ const useImageAspect = (url: string | undefined): number | null => {
   return aspect;
 };
 
-/** The GIF frame's transparent window (whole canvas without a frame). */
+/** The GIF frame's photo slot (whole canvas without a frame). */
 const useGifWindow = (overlay: EffectsGifFrame | null): GifWindow => {
-  const [win, setWin] = useState<GifWindow>(FULL_GIF_WINDOW);
+  const [win, setWin] = useState<GifWindow>(overlay?.slot ?? FULL_GIF_WINDOW);
+  const slotKey = overlay?.slot ? JSON.stringify(overlay.slot) : '';
   useEffect(() => {
     let alive = true;
-    setWin(FULL_GIF_WINDOW);
-    if (overlay?.url) void detectOverlayWindow(overlay.url).then((found) => alive && setWin(found));
+    setWin(overlay?.slot ?? FULL_GIF_WINDOW);
+    if (overlay?.url) void resolveGifSlot(overlay.url, overlay.slot).then((found) => alive && setWin(found));
     return () => {
       alive = false;
     };
-  }, [overlay?.url]);
+    // slotKey stands in for overlay.slot (a fresh object on every render).
+  }, [overlay?.url, slotKey]);
   return win;
 };
 
 /**
- * Aspect ratio of the GIF, exactly like the encoder: shaped so the frame's
- * window has the original photo ratio (the photo's own shape without a frame).
+ * Aspect ratio of the GIF, exactly like the encoder: the frame's own shape
+ * (never stretched), or the photo's shape without a frame.
  */
 export const useGifAspect = (overlay: EffectsGifFrame | null, photos: string[]): number => {
   const photoAspect = useImageAspect(photos[0]);
-  const win = useGifWindow(overlay);
-  return gifCanvasAspect(photoAspect ?? 3 / 2, win);
+  const known = overlay && overlay.width > 0 && overlay.height > 0 ? overlay.width / overlay.height : null;
+  const loaded = useImageAspect(overlay && !known ? overlay.url : undefined);
+  return gifCanvasAspect(photoAspect ?? 3 / 2, overlay ? (known ?? loaded ?? 4 / 3) : null);
 };
 
 /**
@@ -125,8 +130,8 @@ export const GifPreview: React.FC<{
   const ratio = useGifAspect(overlay, photos);
   const photoAspect = useImageAspect(photos[0]);
   const photoWindow = useGifWindow(overlay);
-  // Same geometry as the encoder: the photo covers the frame's window (which
-  // has the photo's own ratio) and may move only while it still covers it.
+  // Same geometry as the encoder: the photo covers the frame's slot, is
+  // clipped to it, and may move only while it still covers it.
   const geometryRef = useRef<GifGeometry>({ imageAspect: ratio, boxAspect: ratio });
   geometryRef.current = { imageAspect: photoAspect ?? 3 / 2, boxAspect: ratio, window: photoWindow };
   const base = gifPhotoBase(geometryRef.current);
@@ -237,23 +242,34 @@ export const GifPreview: React.FC<{
       }}
     >
       {photos[index % Math.max(1, photos.length)] && (
-        <img
-          src={photos[index % photos.length]}
-          alt=""
-          className="absolute max-w-none object-cover"
+        <div
+          className="absolute overflow-hidden"
           style={{
-            left: `${(photoWindow.x + photoWindow.width / 2 - base.width / 2) * 100}%`,
-            top: `${(photoWindow.y + photoWindow.height / 2 - base.height / 2) * 100}%`,
-            width: `${base.width * 100}%`,
-            height: `${base.height * 100}%`,
-            filter,
-            // translate in % of the element: canvas fraction / element fraction
-            transform: isDefaultGifAdjust(current)
-              ? undefined
-              : `translate(${(current.offsetX / base.width) * 100}%, ${(current.offsetY / base.height) * 100}%) scale(${current.scale}) scaleX(${current.flip ? -1 : 1})`,
+            left: `${photoWindow.x * 100}%`,
+            top: `${photoWindow.y * 100}%`,
+            width: `${photoWindow.width * 100}%`,
+            height: `${photoWindow.height * 100}%`,
           }}
-          draggable={false}
-        />
+        >
+          <img
+            src={photos[index % photos.length]}
+            alt=""
+            className="absolute max-w-none object-cover"
+            style={{
+              // Centred on the slot, sized relative to it.
+              left: `${(0.5 - base.width / photoWindow.width / 2) * 100}%`,
+              top: `${(0.5 - base.height / photoWindow.height / 2) * 100}%`,
+              width: `${(base.width / photoWindow.width) * 100}%`,
+              height: `${(base.height / photoWindow.height) * 100}%`,
+              filter,
+              // translate in % of the element: canvas fraction / element fraction
+              transform: isDefaultGifAdjust(current)
+                ? undefined
+                : `translate(${(current.offsetX / base.width) * 100}%, ${(current.offsetY / base.height) * 100}%) scale(${current.scale}) scaleX(${current.flip ? -1 : 1})`,
+            }}
+            draggable={false}
+          />
+        </div>
       )}
       {overlay && <img src={overlay.url} alt="" className="absolute inset-0 h-full w-full object-fill" draggable={false} />}
       {editable && (

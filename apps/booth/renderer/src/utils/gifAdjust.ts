@@ -2,11 +2,11 @@
  * Position of the photos inside the animated GIF (shared by every GIF frame):
  * zoom, pan and mirror, set by the guest on the GIF preview.
  *
- * The GIF keeps the original photo ratio: its canvas is shaped so the GIF
- * frame's transparent window has exactly the photo's aspect, and at 1x the
- * whole photo fills that window (nothing cut off). Without a GIF frame the
- * window is the whole canvas, so the GIF is simply the photo. The frame
- * overlay is drawn on top, never clipping the photo.
+ * A GIF frame works like a print frame with one photo slot: the GIF keeps
+ * the frame's own shape (never stretched), and at 1x the photo covers the
+ * slot (centred, cropped like object-fit: cover), clipped to it. Without a
+ * GIF frame the slot is the whole canvas and the GIF is simply the photo's
+ * shape. The frame overlay is drawn on top.
  *
  * Offsets are fractions of the canvas, measured from the window centre.
  * Moving / zooming is limited so the photo always covers the window, so no
@@ -20,7 +20,7 @@ export interface GifAdjust {
   flip: boolean;
 }
 
-/** The frame's transparent window, as fractions of the canvas. */
+/** The frame's photo slot, as fractions of the canvas. */
 export interface GifWindow {
   x: number;
   y: number;
@@ -48,11 +48,11 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const finite = (value: unknown, fallback: number) => (typeof value === 'number' && Number.isFinite(value) ? value : fallback);
 
 /**
- * Canvas width / height for a photo aspect and a frame window: the window
- * (window.width * W) x (window.height * H) gets exactly the photo's aspect.
+ * Canvas width / height of the GIF: the frame's own aspect when there is a
+ * frame (it is never stretched), else the photo's.
  */
-export const gifCanvasAspect = (photoAspect: number, window: GifWindow = FULL_GIF_WINDOW): number =>
-  photoAspect > 0 && window.width > 0 && window.height > 0 ? (photoAspect * window.height) / window.width : photoAspect || 4 / 3;
+export const gifCanvasAspect = (photoAspect: number, overlayAspect?: number | null): number =>
+  overlayAspect && overlayAspect > 0 ? overlayAspect : photoAspect > 0 ? photoAspect : 4 / 3;
 
 /** Photo size at 1x, as fractions of the canvas: it covers the window. */
 export const gifPhotoBase = (geometry: GifGeometry): { width: number; height: number } => {

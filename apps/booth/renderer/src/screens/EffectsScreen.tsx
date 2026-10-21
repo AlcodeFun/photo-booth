@@ -32,7 +32,7 @@ export const EffectsScreen: React.FC = () => {
     let alive = true;
     listActiveGifFrames()
       .then((rows) => {
-        if (alive) setGifFrames(rows.map((r) => ({ id: r.id, name: r.name, url: r.image_url, width: r.width, height: r.height })));
+        if (alive) setGifFrames(rows.map((r) => ({ id: r.id, name: r.name, url: r.image_url, width: r.width, height: r.height, slot: r.photo_slot })));
       })
       .catch(() => undefined);
     return () => {

@@ -5,7 +5,7 @@ import { getCanvasFilter } from './filters';
 import { filteredSource } from './canvasFilter';
 import { downloadBlob, downloadStamp } from './download';
 import { clampGifAdjust, FULL_GIF_WINDOW, gifCanvasAspect, type GifAdjust, type GifWindow } from './gifAdjust';
-import { detectOverlayWindow } from './overlayWindow';
+import { resolveGifSlot } from '../lib/gifFrames';
 
 const imageCache = new Map<string, Promise<HTMLImageElement>>();
 
@@ -383,10 +383,9 @@ export async function downloadFramedPhoto(
 }
 
 /**
- * Draws one GIF photo: covering the frame's window (which has the photo's
- * own aspect, so at 1x the whole photo is visible), centred on the window,
- * then the guest's zoom / pan (canvas fractions) / mirror. Not clipped: the
- * frame overlay drawn afterwards covers whatever spills past the window.
+ * Draws one GIF photo into the frame's slot: covering it (centred, cropped
+ * like object-fit: cover), then the guest's zoom / pan (canvas fractions) /
+ * mirror, clipped to the slot like a print frame's photo slot.
  */
 const drawGifPhoto = (
   ctx: CanvasRenderingContext2D,
@@ -402,6 +401,9 @@ const drawGifPhoto = (
   const drawHeight = image.height * fit;
   const filtered = filteredSource(image, canvasFilter);
   ctx.save();
+  ctx.beginPath();
+  ctx.rect(rect.x, rect.y, rect.width, rect.height);
+  ctx.clip();
   ctx.filter = filtered.ctxFilter;
   ctx.translate(
     rect.x + rect.width / 2 + adjust.offsetX * canvas.width,
@@ -418,9 +420,10 @@ const drawGifPhoto = (
  * looping continuously. The canvas matches the camera's original aspect ratio
  * (from the first photo) and each photo is fit fully — no cropping.
  *
- * With a GIF frame (`overlayUrl`), the canvas takes the overlay's aspect
- * ratio instead: each photo covers the overlay's transparent window (see
- * overlayWindow.ts) and the overlay PNG is drawn on top.
+ * With a GIF frame (`overlayUrl`), the canvas keeps the overlay's own shape
+ * (never stretched): each photo covers the frame's photo slot (saved with the
+ * frame, else its detected transparent window), clipped to it, and the
+ * overlay PNG is drawn on top.
  *
  * `adjust` (zoom / pan / mirror chosen on the GIF preview) applies to every photo.
  */
@@ -442,12 +445,11 @@ export async function createResultGif(
   // An overlay that fails to load is skipped: a plain GIF beats no GIF.
   const overlay = overlayUrl ? await loadImage(overlayUrl).catch(() => null) : null;
 
-  // The original photo ratio shapes the GIF: the canvas is sized so the
-  // frame's window has exactly the photo's aspect (the frame stretches to
-  // fit); without a frame the GIF is simply the photo's shape.
+  // A frame keeps its own shape; without one the GIF is the photo's shape.
   const first = await loadImage(photos[0]);
-  const photoWindow: GifWindow = overlay ? await detectOverlayWindow(overlayUrl) : FULL_GIF_WINDOW;
-  const height = Math.max(1, Math.round(width / gifCanvasAspect(first.width / first.height, photoWindow)));
+  const photoWindow: GifWindow = overlay ? await resolveGifSlot(overlayUrl) : FULL_GIF_WINDOW;
+  const overlayAspect = overlay ? overlay.naturalWidth / overlay.naturalHeight : null;
+  const height = Math.max(1, Math.round(width / gifCanvasAspect(first.width / first.height, overlayAspect)));
 
   const canvas = document.createElement('canvas');
   canvas.width = width;

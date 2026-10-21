@@ -4,6 +4,7 @@ import { GifPreview } from '../booth/EffectsView';
 import { createGifFrame, replaceGifFrameImage, updateGifFrame, type GifFrame } from '../../lib/gifFrames';
 import { detectGreenScreenRegions, removeGreenScreen } from '../../utils/greenScreenDetection';
 import { detectOverlayWindow, type OverlayWindow } from '../../utils/overlayWindow';
+import type { GifWindow } from '../../utils/gifAdjust';
 
 const SAMPLE_PHOTOS = [1, 2, 3].map((n) => `${import.meta.env.BASE_URL}photos/${n}.jpg`);
 
@@ -45,10 +46,103 @@ const toPngFile = async (src: string, name: string): Promise<File> => {
   return new File([png], name.replace(/\.[^.]+$/, '') + '.png', { type: 'image/png' });
 };
 
+const MIN_SLOT = 0.05;
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+
+type SlotDrag = { mode: 'move' | 'nw' | 'ne' | 'sw' | 'se'; startX: number; startY: number; start: GifWindow };
+
 /**
- * Add / edit a GIF frame, like the frame editor but for a single photo window:
- * pick a PNG / JPG, an optional green screen is keyed out automatically, and a
- * live preview shows the guest's photo exactly where the GIF will put it.
+ * The frame image with its photo slot drawn on top, like the print frame
+ * editor's photo areas (but a single slot): drag it to move, drag a corner
+ * to resize. Values are fractions of the image.
+ */
+const SlotEditor: React.FC<{
+  imageUrl: string;
+  aspect: number;
+  slot: GifWindow;
+  onChange: (slot: GifWindow) => void;
+}> = ({ imageUrl, aspect, slot, onChange }) => {
+  const boxRef = useRef<HTMLDivElement>(null);
+  const drag = useRef<SlotDrag | null>(null);
+
+  const begin = (mode: SlotDrag['mode']) => (event: React.PointerEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    drag.current = { mode, startX: event.clientX, startY: event.clientY, start: slot };
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  };
+
+  const move = (event: React.PointerEvent) => {
+    const d = drag.current;
+    const box = boxRef.current?.getBoundingClientRect();
+    if (!d || !box) return;
+    const dx = (event.clientX - d.startX) / box.width;
+    const dy = (event.clientY - d.startY) / box.height;
+    const s0 = d.start;
+    if (d.mode === 'move') {
+      onChange({
+        ...s0,
+        x: Math.min(1 - s0.width, Math.max(0, s0.x + dx)),
+        y: Math.min(1 - s0.height, Math.max(0, s0.y + dy)),
+      });
+      return;
+    }
+    let left = s0.x;
+    let top = s0.y;
+    let right = s0.x + s0.width;
+    let bottom = s0.y + s0.height;
+    if (d.mode.includes('w')) left = Math.min(right - MIN_SLOT, clamp01(left + dx));
+    if (d.mode.includes('e')) right = Math.max(left + MIN_SLOT, clamp01(right + dx));
+    if (d.mode.includes('n')) top = Math.min(bottom - MIN_SLOT, clamp01(top + dy));
+    if (d.mode.includes('s')) bottom = Math.max(top + MIN_SLOT, clamp01(bottom + dy));
+    onChange({ x: left, y: top, width: right - left, height: bottom - top });
+  };
+
+  const end = () => {
+    drag.current = null;
+  };
+
+  const handle = 'absolute h-3.5 w-3.5 rounded-full border-2 border-white bg-pbx-ui-hi shadow';
+  return (
+    <div
+      ref={boxRef}
+      className="relative w-full touch-none select-none overflow-hidden rounded-lg"
+      style={{
+        aspectRatio: `${aspect}`,
+        backgroundColor: '#3a3a3a',
+        backgroundImage:
+          'linear-gradient(45deg,#4a4a4a 25%,transparent 25%,transparent 75%,#4a4a4a 75%),linear-gradient(45deg,#4a4a4a 25%,transparent 25%,transparent 75%,#4a4a4a 75%)',
+        backgroundSize: '16px 16px',
+        backgroundPosition: '0 0, 8px 8px',
+      }}
+      onPointerMove={move}
+      onPointerUp={end}
+      onPointerCancel={end}
+    >
+      <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-fill" draggable={false} />
+      <div
+        className="absolute cursor-move border-2 border-pbx-ui-hi bg-pbx-ui-hi/15"
+        style={{ left: `${slot.x * 100}%`, top: `${slot.y * 100}%`, width: `${slot.width * 100}%`, height: `${slot.height * 100}%` }}
+        onPointerDown={begin('move')}
+      >
+        <span className="pointer-events-none absolute left-1 top-1 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+          Photo slot
+        </span>
+        <span className={`${handle} -left-2 -top-2 cursor-nwse-resize`} onPointerDown={begin('nw')} />
+        <span className={`${handle} -right-2 -top-2 cursor-nesw-resize`} onPointerDown={begin('ne')} />
+        <span className={`${handle} -bottom-2 -left-2 cursor-nesw-resize`} onPointerDown={begin('sw')} />
+        <span className={`${handle} -bottom-2 -right-2 cursor-nwse-resize`} onPointerDown={begin('se')} />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Add / edit a GIF frame, like the frame editor but for a single photo slot:
+ * pick a PNG / JPG, an optional green screen is keyed out automatically, the
+ * photo slot is drawn automatically from the transparent / green area (and can
+ * be moved or resized), and a live preview shows the guest's photo exactly
+ * where the GIF will put it. The GIF keeps the frame's own shape.
  */
 export const GifFrameEditor: React.FC<{
   /** Frame to edit, or null to add a new one. */
@@ -65,6 +159,8 @@ export const GifFrameEditor: React.FC<{
   const [keyGreen, setKeyGreen] = useState(true);
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
   const [photoWindow, setPhotoWindow] = useState<OverlayWindow | null>(null);
+  /** The photo slot being edited (auto-drawn from the detected window). */
+  const [slot, setSlot] = useState<GifWindow | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -76,6 +172,7 @@ export const GifFrameEditor: React.FC<{
     setShown(frame?.is_active ?? true);
     setSource(null);
     setKeyGreen(true);
+    setSlot(frame?.photo_slot ?? null);
     setError(null);
     setBusy(null);
   }, [open, frame]);
@@ -95,11 +192,15 @@ export const GifFrameEditor: React.FC<{
         if (!alive) return;
         setSize(s);
         setPhotoWindow(w);
+        // A new image (or a frame saved before slots existed) gets its slot
+        // drawn automatically from the transparent / green area.
+        setSlot((current) => (source || !current ? w : current));
       })
       .catch(() => alive && setError('Could not read that image'));
     return () => {
       alive = false;
     };
+    // `source` only matters together with the overlay URL it produced.
   }, [overlayUrl]);
 
   const pick = async (file: File | undefined) => {
@@ -139,10 +240,10 @@ export const GifFrameEditor: React.FC<{
     try {
       if (frame) {
         if (source) await replaceGifFrameImage(frame, await toPngFile(overlayUrl, source.fileName));
-        await updateGifFrame(frame.id, { name: name.trim() || frame.name, is_active: shown });
+        await updateGifFrame(frame.id, { name: name.trim() || frame.name, is_active: shown, photo_slot: slot });
         onSaved(`Saved "${name.trim() || frame.name}"`);
       } else {
-        await createGifFrame(await toPngFile(overlayUrl, source?.fileName ?? 'gif-frame.png'), name, nextSortOrder, shown);
+        await createGifFrame(await toPngFile(overlayUrl, source?.fileName ?? 'gif-frame.png'), name, nextSortOrder, shown, slot);
         onSaved(`Added "${name.trim() || 'GIF frame'}"`);
       }
     } catch (err) {
@@ -152,7 +253,7 @@ export const GifFrameEditor: React.FC<{
   };
 
   const previewFrame =
-    overlayUrl && size ? { id: 'preview', name, url: overlayUrl, width: size.width, height: size.height } : null;
+    overlayUrl && size ? { id: 'preview', name, url: overlayUrl, width: size.width, height: size.height, slot: slot ?? photoWindow } : null;
 
   return (
     <Modal open={open} title={frame ? 'Edit GIF frame' : 'Add GIF frame'} onClose={busy ? () => undefined : onClose} width="880px">
@@ -173,10 +274,18 @@ export const GifFrameEditor: React.FC<{
             void pick(e.dataTransfer.files?.[0]);
           }}
         >
-          {previewFrame ? (
-            <div className="w-full">
-              <GifPreview photos={SAMPLE_PHOTOS} filter="none" overlay={previewFrame} className="w-full rounded-lg" />
-              <p className="mt-2 text-center text-xs text-white/50">Preview with sample photos, exactly how the GIF fills the window</p>
+          {previewFrame && size ? (
+            <div className="flex w-full flex-col gap-3">
+              {slot && (
+                <div>
+                  <SlotEditor imageUrl={previewFrame.url} aspect={size.width / size.height} slot={slot} onChange={setSlot} />
+                  <p className="mt-1.5 text-center text-xs text-white/50">Drag the photo slot to move it, drag a corner to resize</p>
+                </div>
+              )}
+              <div>
+                <GifPreview photos={SAMPLE_PHOTOS} filter="none" overlay={previewFrame} className="w-full rounded-lg" />
+                <p className="mt-1.5 text-center text-xs text-white/50">Preview with sample photos: the GIF keeps the frame's shape, the photo fills the slot</p>
+              </div>
             </div>
           ) : (
             <button
@@ -238,11 +347,22 @@ export const GifFrameEditor: React.FC<{
             </label>
           )}
 
-          {photoWindow && !noWindow && size && (
-            <p className="rounded-lg bg-white/5 px-3 py-2 text-xs text-white/65">
-              Photo window: {Math.round(photoWindow.width * size.width)} × {Math.round(photoWindow.height * size.height)} px
-              {' '}({Math.round(photoWindow.width * 100)}% × {Math.round(photoWindow.height * 100)}% of the {size.width} × {size.height} image)
-            </p>
+          {slot && size && (
+            <div className="flex items-center gap-2 rounded-lg bg-white/5 px-3 py-2 text-xs text-white/65">
+              <span className="flex-1">
+                Photo slot: {Math.round(slot.width * size.width)} × {Math.round(slot.height * size.height)} px at{' '}
+                {Math.round(slot.x * size.width)}, {Math.round(slot.y * size.height)} (image {size.width} × {size.height})
+              </span>
+              {photoWindow && (
+                <button
+                  type="button"
+                  onClick={() => setSlot(photoWindow)}
+                  className="shrink-0 rounded-full border border-white/15 px-2.5 py-1 text-[11px] font-semibold text-white/80 transition hover:bg-white/10"
+                >
+                  Detect again
+                </button>
+              )}
+            </div>
           )}
           {(noWindow || isJpgWithoutKey) && overlayUrl && (
             <p className="rounded-lg border border-[#f5b942]/40 bg-[#f5b942]/10 px-3 py-2 text-xs text-[#f7cd73]">
