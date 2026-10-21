@@ -10,6 +10,7 @@ import CameraOverlayView from '../components/booth/startScreen/CameraOverlayView
 import StartCameraFeed from '../components/booth/startScreen/StartCameraFeed';
 import WeddingRomanceView from '../components/booth/startScreen/WeddingRomanceView';
 import HauntedNightView from '../components/booth/startScreen/HauntedNightView';
+import KliwonNightView from '../components/booth/startScreen/KliwonNightView';
 
 type Flavor = 'pink' | 'lime';
 
@@ -362,6 +363,16 @@ export const ContextBumperScreen: React.FC = () => {
         />
       ) : startScreen.style === 'halloween' ? (
         <HauntedNightView
+          copy={copy}
+          theme={theme}
+          photos={PHOTOS}
+          cameraFeed={<StartCameraFeed fallbackSrc={PHOTOS[0]} />}
+          background={background}
+          onAdvance={requestStart}
+          onOpenPin={openPin}
+        />
+      ) : startScreen.style === 'kliwon' ? (
+        <KliwonNightView
           copy={copy}
           theme={theme}
           photos={PHOTOS}

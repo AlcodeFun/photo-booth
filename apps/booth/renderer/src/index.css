@@ -811,6 +811,144 @@
   }
 }
 
+/* ---- Malam Jumat Kliwon start screen (Hantu Nusantara) ---- */
+/* Pocong: crosses the graveyard (outer) in little hops (inner). */
+.pb-kl-cross {
+  animation: pb-kl-cross var(--kc-dur, 30s) linear var(--kc-delay, 0s) infinite;
+  will-change: transform;
+}
+
+@keyframes pb-kl-cross {
+  from { transform: translate3d(-16cqw, 0, 0); }
+  to { transform: translate3d(116cqw, 0, 0); }
+}
+
+.pb-kl-hop {
+  transform-origin: 50% 100%;
+  animation: pb-kl-hop 0.86s cubic-bezier(0.33, 0, 0.4, 1) infinite;
+}
+
+@keyframes pb-kl-hop {
+  0%, 100% { transform: translateY(0) scale(1.05, 0.93); }
+  12% { transform: translateY(0) scale(0.97, 1.04); }
+  50% { transform: translateY(-3.4cqmin) scale(0.98, 1.03); }
+  88% { transform: translateY(0) scale(1, 1); }
+}
+
+/* Kuntilanak: hovers and sways; her hair streams a little behind. */
+.pb-kl-float {
+  animation: pb-kl-float 5.5s ease-in-out infinite alternate;
+}
+
+@keyframes pb-kl-float {
+  from { transform: translate(0, 0) rotate(-2.5deg); }
+  to { transform: translate(-1.6cqmin, -2.4cqmin) rotate(2.5deg); }
+}
+
+.pb-kl-hair {
+  transform-origin: 50% 0;
+  animation: pb-kl-hair 3.2s ease-in-out infinite alternate;
+}
+
+@keyframes pb-kl-hair {
+  from { transform: skewX(-4deg); }
+  to { transform: skewX(5deg); }
+}
+
+/* "hihihi…" drifting away from the kuntilanak. */
+.pb-kl-laugh {
+  opacity: 0;
+  animation: pb-kl-laugh 6s ease-out var(--kl-delay, 0s) infinite;
+}
+
+@keyframes pb-kl-laugh {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.8); }
+  15% { opacity: 1; }
+  60% { opacity: 0.85; }
+  100% { opacity: 0; transform: translate(4cqmin, -5cqmin) scale(1.1); }
+}
+
+/* Tuyul: slides out from behind the window frame, looks, hides again. */
+.pb-kl-peek {
+  animation: pb-kl-peek 9s ease-in-out infinite;
+}
+
+@keyframes pb-kl-peek {
+  0%, 18% { transform: translateX(70%) rotate(8deg); }
+  30%, 62% { transform: translateX(0) rotate(-4deg); }
+  68% { transform: translateX(0) rotate(4deg); }
+  80%, 100% { transform: translateX(70%) rotate(8deg); }
+}
+
+/* Kunang-kunang (fireflies): wander and pulse. */
+.pb-kl-firefly {
+  animation:
+    pb-kl-firefly-move var(--ff-dur, 11s) ease-in-out var(--ff-delay, 0s) infinite alternate,
+    pb-kl-firefly-glow var(--ff-glow, 2.4s) ease-in-out var(--ff-delay, 0s) infinite;
+}
+
+@keyframes pb-kl-firefly-move {
+  0% { transform: translate(0, 0); }
+  33% { transform: translate(var(--ff-x1, 3cqmin), var(--ff-y1, -2cqmin)); }
+  66% { transform: translate(var(--ff-x2, -2cqmin), var(--ff-y2, -4cqmin)); }
+  100% { transform: translate(var(--ff-x3, 4cqmin), var(--ff-y3, 1cqmin)); }
+}
+
+@keyframes pb-kl-firefly-glow {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 1; }
+}
+
+/* Obor (bamboo torch) flame. */
+.pb-kl-flame {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: pb-kl-flame 0.9s ease-in-out infinite alternate;
+}
+
+@keyframes pb-kl-flame {
+  0% { transform: scale(1, 1) skewX(0deg); }
+  35% { transform: scale(0.92, 1.08) skewX(-4deg); }
+  70% { transform: scale(1.05, 0.94) skewX(3deg); }
+  100% { transform: scale(0.96, 1.05) skewX(-2deg); }
+}
+
+/* Kemenyan (incense) smoke curling up. */
+.pb-kl-smoke {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: pb-kl-smoke var(--sm-dur, 5s) ease-out var(--sm-delay, 0s) infinite;
+}
+
+@keyframes pb-kl-smoke {
+  0% { opacity: 0; transform: translateY(0) scale(0.6, 0.6); }
+  20% { opacity: 0.55; }
+  100% { opacity: 0; transform: translateY(-60%) scale(1.4, 1.2) skewX(10deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pb-kl-cross,
+  .pb-kl-hop,
+  .pb-kl-float,
+  .pb-kl-hair,
+  .pb-kl-laugh,
+  .pb-kl-peek,
+  .pb-kl-firefly,
+  .pb-kl-flame,
+  .pb-kl-smoke {
+    animation: none;
+  }
+  .pb-kl-cross {
+    transform: translate3d(70cqw, 0, 0);
+  }
+  .pb-kl-peek {
+    transform: translateX(0);
+  }
+  .pb-kl-laugh {
+    opacity: 0.8;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pb-wed-petal,
   .pb-wed-petal-spin,

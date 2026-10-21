@@ -316,8 +316,11 @@ export interface BoothBackground {
  *                photo window crowned with roses, names in gold script
  *  - halloween:  haunted night: moon, bats, ghosts and a graveyard skyline,
  *                the camera in a gothic window guarded by jack-o'-lanterns
+ *  - kliwon:     Indonesian ghosts (Malam Jumat Kliwon): kuntilanak, pocong,
+ *                tuyul and kunang-kunang over a village graveyard, the camera
+ *                in a carved teak window crowned with a gunungan
  */
-export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera' | 'wedding' | 'halloween';
+export type BoothStartScreenStyle = 'gradient3d' | 'flat' | 'camera' | 'wedding' | 'halloween' | 'kliwon';
 
 export interface BoothStartScreen {
   style: BoothStartScreenStyle;
@@ -361,6 +364,11 @@ export const BOOTH_START_SCREEN_PRESETS: BoothStartScreenPreset[] = [
     id: 'halloween',
     label: 'Haunted Night',
     description: 'Moonlit graveyard with bats, ghosts and fog; the live camera in a gothic window lit by jack-o’-lanterns.',
+  },
+  {
+    id: 'kliwon',
+    label: 'Malam Jumat Kliwon',
+    description: 'Indonesian ghosts: a floating kuntilanak, a hopping pocong, a peeking tuyul and kunang-kunang; the live camera in a carved teak window.',
   },
 ];
 
@@ -1033,6 +1041,54 @@ export const BOOTH_THEME_PRESETS: BoothThemePreset[] = [
       bumperAltInner: '#8BD346',
       bumperAltMid: '#3A1B57',
       bumperAltOuter: '#0E0814',
+    },
+  },
+  {
+    id: 'hantu-nusantara',
+    label: 'Hantu Nusantara',
+    // Blood red, banyan green, kamboja cream, torch gold, graveyard night.
+    swatches: ['#B3122E', '#1E4A3A', '#F5E6B8', '#F2B544', '#08100C'],
+    backgroundColor: '#0A140F',
+    // The start screen draws its own night, so drop any image a previous
+    // event preset left behind.
+    background: { type: 'color' },
+    copy: {
+      bumperBrand: 'Jangan Noleh!',
+      bumperCaption1: 'Malam Jumat Kliwon',
+      bumperCaption2: 'Katanya ada yang ikut nimbrung di fotomu… Berani pose bareng kuntilanak & pocong?',
+      bumperCaption3: 'Hantu Nusantara',
+      bumperTapToStart: 'Sentuh kalau berani',
+    },
+    startScreen: { style: 'kliwon' },
+    theme: {
+      // Graveyard-night surfaces with shroud-white text; blood red carries the calls to action.
+      primary: '#B3122E',
+      primaryForeground: '#FFF4E6',
+      secondary: '#1E4A3A',
+      secondaryForeground: '#F2EFE6',
+      tertiary: '#F5E6B8',
+      tertiaryForeground: '#1A140C',
+      accent: '#F2B544',
+      accentForeground: '#1A140C',
+      action: '#C8102E',
+      actionForeground: '#FFF4E6',
+      background: '#0A140F',
+      foreground: '#F2EFE6',
+      card: '#F2EFE6',
+      cardForeground: '#14110E',
+      surface: '#12251C',
+      surfaceForeground: '#F2EFE6',
+      muted: '#4A5D52',
+      mutedForeground: '#F2EFE6',
+      destructive: '#D7263D',
+      destructiveForeground: '#FFF5EC',
+      deep: '#060C09',
+      bumperInner: '#B3122E',
+      bumperMid: '#1E4A3A',
+      bumperOuter: '#060C09',
+      bumperAltInner: '#F2B544',
+      bumperAltMid: '#12251C',
+      bumperAltOuter: '#060C09',
     },
   },
 ];
