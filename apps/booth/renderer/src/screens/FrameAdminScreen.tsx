@@ -1505,9 +1505,11 @@ const nudgeRef = useRef(false);
         setStatus('Frame is still loading, try again in a moment');
         return;
       }
-      // Sources actually used by the areas (never more than the areas can show).
+      // The booth captures one shot per source photo, so the count is exactly the
+      // photos the areas use (6 areas from 3 photos = 3 shots), never the editor's
+      // source setting: an unused source would be a shot that is never shown.
       const usedSources = Math.max(1, ...draftTemplate.photoSlots.map((area) => area.sourcePhotoSlot ?? area.slotNumber));
-      const photoCount = clamp(Math.max(usedSources, Math.min(sourcePhotoCount, draftTemplate.photoSlots.length)), 1, MAX_SOURCE_PHOTOS);
+      const photoCount = clamp(usedSources, 1, MAX_SOURCE_PHOTOS);
       // A replaced overlay becomes the preview too (data URLs stay out of the list).
       const assetIsRemote = /^https?:/i.test(draftTemplate.assetUrl);
       const frameConfig: FrameConfig = {
