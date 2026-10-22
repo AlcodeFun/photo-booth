@@ -12,7 +12,7 @@ import { MOCK_FRAMES, MOCK_LAYOUTS } from '../data/mockData';
 import { useFramesWithDrafts } from '../hooks/useFramesWithDrafts';
 import { useFrameHistory } from '../hooks/useFrameHistory';
 import {
-  listFrameTemplates,
+  listAdminFrameTemplates,
   saveFrameTemplate,
   uploadFrameAsset,
 } from '../lib/frames';
@@ -69,6 +69,10 @@ const normalizeAreas = (areas: FramePhotoPlacement[], sourcePhotoCount: number):
     sourcePhotoSlot: normalizeSourcePhotoSlot(area.sourcePhotoSlot ?? area.slotNumber, sourcePhotoCount),
   }));
 
+/** True when area N uses source photo N for every area (the default 1:1 layout). */
+const isSequential = (areas: FramePhotoPlacement[]) =>
+  areas.every((area, index) => (area.sourcePhotoSlot ?? area.slotNumber) === index + 1);
+
 const cloneTemplate = (template: FrameTemplateConfig, sourcePhotoCount: number): FrameTemplateConfig => ({
   ...template,
   photoSlots: normalizeAreas(
@@ -91,7 +95,7 @@ function createDefaultArea(
 
   return {
     slotNumber,
-    sourcePhotoSlot: clamp(slotNumber, 1, sourcePhotoCount),
+    sourcePhotoSlot: clamp(slotNumber, 1, Math.max(sourcePhotoCount, Math.min(slotNumber, MAX_SOURCE_PHOTOS))),
     x: clamp(120 + offset, 0, template.width - width),
     y: clamp(140 + offset, 0, template.height - height),
     width,
@@ -147,8 +151,10 @@ export const FrameAdminScreen: React.FC = () => {
   const [selectedFrameId, setSelectedFrameId] = useState<string>(editTargetId ?? '__new__');
   const isNewFrame = selectedFrameId === '__new__';
   const frames = useFramesWithDrafts(catalogFrames, sourcePhotoCount);
-  const selectedFrame = isNewFrame ? null : frames.find((frame) => frame.id === selectedFrameId) ?? frames[0] ?? null;
-  const baseFrame = isNewFrame ? null : catalogFrames.find((frame) => frame.id === selectedFrameId) ?? catalogFrames[0] ?? null;
+  // An edit target is only ever that frame: no falling back to another one while
+  // the catalog loads (saving would otherwise overwrite the wrong frame).
+  const selectedFrame = isNewFrame ? null : frames.find((frame) => frame.id === selectedFrameId) ?? null;
+  const baseFrame = isNewFrame ? null : catalogFrames.find((frame) => frame.id === selectedFrameId) ?? null;
   const [frameName, setFrameName] = useState('Custom Static Frame');
   const [nameError, setNameError] = useState(false);
   const [activeAreaNumber, setActiveAreaNumber] = useState(1);
@@ -200,11 +206,11 @@ const nudgeRef = useRef(false);
     canRedo,
   } = useFrameHistory(initialTemplate);
 
-  const frameId = isNewFrame ? slugify(frameName) : selectedFrame?.id ?? slugify(frameName);
+  const frameId = isNewFrame ? slugify(frameName) : selectedFrameId;
 
   const loadRemoteFrames = useCallback(async (notify: boolean) => {
     try {
-      const remote = await listFrameTemplates();
+      const remote = await listAdminFrameTemplates();
       if (remote.length > 0) {
         setCatalogFrames(remote);
         setSelectedFrameId((current) =>
@@ -386,17 +392,25 @@ const nudgeRef = useRef(false);
 
   const setPhotoAreaCount = (value: number) => {
     const nextCount = clamp(Math.floor(value), 1, MAX_PHOTO_AREAS);
+    const highest = Math.max(0, ...draftTemplate.photoSlots.map((area) => area.sourcePhotoSlot ?? area.slotNumber));
+    const added = Math.max(0, nextCount - draftTemplate.photoSlots.length);
+    const sources = clamp(Math.max(sourcePhotoCount, highest + added), 1, MAX_SOURCE_PHOTOS);
+    if (sources !== sourcePhotoCount) {
+      setSourcePhotoCount(sources);
+    }
 
     setDraftTemplate((template) => {
-      const nextAreas = normalizeAreas(template.photoSlots, sourcePhotoCount).slice(0, nextCount);
+      const nextAreas = normalizeAreas(template.photoSlots, sources).slice(0, nextCount);
 
+      let nextSource = highest;
       while (nextAreas.length < nextCount) {
-        nextAreas.push(createDefaultArea(nextAreas.length + 1, sourcePhotoCount, template));
+        nextSource = Math.min(nextSource + 1, sources);
+        nextAreas.push({ ...createDefaultArea(nextAreas.length + 1, sources, template), sourcePhotoSlot: nextSource });
       }
 
       return {
         ...template,
-        photoSlots: normalizeAreas(nextAreas, sourcePhotoCount),
+        photoSlots: normalizeAreas(nextAreas, sources),
       };
     });
 
@@ -405,17 +419,33 @@ const nudgeRef = useRef(false);
     setStatus('');
   };
 
+  /**
+   * Source photo for a new area: the next one after the highest in use, so a
+   * 1:1 layout stays 1:1 (area N = photo N) and a linked one (6 areas from 3
+   * photos) gets photo 4. Grows the source count to include it.
+   */
+  const nextSourceForNewArea = () => {
+    const highest = Math.max(0, ...draftTemplate.photoSlots.map((area) => area.sourcePhotoSlot ?? area.slotNumber));
+    const next = Math.min(highest + 1, MAX_SOURCE_PHOTOS);
+    if (next > sourcePhotoCount) {
+      setSourcePhotoCount(next);
+    }
+    return next;
+  };
+
   const handleAddArea = () => {
     const nextAreaNumber = draftTemplate.photoSlots.length + 1;
     if (nextAreaNumber > MAX_PHOTO_AREAS) {
       return;
     }
+    const source = nextSourceForNewArea();
+    const sources = Math.max(sourcePhotoCount, source);
 
     setDraftTemplate((template) => ({
       ...template,
       photoSlots: [
         ...template.photoSlots,
-        createDefaultArea(template.photoSlots.length + 1, sourcePhotoCount, template),
+        { ...createDefaultArea(template.photoSlots.length + 1, sources, template), sourcePhotoSlot: source },
       ],
     }));
     setActiveAreaNumber(nextAreaNumber);
@@ -467,6 +497,12 @@ const nudgeRef = useRef(false);
       return false;
     }
 
+    const wasSequential = isSequential(draftTemplate.photoSlots);
+    const remainingAreas = draftTemplate.photoSlots.length - targets.length;
+    if (wasSequential && remainingAreas > 0 && remainingAreas < sourcePhotoCount) {
+      setSourcePhotoCount(remainingAreas);
+    }
+
     setDraftTemplate((template) => {
       const remaining = template.photoSlots.filter((area) => !targets.includes(area.slotNumber));
 
@@ -477,7 +513,10 @@ const nudgeRef = useRef(false);
         };
       }
 
-      const nextAreas = normalizeAreas(remaining, sourcePhotoCount);
+      const nextAreas = normalizeAreas(
+        wasSequential ? remaining.map((area, index) => ({ ...area, sourcePhotoSlot: index + 1 })) : remaining,
+        wasSequential ? remaining.length : sourcePhotoCount,
+      );
       return {
         ...template,
         photoSlots: nextAreas,
@@ -776,13 +815,18 @@ const nudgeRef = useRef(false);
       return;
     }
 
+    if (draftTemplate.photoSlots.length + 1 > MAX_PHOTO_AREAS) {
+      return;
+    }
+    const drawnSource = nextSourceForNewArea();
+
     setDraftTemplate((template) => {
       const slotNumber = template.photoSlots.length + 1;
       if (slotNumber > MAX_PHOTO_AREAS) {
         return template;
       }
 
-      const sourcePhotoSlot = activeArea?.sourcePhotoSlot ?? clamp(slotNumber, 1, sourcePhotoCount);
+      const sourcePhotoSlot = drawnSource;
 
       return {
         ...template,
@@ -1457,16 +1501,22 @@ const nudgeRef = useRef(false);
 
     setStatus('Saving...');
     try {
-      const existingTemplates = selectedFrame?.templatesByPhotoSlots ?? {};
+      if (!isNewFrame && !selectedFrame) {
+        setStatus('Frame is still loading, try again in a moment');
+        return;
+      }
+      // Sources actually used by the areas (never more than the areas can show).
+      const usedSources = Math.max(1, ...draftTemplate.photoSlots.map((area) => area.sourcePhotoSlot ?? area.slotNumber));
+      const photoCount = clamp(Math.max(usedSources, Math.min(sourcePhotoCount, draftTemplate.photoSlots.length)), 1, MAX_SOURCE_PHOTOS);
+      // A replaced overlay becomes the preview too (data URLs stay out of the list).
+      const assetIsRemote = /^https?:/i.test(draftTemplate.assetUrl);
       const frameConfig: FrameConfig = {
         id: frameId.trim(),
         name: frameName.trim() || 'Untitled Frame',
-        previewUrl: isNewFrame ? draftTemplate.assetUrl : selectedFrame?.previewUrl ?? draftTemplate.assetUrl,
-        photoSlots: selectedFrame?.photoSlots ?? sourcePhotoCount,
-        templatesByPhotoSlots: {
-          ...existingTemplates,
-          [sourcePhotoCount]: draftTemplate,
-        },
+        previewUrl: assetIsRemote ? draftTemplate.assetUrl : selectedFrame?.previewUrl ?? draftTemplate.assetUrl,
+        photoSlots: photoCount,
+        // Only the layout being edited: the booth reads templatesByPhotoSlots[photoSlots].
+        templatesByPhotoSlots: { [photoCount]: draftTemplate },
       };
 
       await saveFrameTemplate(frameConfig);
