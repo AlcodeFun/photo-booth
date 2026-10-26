@@ -533,6 +533,14 @@ export async function createResultLiveFramed(
   const total = Math.min(Math.max(2, longestClip), Math.max(2, frames));
   const finalFrameHold = 900;
   const gif = GIFEncoder();
+  // Size: the frame art never moves, only the photo slots do. One shared
+  // palette (from the first frame) keeps unchanged pixels on the exact same
+  // index every frame, so each later frame stores only what changed and leaves
+  // the rest transparent over the previous frame. Typically several times
+  // smaller than full frames with per-frame palettes, and looks the same.
+  const TRANSPARENT = 255;
+  let palette: number[][] | null = null;
+  let previous: Uint8Array | null = null;
 
   for (let t = 0; t <= total; t += 1) {
     const isFinalFrame = t === total;
@@ -563,14 +571,26 @@ export async function createResultLiveFramed(
     ctx.restore();
 
     const imageData = ctx.getImageData(0, 0, width, height);
-    const palette = quantize(imageData.data, 256);
+    // 255 colours + one reserved transparent entry.
+    const framePalette = palette ?? (palette = quantize(imageData.data, TRANSPARENT));
     applyOrderedDither(imageData.data, width, height);
-    const index = applyPalette(imageData.data, palette);
-    gif.writeFrame(index, width, height, {
-      palette,
-      delay: isFinalFrame ? finalFrameHold : frameDelay,
-      repeat: 0,
-    });
+    const index = applyPalette(imageData.data, framePalette);
+    const delay = isFinalFrame ? finalFrameHold : frameDelay;
+    if (!previous) {
+      gif.writeFrame(index, width, height, {
+        palette: [...framePalette, ...Array.from({ length: 256 - framePalette.length }, () => [0, 0, 0])],
+        delay,
+        repeat: 0,
+      });
+    } else {
+      const delta = new Uint8Array(index.length);
+      for (let i = 0; i < index.length; i += 1) {
+        delta[i] = index[i] === previous[i] ? TRANSPARENT : index[i];
+      }
+      // dispose 1 = keep the previous frame underneath the transparent pixels.
+      gif.writeFrame(delta, width, height, { delay, transparent: true, transparentIndex: TRANSPARENT, dispose: 1 });
+    }
+    previous = index;
   }
 
   gif.finish();

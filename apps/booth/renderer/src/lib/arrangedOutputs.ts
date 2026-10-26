@@ -4,10 +4,15 @@
  *
  * Shared by the guest's organize page (which normally generates them itself
  * right after "Cetak", so nobody has to wait on the booth) and the booth's
- * print listener (the fallback when the phone could not). Both therefore
- * produce exactly the same files from the same saved arrangement.
+ * print listener (the fallback when the phone could not, and the finisher for
+ * GIFs the phone did not get to). Both therefore produce exactly the same
+ * files from the same saved arrangement.
+ *
+ * The steps are separate so the print never waits for the GIFs: the organize
+ * page builds + uploads framed.png first, hands it to the booth, and only then
+ * makes the (much heavier) GIFs.
  */
-import { FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
+import { FrameConfig, FrameTemplateConfig, PhotoSlotState } from '@photo-booth/types';
 import { generateQrDataUrl } from '../utils/qr';
 import { canvasToJpegBlob, createResultGif, createResultLiveFramed, renderComposition } from '../utils/resultExport';
 import type { SessionUploadFile } from '../utils/sessionUpload';
@@ -28,17 +33,45 @@ export interface ArrangedOutputToggles {
   framedLive: boolean;
 }
 
+/** File names of the optional outputs, in the order they are made. */
+export const GIF_OUTPUT = 'result.gif';
+export const LIVE_OUTPUT = 'result-live.gif';
+export const FRAMED_OUTPUT = 'framed.png';
+
+/** The optional outputs the toggles ask for. */
+export const animatedOutputNames = (outputs: ArrangedOutputToggles): string[] => [
+  ...(outputs.gif ? [GIF_OUTPUT] : []),
+  ...(outputs.framedLive ? [LIVE_OUTPUT] : []),
+];
+
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
-/** Throws with a readable message when the arrangement cannot be rendered. */
-export const buildArrangedOutputs = async (
+/** Everything the three outputs are drawn from (resolved once). */
+export interface PreparedArrangement {
+  endpoint: string;
+  token: string;
+  manifest: OrganizeManifest;
+  slots: string[];
+  frame: FrameConfig;
+  template: FrameTemplateConfig;
+  photoSlots: PhotoSlotState[];
+  qrCodeUrl?: string;
+}
+
+/**
+ * Resolves the arrangement: the template with the guest's zoom / pan, each
+ * slot's photo (rotate / mirror baked in) and, when the live photo is wanted,
+ * each photo's pre-shutter clip. Throws with a readable message when the
+ * arrangement cannot be rendered.
+ */
+export const prepareArrangement = async (
   endpoint: string,
   token: string,
   manifest: OrganizeManifest,
   slots: (string | null)[] | undefined,
   adjustments: OrganizePhotoAdjustment[] | undefined,
-  outputs: ArrangedOutputToggles,
-): Promise<SessionUploadFile[]> => {
+  withLiveClips: boolean,
+): Promise<PreparedArrangement> => {
   const template = manifest.template ?? null;
   const frameId = manifest.frameId ?? null;
   if (!template || !frameId) throw new Error('No frame was picked for this session.');
@@ -65,7 +98,7 @@ export const buildArrangedOutputs = async (
   // Each arranged photo carries its pre-shutter live-view clip so the framed
   // live photo animates every slot; rotate / mirror from the organize page is
   // baked into the raw and its clip once per photo.
-  const liveClips: string[][] | null = outputs.framedLive
+  const liveClips: string[][] | null = withLiveClips
     ? await readJsonFile<string[][]>(endpoint, token, LIVE_CLIPS_FILE)
     : null;
   const transformed = new Map<string, Promise<{ url: string; clip: string[] }>>();
@@ -108,36 +141,73 @@ export const buildArrangedOutputs = async (
     }),
   );
 
-  const frame = { id: frameId, name: 'gallery arrangement', previewUrl: '', template: arrangedTemplate };
   const qrCodeUrl = arrangedTemplate.qrSlots?.length
     ? ((await generateQrDataUrl(sessionUrl(endpoint, token), 256).catch(() => null)) ?? undefined)
     : undefined;
 
-  // framed.png is the sheet the admin prints, so it is always produced.
-  const uploads: SessionUploadFile[] = [];
-  const canvas = await renderComposition(frame, photoSlots, manifest.filterId, {
-    includeFrame: true,
-    qrCodeUrl,
+  return {
+    endpoint,
+    token,
+    manifest,
+    slots: slots as string[],
+    frame: { id: frameId, name: 'gallery arrangement', previewUrl: '', template: arrangedTemplate },
     template: arrangedTemplate,
-  });
-  const framedBlob = await canvasToJpegBlob(canvas);
-  if (!framedBlob) throw new Error('Composing the framed sheet produced no image.');
-  uploads.push({ blob: framedBlob, name: 'framed.png' });
+    photoSlots,
+    qrCodeUrl,
+  };
+};
 
-  if (outputs.gif) {
-    // GIF = the original captures used on the frame, in capture order,
-    // without rotate / mirror and without the filter.
-    const originals = [...new Set(slots.filter((name): name is string => Boolean(name)))]
-      .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
-      .map((name) => fileUrl(endpoint, token, name));
-    const gifBlob = await createResultGif(photoSlotsFromUrls(originals), null, {
-      overlayUrl: manifest.gifFrameUrl ?? null,
-      adjust: manifest.gifAdjust ?? null,
-    });
-    uploads.push({ blob: gifBlob, name: 'result.gif' });
-  }
-  if (outputs.framedLive) {
-    uploads.push({ blob: await createResultLiveFramed(frame, photoSlots, { qrCodeUrl }), name: 'result-live.gif' });
+/** framed.png: the sheet the booth prints (always produced). */
+export const buildFramedOutput = async (prepared: PreparedArrangement): Promise<SessionUploadFile> => {
+  const canvas = await renderComposition(prepared.frame, prepared.photoSlots, prepared.manifest.filterId, {
+    includeFrame: true,
+    qrCodeUrl: prepared.qrCodeUrl,
+    template: prepared.template,
+  });
+  const blob = await canvasToJpegBlob(canvas);
+  if (!blob) throw new Error('Composing the framed sheet produced no image.');
+  return { blob, name: FRAMED_OUTPUT };
+};
+
+/**
+ * result.gif: the original captures used on the frame, in capture order,
+ * without rotate / mirror and without the filter, in the chosen GIF frame.
+ */
+export const buildGifOutput = async (prepared: PreparedArrangement): Promise<SessionUploadFile> => {
+  const { endpoint, token, manifest, slots } = prepared;
+  const originals = [...new Set(slots)]
+    .sort((a, b) => photoIndexFromName(a) - photoIndexFromName(b))
+    .map((name) => fileUrl(endpoint, token, name));
+  const blob = await createResultGif(photoSlotsFromUrls(originals), null, {
+    overlayUrl: manifest.gifFrameUrl ?? null,
+    adjust: manifest.gifAdjust ?? null,
+  });
+  return { blob, name: GIF_OUTPUT };
+};
+
+/** result-live.gif: the framed sheet with every slot playing its live clip. */
+export const buildLiveOutput = async (prepared: PreparedArrangement): Promise<SessionUploadFile> => ({
+  blob: await createResultLiveFramed(prepared.frame, prepared.photoSlots, { qrCodeUrl: prepared.qrCodeUrl }),
+  name: LIVE_OUTPUT,
+});
+
+/** Builds one optional output by file name. */
+export const buildAnimatedOutput = (prepared: PreparedArrangement, name: string): Promise<SessionUploadFile> =>
+  name === LIVE_OUTPUT ? buildLiveOutput(prepared) : buildGifOutput(prepared);
+
+/** All outputs in one go (the booth's fallback when the phone made none). */
+export const buildArrangedOutputs = async (
+  endpoint: string,
+  token: string,
+  manifest: OrganizeManifest,
+  slots: (string | null)[] | undefined,
+  adjustments: OrganizePhotoAdjustment[] | undefined,
+  outputs: ArrangedOutputToggles,
+): Promise<SessionUploadFile[]> => {
+  const prepared = await prepareArrangement(endpoint, token, manifest, slots, adjustments, outputs.framedLive);
+  const uploads: SessionUploadFile[] = [await buildFramedOutput(prepared)];
+  for (const name of animatedOutputNames(outputs)) {
+    uploads.push(await buildAnimatedOutput(prepared, name));
   }
   return uploads;
 };

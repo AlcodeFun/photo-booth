@@ -22,7 +22,7 @@
 import { useBoothConfig } from '../store/boothConfigStore';
 import { useSessionStore } from '../store/sessionStore';
 import { GALLERY_URL } from '../config';
-import { buildArrangedOutputs } from './arrangedOutputs';
+import { buildAnimatedOutput, buildArrangedOutputs, LIVE_OUTPUT, prepareArrangement } from './arrangedOutputs';
 import { uploadSessionFiles } from '../utils/sessionUpload';
 import {
   fileUrl,
@@ -44,6 +44,11 @@ const READY_TOKENS_KEY = 'photo-booth.ready-tokens';
 const POLL_INTERVAL = 4000;
 /** One request may take a while (GIFs), but never block the listener for good. */
 const REQUEST_TIMEOUT = 3 * 60 * 1000;
+/**
+ * GIFs left pending by the organize page (the print already went out) are the
+ * phone's to finish while the guest waits; a booth steps in only after this.
+ */
+const PENDING_GRACE = 2 * 60 * 1000;
 
 const readStringArray = (key: string): string[] => {
   try {
@@ -210,6 +215,48 @@ const adoptGeneratedPrint = async (token: string, request: PrintRequestFile): Pr
   }
 };
 
+/**
+ * The organize page handed the print over but did not upload every GIF (the
+ * guest left, or the phone gave up): make the missing ones here and clear
+ * pendingOutputs. Never touches the print.
+ */
+const finishPendingOutputs = async (token: string, request: PrintRequestFile): Promise<void> => {
+  const endpoint = GALLERY_URL;
+  const pending = request.pendingOutputs ?? [];
+  if (!endpoint || pending.length === 0) return;
+  const manifest = await readJsonFile<OrganizeManifest>(endpoint, token, ORGANIZE_FILE);
+  if (!manifest) {
+    await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...request, pendingOutputs: [] });
+    return;
+  }
+  const prepared = await prepareArrangement(
+    endpoint,
+    token,
+    manifest,
+    request.slots?.length ? request.slots : manifest.slots,
+    request.adjustments ?? manifest.adjustments,
+    pending.includes(LIVE_OUTPUT),
+  );
+  const remaining: string[] = [];
+  for (const name of pending) {
+    try {
+      const file = await buildAnimatedOutput(prepared, name);
+      await cacheUploadBlob(token, file.name, file.blob);
+      const [result] = await uploadSessionFiles([file], endpoint, token);
+      if (!result?.ok) remaining.push(name);
+    } catch (error) {
+      console.error(`Finishing ${name} failed:`, error);
+      remaining.push(name);
+    }
+  }
+  // Whatever still failed is retried after another grace period.
+  await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, {
+    ...request,
+    pendingOutputs: remaining,
+    pendingSince: Date.now(),
+  });
+};
+
 const pollOnce = async () => {
   if (!GALLERY_URL || processing) {
     return;
@@ -217,11 +264,39 @@ const pollOnce = async () => {
   const tokens = readPrintTokens();
   for (const token of tokens) {
     const request = await readJsonFile<PrintRequestFile>(GALLERY_URL, token, PRINT_REQUEST_FILE);
+    const hasPending = request?.status === 'handled' && (request.pendingOutputs?.length ?? 0) > 0;
     if (request?.status === 'handled' && !handledHas(request.requestId)) {
       // Generated elsewhere (normally the guest's phone): take the print into
-      // this booth's queue. Keep tracking if the download failed, to retry.
-      if (await adoptGeneratedPrint(token, request)) untrackPrintToken(token);
+      // this booth's queue. Keep tracking if the download failed, to retry,
+      // and while GIFs are still pending.
+      if ((await adoptGeneratedPrint(token, request)) && !hasPending) untrackPrintToken(token);
       continue;
+    }
+    if (request && hasPending) {
+      // The print is out; the guest's phone is still making the GIFs (or left).
+      if (Date.now() - (request.pendingSince ?? request.requestedAt) < PENDING_GRACE) continue;
+      const lockKey = `photo-booth.pending-lock.${request.requestId}`;
+      try {
+        const held = Number(localStorage.getItem(lockKey) ?? 0);
+        if (Date.now() - held < REQUEST_TIMEOUT) continue;
+        localStorage.setItem(lockKey, String(Date.now()));
+      } catch {
+        // No storage: worst case both windows make the same GIF.
+      }
+      processing = true;
+      try {
+        await Promise.race([
+          finishPendingOutputs(token, request),
+          new Promise<never>((_, reject) =>
+            window.setTimeout(() => reject(new Error('Finishing GIFs timed out.')), REQUEST_TIMEOUT),
+          ),
+        ]);
+      } catch (error) {
+        console.error('Finishing pending GIFs failed:', error);
+      } finally {
+        processing = false;
+      }
+      break;
     }
     if (request && (request.status === 'handled' || handledHas(request.requestId))) {
       // Done here: stop polling it so open sessions keep their place.

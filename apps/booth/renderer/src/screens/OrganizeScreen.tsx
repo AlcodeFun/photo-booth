@@ -24,7 +24,12 @@ import { applyPhotoTransform, isIdentityTransform } from '../utils/photoTransfor
 import { listActiveGifFrames } from '../lib/gifFrames';
 import { GifPreview, type EffectsGifFrame } from '../components/booth/EffectsView';
 import { useBoothAppearance } from '../store/appearanceStore';
-import { buildArrangedOutputs } from '../lib/arrangedOutputs';
+import {
+  animatedOutputNames,
+  buildAnimatedOutput,
+  buildFramedOutput,
+  prepareArrangement,
+} from '../lib/arrangedOutputs';
 import { updateSessionRecord } from '../lib/sessions';
 import { uploadSessionFiles } from '../utils/sessionUpload';
 import { clampGifAdjust, DEFAULT_GIF_ADJUST, isDefaultGifAdjust, type GifAdjust } from '../utils/gifAdjust';
@@ -175,7 +180,8 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const gestureGuideTimerRef = useRef<number | null>(null);
-  const [waiting, setWaiting] = useState<'busy' | 'done' | 'error' | null>(null);
+  // 'printed': the print is with the booth, the GIFs are still being made here.
+  const [waiting, setWaiting] = useState<'busy' | 'printed' | 'done' | 'error' | null>(null);
   // Generating usually takes ~15 s; past 30 s offer the gallery instead of a
   // spinner with no way out (the outputs land there when the booth is done).
   const [slowWait, setSlowWait] = useState(false);
@@ -700,31 +706,71 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
       setStatus({ text: 'Menyiapkan cetakan…', kind: 'ok' });
       setBoothSeen(true);
       setWaiting('busy');
-      // Render + upload the print, GIF and live GIF right here, from exactly
-      // what the guest chose, so nobody has to wait for the booth screen. The
-      // booth picks the finished print up for its queue. If this device cannot
-      // (old phone, no memory), hand the request back to the booth.
+      // Render + upload right here, from exactly what the guest chose, so
+      // nobody waits on the booth screen. The PRINT goes first: framed.png is
+      // small and quick, so the booth can print within seconds. The GIFs (the
+      // heavy part) follow, each uploaded as soon as it is made. If this device
+      // cannot make the print (old phone, no memory), the booth takes the whole
+      // request over; if the guest leaves before the GIFs are done, a booth
+      // finishes them (pendingOutputs).
+      const pending = animatedOutputNames(saved.outputs ?? { gif: true, framedLive: true });
+      let printed = false;
       try {
-        const uploads = await buildArrangedOutputs(
+        const prepared = await prepareArrangement(
           endpoint,
           token,
           saved,
           payload.slots,
           payload.adjustments,
-          saved.outputs ?? { gif: true, framedLive: true },
+          pending.includes('result-live.gif'),
         );
-        const results = await uploadSessionFiles(uploads, endpoint, token);
-        const ok = results.every((result) => result.ok);
-        if (!ok) throw new Error('upload failed');
+        const framed = await buildFramedOutput(prepared);
+        const [framedResult] = await uploadSessionFiles([framed], endpoint, token);
+        if (!framedResult?.ok) throw new Error('upload failed');
         await writeJsonFile(endpoint, token, PRINT_RESULT_FILE, {
           requestId: reqId,
           printedAt: Date.now(),
           status: 'ok',
           message: 'Outputs generated on the organize page.',
         });
-        await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...payload, status: 'handled' });
+        await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, {
+          ...payload,
+          status: 'handled',
+          pendingOutputs: pending,
+          pendingSince: Date.now(),
+        });
+        printed = true;
+        const madeFiles = [framed];
+        let remainingAfter = new Set<string>(pending);
+
+        if (pending.length > 0) {
+          setWaiting('printed');
+          setStatus({ text: 'Cetakan sedang diproses ✦', kind: 'ok' });
+          // Make each GIF, and upload it while the next one is being made.
+          const uploads: Promise<boolean>[] = [];
+          const remaining = new Set(pending);
+          for (const name of pending) {
+            const file = await buildAnimatedOutput(prepared, name);
+            madeFiles.push(file);
+            uploads.push(
+              uploadSessionFiles([file], endpoint, token).then(([result]) => {
+                if (result?.ok) remaining.delete(name);
+                return Boolean(result?.ok);
+              }),
+            );
+          }
+          await Promise.all(uploads);
+          remainingAfter = remaining;
+          await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, {
+            ...payload,
+            status: 'handled',
+            pendingOutputs: [...remaining],
+            pendingSince: Date.now(),
+          });
+        }
         updateSessionRecord(token, {
-          files: uploads.map((file) => ({
+          // Only what actually landed (a GIF that failed stays pending for the booth).
+          files: madeFiles.filter((file) => file.name === 'framed.png' || !remainingAfter.has(file.name)).map((file) => ({
             name: file.name,
             uploaded: true,
             size: file.blob.size,
@@ -735,6 +781,15 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
         setStatus({ text: 'Foto Anda siap ✦', kind: 'ok' });
         window.setTimeout(goToGallery, 900);
       } catch (error) {
+        if (printed) {
+          // The print is with the booth; the GIFs that are still missing stay in
+          // pendingOutputs and a booth makes them. Nothing else to do here.
+          console.error('Making the GIFs on this device failed, the booth finishes them:', error);
+          setWaiting('done');
+          setStatus({ text: 'Foto Anda siap ✦', kind: 'ok' });
+          window.setTimeout(goToGallery, 900);
+          return;
+        }
         console.error('Generating on this device failed, the booth takes over:', error);
         setBoothSeen(false);
         await writeJsonFile(endpoint, token, PRINT_REQUEST_FILE, { ...payload, status: 'requested' });
@@ -779,15 +834,39 @@ export const OrganizeScreen: React.FC<{ token: string }> = ({ token }) => {
           </div>
         ) : (
           <div>
-            <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-pbx-ui-hi" />
+            {waiting === 'printed' ? (
+              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-pbx-ui-hi text-pbx-ui-hi-fg">
+                <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </div>
+            ) : (
+              <div className="mx-auto mb-5 h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-pbx-ui-hi" />
+            )}
             <p className="text-lg font-black uppercase tracking-widest">
-              {waiting === 'done' ? 'Foto Anda siap!' : 'Menyiapkan cetakan…'}
+              {waiting === 'done' ? 'Foto Anda siap!' : waiting === 'printed' ? 'Cetakan sedang diproses' : 'Menyiapkan cetakan…'}
             </p>
             <p className="mt-2 text-sm text-white/70">
               {waiting === 'done'
                 ? 'Membuka galeri…'
-                : 'Booth sedang membuat foto bingkai — mohon tunggu.'}
+                : waiting === 'printed'
+                  ? 'Foto bingkaimu sudah dikirim ke booth. Sekarang kami membuat GIF & live photo-nya…'
+                  : 'Sedang membuat foto bingkai — mohon tunggu.'}
             </p>
+            {waiting === 'printed' && (
+              <div className="mx-auto mt-6 max-w-xs">
+                <div className="mx-auto mb-4 h-1.5 w-40 overflow-hidden rounded-full bg-white/15" aria-hidden="true">
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-pbx-ui-hi" />
+                </div>
+                <p className="text-xs text-white/60">Tidak mau menunggu? Buka galeri sekarang, GIF akan menyusul di sana.</p>
+                <button
+                  className="mt-3 rounded-full border-[3px] border-white px-6 py-3 text-sm font-black uppercase tracking-wide text-white"
+                  onClick={goToGallery}
+                >
+                  Buka Galeri
+                </button>
+              </div>
+            )}
             {waiting === 'busy' && slowWait && (
               <div className="mx-auto mt-6 max-w-xs">
                 <p className="text-xs text-white/60">

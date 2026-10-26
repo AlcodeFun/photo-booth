@@ -75,6 +75,14 @@ export interface PrintRequestFile {
   status: 'requested' | 'processing' | 'handled';
   /** When a booth started generating (lets another booth retry a stalled one). */
   processingAt?: number;
+  /**
+   * Optional outputs (result.gif / result-live.gif) still to be made after the
+   * print was handed over. The organize page clears it when it uploads them;
+   * if the guest leaves first, a booth finishes them after a grace period.
+   */
+  pendingOutputs?: string[];
+  /** When pendingOutputs was set (start of the grace period). */
+  pendingSince?: number;
 }
 
 export interface PrintResultFile {
