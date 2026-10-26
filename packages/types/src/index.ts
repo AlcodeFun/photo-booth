@@ -108,6 +108,7 @@ export type BoothCopyGroupId =
   | 'organize'
   | 'effects'
   | 'results'
+  | 'consent'
   | 'complete';
 
 /**
@@ -265,6 +266,13 @@ export interface BoothCopywriting {
   completeBody: string;
   completeButton: string;
   completeFootnote: string;
+
+  /** End-of-session social media consent question (shown when enabled in booth settings). */
+  consentTitle: string;
+  consentBody: string;
+  consentYes: string;
+  consentNo: string;
+  consentThanks: string;
 }
 
 /** Design-system colors, applied to the booth as `--pb-*` CSS variables. */
@@ -534,6 +542,12 @@ export const DEFAULT_BOOTH_APPEARANCE: BoothAppearance = {
       'Your photo session is complete. Enjoy your prints and save this moment for later.',
     completeButton: 'Start New Session',
     completeFootnote: 'Automatically returning to start screen in a few seconds...',
+
+    consentTitle: 'Boleh kami pamerkan fotomu?',
+    consentBody: 'Bolehkah hasil foto sesi ini diupload ke media sosial Kelana (@kelanacirebon_)?',
+    consentYes: 'Ya, boleh',
+    consentNo: 'Tidak',
+    consentThanks: 'Terima kasih, jawabanmu sudah kami simpan.',
   },
   theme: {
     primary: '#ff4bb5',
@@ -782,6 +796,17 @@ export const BOOTH_COPY_GROUPS: BoothCopyGroup[] = [
       { key: 'resultsAnimatedGifBadge', label: 'Animated GIF badge' },
       { key: 'resultsPhotoLabel', label: 'Photo thumbnail label', hint: 'Token: {index}' },
       { key: 'resultsFramedPhotoLabel', label: 'Framed photo tab' },
+    ],
+  },
+  {
+    id: 'consent',
+    label: 'Social media consent',
+    fields: [
+      { key: 'consentTitle', label: 'Title' },
+      { key: 'consentBody', label: 'Question', multiline: true },
+      { key: 'consentYes', label: 'Yes button' },
+      { key: 'consentNo', label: 'No button' },
+      { key: 'consentThanks', label: 'After answering' },
     ],
   },
   {

@@ -18,6 +18,8 @@ export type BoothPrintMode = 'manual' | 'auto';
 export interface GlobalBoothSettings {
   accessMode: BoothAccessMode;
   printMode: BoothPrintMode;
+  /** Ask guests at the end of a session whether Kelana may post their photos. */
+  socialConsent: boolean;
   updatedAt: string | null;
 }
 
@@ -34,6 +36,7 @@ const ROW_ID = 'default';
 const mapRow = (row: Record<string, unknown>): GlobalBoothSettings => ({
   accessMode: row.access_mode === 'voucher' ? 'voucher' : 'open',
   printMode: row.print_mode === 'auto' ? 'auto' : 'manual',
+  socialConsent: row.social_consent_enabled === true,
   updatedAt: typeof row.updated_at === 'string' ? row.updated_at : null,
 });
 
@@ -78,11 +81,14 @@ export const startBoothSettingsSync = () => {
 };
 
 /** Admin only (RLS): changes the global settings for every booth. */
-export const saveBoothSettings = async (patch: Partial<Pick<GlobalBoothSettings, 'accessMode' | 'printMode'>>) => {
+export const saveBoothSettings = async (
+  patch: Partial<Pick<GlobalBoothSettings, 'accessMode' | 'printMode' | 'socialConsent'>>,
+) => {
   if (!supabase) throw new Error('Supabase is not configured');
-  const row: Record<string, string> = {};
+  const row: Record<string, string | boolean> = {};
   if (patch.accessMode) row.access_mode = patch.accessMode;
   if (patch.printMode) row.print_mode = patch.printMode;
+  if (typeof patch.socialConsent === 'boolean') row.social_consent_enabled = patch.socialConsent;
   const { data, error } = await supabase.from('booth_settings').update(row).eq('id', ROW_ID).select('*');
   if (error) throw new Error(error.message);
   // RLS hides the update from non-admins as "0 rows" rather than an error.

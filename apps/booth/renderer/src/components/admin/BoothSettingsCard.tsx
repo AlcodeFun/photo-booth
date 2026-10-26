@@ -6,7 +6,7 @@ import {
   type GlobalBoothSettings,
 } from '../../lib/boothSettings';
 
-type Patch = Partial<Pick<GlobalBoothSettings, 'accessMode' | 'printMode'>>;
+type Patch = Partial<Pick<GlobalBoothSettings, 'accessMode' | 'printMode' | 'socialConsent'>>;
 
 interface Choice<T extends string> {
   value: T;
@@ -22,6 +22,11 @@ const ACCESS: Choice<GlobalBoothSettings['accessMode']>[] = [
 const PRINT: Choice<GlobalBoothSettings['printMode']>[] = [
   { value: 'manual', label: 'Manual', hint: 'Release prints from Print Queue' },
   { value: 'auto', label: 'Automatic', hint: 'Print as soon as the photo is ready' },
+];
+
+const CONSENT: Choice<'off' | 'on'>[] = [
+  { value: 'off', label: 'Off', hint: 'Do not ask guests' },
+  { value: 'on', label: 'On', hint: 'Ask "boleh diupload ke medsos Kelana?" at the end' },
 ];
 
 const Segmented = <T extends string>({
@@ -116,6 +121,18 @@ export const BoothSettingsCard: React.FC<{ onSaved?: (message: string) => void }
           disabled={busy || !settings}
           onChange={(printMode) =>
             void save({ printMode }, printMode === 'auto' ? 'Booths print automatically' : 'Prints wait in Print Queue')
+          }
+        />
+        <Segmented
+          title="Social media consent"
+          choices={CONSENT}
+          value={settings ? (settings.socialConsent ? 'on' : 'off') : undefined}
+          disabled={busy || !settings}
+          onChange={(value) =>
+            void save(
+              { socialConsent: value === 'on' },
+              value === 'on' ? 'Guests are asked for social media consent' : 'Social media consent question is off',
+            )
           }
         />
       </div>

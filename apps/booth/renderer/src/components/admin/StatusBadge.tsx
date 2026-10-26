@@ -7,6 +7,17 @@ const ROSE = 'border-[#ff5e87]/30 bg-[#ff5e87]/10 text-[#ff8aa8]';
 const AMBER = 'border-amber-400/30 bg-amber-400/10 text-amber-300';
 const VIOLET = 'border-pbx-ui-secondary/40 bg-pbx-ui-secondary/10 text-pbx-line';
 
+/** Guest's answer to "may Kelana post these photos on social media" (nothing when not asked). */
+export const SocialConsentBadge: React.FC<{ consent: boolean | null }> = ({ consent }) =>
+  consent === null ? null : (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${consent ? LIME : ROSE}`}
+      title={consent ? 'Guest allowed posting on Kelana social media' : 'Guest did not allow posting on social media'}
+    >
+      Medsos: {consent ? 'Ya' : 'Tidak'}
+    </span>
+  );
+
 /** Flow 2: the guest has not finished arranging the frame yet. */
 export const OrganizePendingBadge: React.FC = () => (
   <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${VIOLET}`}>

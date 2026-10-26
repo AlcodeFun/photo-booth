@@ -11,6 +11,8 @@ export interface CompleteViewProps {
    * countdown ring around the button; omitted in the preview (no ring timer).
    */
   autoResetSeconds?: number;
+  /** Optional line under the body (e.g. the social media consent thanks). */
+  note?: string;
 }
 
 const CHECK_LEN = 60;
@@ -22,7 +24,7 @@ const RING_LEN = 2 * Math.PI * RING_R;
  * and a ring that visibly drains until the automatic return to the start. The
  * screen owns the actual reset timer; this only mirrors its duration.
  */
-export const CompleteView: React.FC<CompleteViewProps> = ({ copy, theme, onDone, autoResetSeconds }) => {
+export const CompleteView: React.FC<CompleteViewProps> = ({ copy, theme, onDone, autoResetSeconds, note }) => {
   const confetti = useMemo(
     () =>
       Array.from({ length: 36 }, (_, i) => ({
@@ -114,6 +116,14 @@ export const CompleteView: React.FC<CompleteViewProps> = ({ copy, theme, onDone,
           >
             {copy.completeBody}
           </p>
+          {note && (
+            <p
+              className="mx-auto mt-3 max-w-md text-sm font-bold leading-relaxed"
+              style={{ color: theme.surfaceForeground, opacity: 0.75, animation: 'pb-rise-pop 0.6s ease-out 0.65s both' }}
+            >
+              {note}
+            </p>
+          )}
 
           <div
             className="mt-8 flex flex-col items-center gap-4"

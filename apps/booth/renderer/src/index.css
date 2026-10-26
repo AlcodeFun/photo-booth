@@ -1163,6 +1163,12 @@
   to { stroke-dashoffset: var(--len, 100); }
 }
 
+/* Social media consent: time left to answer */
+@keyframes pb-consent-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 @keyframes pb-print-drop {
   0% { transform: translateY(-30px) scale(0.92) rotate(0deg); opacity: 0; }
   60% { transform: translateY(4px) scale(1.01) rotate(var(--pr, -2deg)); opacity: 1; }

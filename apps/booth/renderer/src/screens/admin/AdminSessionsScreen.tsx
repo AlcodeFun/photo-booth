@@ -23,6 +23,7 @@ import {
   formatTimestamp,
   OrganizePendingBadge,
   PrintBadge,
+  SocialConsentBadge,
   RefreshIcon,
   UploadBadge,
 } from '../../components/admin/StatusBadge';
@@ -284,6 +285,7 @@ const SessionRow: React.FC<SessionCardProps> = ({
         <div className="flex flex-wrap gap-1.5">
           <UploadBadge status={session.upload_status} />
           {link.pending ? <OrganizePendingBadge /> : <PrintBadge status={session.print_status} />}
+          <SocialConsentBadge consent={session.social_consent} />
         </div>
       </td>
       <td className="px-3 py-2">
@@ -473,6 +475,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
         <div className="flex flex-wrap gap-1.5">
           <UploadBadge status={session.upload_status} />
           {link.pending ? <OrganizePendingBadge /> : <PrintBadge status={session.print_status} />}
+          <SocialConsentBadge consent={session.social_consent} />
         </div>
       </div>
     </div>

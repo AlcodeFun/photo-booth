@@ -40,6 +40,8 @@ export interface SessionRecord {
   flow_mode: SessionFlowMode;
   /** Event the session belongs to (null = unassigned). */
   event_id: string | null;
+  /** Guest's social media consent: true = Ya, false = Tidak, null = not asked / no answer. */
+  social_consent: boolean | null;
 }
 
 const isSessionUploadStatus = (value: unknown): SessionUploadStatus =>
@@ -72,6 +74,7 @@ const mapSessionRow = (row: Record<string, unknown>): SessionRecord => ({
   meta: (row.meta ?? {}) as Record<string, unknown>,
   flow_mode: isSessionFlowMode(row.flow_mode),
   event_id: typeof row.event_id === 'string' ? row.event_id : null,
+  social_consent: typeof row.social_consent === 'boolean' ? row.social_consent : null,
 });
 
 /** Session print status values produced by the booth (store/PRINT_QR). */
@@ -138,6 +141,8 @@ export const updateSessionRecord = (
     download_url?: string;
     meta?: Record<string, unknown>;
     flow_mode?: SessionFlowMode;
+    social_consent?: boolean;
+    social_consent_at?: string;
   },
 ): void => {
   persistGuard(
