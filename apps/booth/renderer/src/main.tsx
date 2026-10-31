@@ -84,7 +84,10 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
       }
       return;
     }
-    navigator.serviceWorker.register('./sw.js').catch(() => {
+    // Root-absolute over http(s): './sw.js' would resolve against nested routes
+    // (/admin/sesi -> /admin/sw.js) and register a second, /admin-scoped worker.
+    const swUrl = location.protocol.startsWith('http') ? '/sw.js' : './sw.js';
+    navigator.serviceWorker.register(swUrl).catch(() => {
       // Service workers are unavailable on file:// (Electron) - safe to ignore.
     });
   });
