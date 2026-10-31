@@ -2,7 +2,16 @@
   RewriteEngine On
   RewriteBase /
 
-  RewriteCond %{REQUEST_FILENAME} !-f
-  RewriteCond %{REQUEST_FILENAME} !-d
+  # Serve real files/dirs as-is
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Vite builds with base './', so a refresh on a nested route (/admin/setup,
+  # /organize/<token>) requests assets relative to that route. Map them back.
+  RewriteRule ^(?:.+/)?(assets|icons|brand|photos|frame-templates)/(.+)$ /$1/$2 [L]
+  RewriteRule ^(?:.+/)?(manifest\.webmanifest|manifest-admin\.webmanifest|sw\.js|favicon\.svg)$ /$1 [L]
+
+  # SPA fallback
   RewriteRule . /index.html [L]
 </IfModule>

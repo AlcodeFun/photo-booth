@@ -2,6 +2,13 @@ name = "photo-booth-gallery"
 main = "src/index.ts"
 compatibility_date = "2025-05-01"
 
+# Custom domain (ruangkelana.com zone is on Cloudflare). The workers.dev URL
+# stays enabled so links/QR codes from older sessions keep working.
+workers_dev = true
+routes = [
+  { pattern = "gallery.ruangkelana.com", custom_domain = true }
+]
+
 # Create the bucket first: `wrangler r2 bucket create photo-booth-gallery`
 # Then update bucket_name to match your account's bucket if you renamed it.
 [[r2_buckets]]
