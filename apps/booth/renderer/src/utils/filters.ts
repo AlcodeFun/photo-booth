@@ -27,6 +27,8 @@ export const FILTERS: FilterOption[] = [
   { id: 'cyber', name: 'Cyber', className: '', canvasFilter: 'hue-rotate(200deg) saturate(1.5) contrast(1.1)' },
   { id: 'mono', name: 'Mono', className: 'grayscale', canvasFilter: 'grayscale(1)' },
   { id: 'noir', name: 'Noir', className: '', canvasFilter: 'grayscale(1) contrast(1.45) brightness(0.95)' },
+  // Classic photo-strip look: brown-toned black & white with deep shadows.
+  { id: 'booth', name: 'Vintage Booth', className: '', canvasFilter: 'grayscale(1) sepia(0.65) saturate(0.9) contrast(1.5) brightness(0.8)' },
 ];
 
 export const getFilterById = (id: string | null | undefined): FilterOption =>
