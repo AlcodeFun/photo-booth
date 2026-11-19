@@ -26,9 +26,10 @@ const kelanaLogo = (className: string): string =>
  * Built for the guest's phone (they arrive by scanning the booth QR): the
  * framed print is the hero with one "save" action, the animated versions sit
  * under it, then every raw photo. Tapping any picture opens a swipeable
- * viewer. On touch devices saving goes through the phone's share sheet
- * (navigator.share with files) so guests can "Save image" straight to their
- * photo library; desktops download the file, or a ZIP for several. The page
+ * viewer. On iPhone/iPad saving goes through the share sheet (navigator.share
+ * with files) so guests can "Save Image" straight to Photos; Android downloads
+ * each file directly (it lands in the phone's gallery); desktops download the
+ * file, or a ZIP for several. The page
  * polls the Worker while the booth is still producing outputs, then stops.
  * No external CDNs.
  */
@@ -241,9 +242,15 @@ const QR = ${qrJson};
 const RETENTION_DAYS = ${RETENTION_DAYS};
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
-// Phones save through the share sheet ("Simpan gambar" lands in the photo
-// library); desktops download files instead.
+// iPhone/iPad save through the share sheet ("Simpan Gambar" lands in Photos):
+// Safari has no direct download to the photo library. Android's share sheet
+// has no "save" target (only apps like WhatsApp), so Android downloads the
+// file directly, where it shows up in the phone's gallery. Desktops download
+// too, several files as one ZIP.
 const IS_TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
 
 const ICON = {
   dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>',
@@ -320,7 +327,7 @@ function toast(message, action) {
 }
 
 // ---------------------------------------------------------------------------
-// Saving: share sheet on phones, download / ZIP on desktop
+// Saving: share sheet on iOS, direct download on Android, download / ZIP on desktop
 // ---------------------------------------------------------------------------
 function downloadUrl(url, name) {
   const a = document.createElement('a');
@@ -478,7 +485,7 @@ async function saveItems(items, btn, zipName) {
   ui.noteError = null;
   renderNote();
 
-  if (IS_TOUCH && navigator.canShare) {
+  if (IS_IOS && navigator.canShare) {
     const restore = setBusy(btn, 'Menyiapkan…');
     let files;
     try {
@@ -506,6 +513,18 @@ async function saveItems(items, btn, zipName) {
 
   if (items.length === 1) {
     downloadUrl(items[0].url, items[0].name);
+    return;
+  }
+  if (IS_ANDROID) {
+    // A ZIP never reaches the gallery app on Android, so each file is
+    // downloaded on its own (Chrome asks once to allow multiple downloads).
+    const restore = setBusy(btn, 'Mengunduh…');
+    for (let i = 0; i < items.length; i++) {
+      downloadUrl(items[i].url, items[i].name);
+      if (i < items.length - 1) await new Promise(function (r) { setTimeout(r, 600); });
+    }
+    restore();
+    toast(items.length + ' file diunduh ke galeri');
     return;
   }
   const restore = setBusy(btn, 'Menyiapkan 0 / ' + items.length);
