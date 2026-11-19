@@ -16,6 +16,7 @@ import { generateQrDataUrl } from '../../utils/qr';
 import { APP_URL, GALLERY_URL } from '../../config';
 import { dropPendingUploads } from '../../lib/uploadJob';
 import { trackPrintToken } from '../../lib/organize';
+import { downloadBlob } from '../../lib/voucherCard';
 import { BoothOutputSettings, savedPrinterSettings, useBoothConfig } from '../../store/boothConfigStore';
 import { ConfirmModal } from '../../components/admin/Modal';
 import { PrintSessionModal } from '../../components/admin/PrintSessionModal';
@@ -31,6 +32,7 @@ import {
   UploadBadge,
 } from '../../components/admin/StatusBadge';
 import {
+  IconDownload,
   IconEye,
   IconGif,
   IconImage,
@@ -539,12 +541,39 @@ const SessionCard: React.FC<SessionCardProps> = ({
   );
 };
 
+/** framed.png is the print sheet (stored as JPEG); name it by capture time + token. */
+const framedFileName = (session: SessionRecord, blob: Blob): string => {
+  const d = new Date(session.created_at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const stamp = Number.isNaN(d.getTime())
+    ? 'unknown'
+    : `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
+  const ext = blob.type === 'image/png' ? 'png' : 'jpg';
+  return `framed-${stamp}-${session.token.slice(0, 8)}.${ext}`;
+};
+
+/** A session's framed sheet: the booth's local copy first, else the gallery. */
+const loadFramedBlob = async (session: SessionRecord): Promise<Blob | null> => {
+  const local = await getUploadedBlob(session.token, 'framed.png');
+  if (local) return local;
+  const url = sessionFileUrl(session.token, 'framed.png');
+  if (!url) return null;
+  try {
+    const response = await fetch(url);
+    return response.ok ? await response.blob() : null;
+  } catch {
+    return null;
+  }
+};
+
 export const AdminSessionsScreen: React.FC = () => {
   const [sessions, setSessions] = useState<SessionRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  /** Bulk framed download progress, e.g. "3 / 12"; null when idle. */
+  const [downloadProgress, setDownloadProgress] = useState<string | null>(null);
   const [printTarget, setPrintTarget] = useState<SessionRecord | null>(null);
   const [printBusy, setPrintBusy] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -770,6 +799,58 @@ export const AdminSessionsScreen: React.FC = () => {
     }
   };
 
+  /**
+   * Downloads the framed sheet of every selected session: one file for a single
+   * session, a ZIP for several. Sessions without a framed sheet yet (e.g. a
+   * timed session nobody arranged) are skipped and reported.
+   */
+  const handleDownloadFramed = async () => {
+    const targets = sessions.filter((session) => selected.has(session.token));
+    if (targets.length === 0) return;
+    setError(null);
+    setDownloadProgress(`0 / ${targets.length}`);
+    try {
+      const files: { name: string; blob: Blob }[] = [];
+      let done = 0;
+      // A few at a time: fast on the booth's local cache, gentle on the gallery.
+      const queue = targets.slice();
+      const worker = async () => {
+        for (let session = queue.shift(); session; session = queue.shift()) {
+          const blob = await loadFramedBlob(session);
+          if (blob) files.push({ name: framedFileName(session, blob), blob });
+          done += 1;
+          setDownloadProgress(`${done} / ${targets.length}`);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(4, targets.length) }, worker));
+
+      const skipped = targets.length - files.length;
+      if (files.length === 0) {
+        setError(`None of the ${targets.length} selected session${targets.length === 1 ? ' has' : 's have'} a framed photo yet.`);
+        return;
+      }
+      if (files.length === 1) {
+        downloadBlob(files[0].blob, files[0].name);
+      } else {
+        const { zipSync } = await import('fflate');
+        const entries: Record<string, Uint8Array> = {};
+        for (const file of files) entries[file.name] = new Uint8Array(await file.blob.arrayBuffer());
+        // JPEG/PNG are already compressed: store them as-is.
+        const zipped = zipSync(entries, { level: 0 });
+        const day = new Date().toISOString().slice(0, 10);
+        downloadBlob(new Blob([zipped], { type: 'application/zip' }), `framed-${files.length}-sessions-${day}.zip`);
+      }
+      setNotice(
+        `Downloaded ${files.length} framed photo${files.length === 1 ? '' : 's'}` +
+          (skipped > 0 ? `; ${skipped} session${skipped === 1 ? ' has' : 's have'} no framed photo yet.` : '.'),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Download failed');
+    } finally {
+      setDownloadProgress(null);
+    }
+  };
+
   const handleDelete = async () => {
     setDeleteBusy(true);
     const tokens = Array.from(selected);
@@ -981,6 +1062,17 @@ export const AdminSessionsScreen: React.FC = () => {
           >
             Events
           </button>
+          {selected.size > 0 && (
+            <button
+              onClick={() => void handleDownloadFramed()}
+              disabled={downloadProgress !== null}
+              className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-white/85 transition hover:bg-white/10 disabled:opacity-60"
+              title="Download the framed photo of each selected session (ZIP for more than one)"
+            >
+              <IconDownload className="h-4 w-4" />
+              {downloadProgress ? `Downloading ${downloadProgress}…` : `Download ${selected.size} framed`}
+            </button>
+          )}
           {selected.size > 0 && (
             <button
               onClick={() => setDeleteOpen(true)}

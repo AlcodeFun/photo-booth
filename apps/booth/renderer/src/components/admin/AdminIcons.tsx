@@ -98,6 +98,13 @@ export const IconUpload: React.FC<IconProps> = ({ className }) => (
   </Icon>
 );
 
+export const IconDownload: React.FC<IconProps> = ({ className }) => (
+  <Icon className={className}>
+    <path d="M12 3v12m0 0l-4-4m4 4l4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </Icon>
+);
+
 export const IconPrinter: React.FC<IconProps> = ({ className }) => (
   <Icon className={className}>
     <path d="M7 8V4h10v4M7 20h10v-6H7v6z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
